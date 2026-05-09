@@ -128,7 +128,7 @@
                 android:id="@+id/buttonExportPluginOutputs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Export Plugin Outputs" />
+                android:text="Generate Plugin Files" />
 
             <LinearLayout
                 android:id="@+id/pluginsContainer"
@@ -176,7 +176,7 @@
                 android:id="@+id/checkRealDeployEnabled"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Enable Real Deploy" />
+                android:text="Write to Real Target Folder" />
 
             <Button
                 android:id="@+id/buttonLoadSelectedGameConfig"
@@ -194,13 +194,30 @@
                 android:id="@+id/buttonDeployCurrentState"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Deploy Current State" />
+                android:text="Deploy Current Setup" />
 
             <Button
                 android:id="@+id/buttonDeploySkyrim"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Deploy Skyrim" />
+                android:text="Deploy to Skyrim" />
+
+            <TextView
+                android:id="@+id/textDangerZone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Recovery"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Reset App Data clears imported mods, staging, saved state, configs, and exported plugin files."
+                android:textSize="14sp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/textDangerZone"
