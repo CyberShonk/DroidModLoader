@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var checkRealDeployEnabled: CheckBox
     private lateinit var textSelectedTreeUri: TextView
 
+    private lateinit var textStatusBanner: TextView
+
     private var developerTapCount = 0
     private var developerModeEnabled = false
     private var lastOperationStatus = "No operations yet."
@@ -94,6 +96,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -112,6 +116,7 @@ class MainActivity : ComponentActivity() {
 
     private fun appendLog(message: String) {
         Log.d(TAG, message)
+        appendLogToFile(message)
         runOnUiThread {
             logTextView.append(message + "\n")
         }
@@ -120,8 +125,10 @@ class MainActivity : ComponentActivity() {
     private fun appendError(message: String, throwable: Throwable? = null) {
         if (throwable != null) {
             Log.e(TAG, message, throwable)
+            appendLogToFile("ERROR: $message\n${Log.getStackTraceString(throwable)}")
         } else {
             Log.e(TAG, message)
+            appendLogToFile("ERROR: $message")
         }
 
         runOnUiThread {
@@ -1322,22 +1329,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleImportedArchive(uri: Uri) {
-        appendLog("----- Import ZIP Workflow Start -----")
+        appendLog("----- Import Archive Workflow Start -----")
 
         val engine = createModEngineForWorkflows() ?: return
         val externalBaseDir = getExternalFilesDir(null)
         if (externalBaseDir == null) {
             appendError("External files directory is null")
             appendLog("RESULT: FAIL")
-            appendLog("----- Import ZIP Workflow End -----")
+            updateLastOperationStatus("Import archive failed: external files directory is null.")
+            appendLog("----- Import Archive Workflow End -----")
             return
         }
 
         val importsDir = File(externalBaseDir, "imports")
         importsDir.mkdirs()
 
-        val importedArchive = File(importsDir, "imported_mod.zip")
-
+        val fileName = queryDisplayName(uri) ?: "imported_mod"
+        val sanitizedName = fileName.replace(Regex("""[^\w.\- ]"""), "_")
+        val importedArchive = File(importsDir, sanitizedName)
 
         try {
             copyUriToAppFile(uri, importedArchive)
@@ -1352,21 +1361,23 @@ class MainActivity : ComponentActivity() {
             val installedMod = engine.installArchiveWithRecord(
                 archive = importedArchive,
                 priority = nextPriority,
-                sourceType = "imported_zip"
+                sourceType = "imported_archive"
             )
 
             val savedMods = engine.saveInstalledModsFromFolders()
+            appendLog("Installed imported mod: $installedMod")
             appendLog("Saved installed mod count after import: ${savedMods.size}")
 
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Import archive succeeded.")
         } catch (e: Exception) {
-            appendError("Import ZIP workflow failed: ${e.message}", e)
+            appendError("Import archive workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Import archive failed: ${e.message}")
         }
 
         refreshDashboard()
-
-        appendLog("----- Import ZIP Workflow End -----")
+        appendLog("----- Import Archive Workflow End -----")
     }
 
     private fun normalizePriorities(mods: List<Mod>): List<Mod> {
@@ -1696,12 +1707,29 @@ class MainActivity : ComponentActivity() {
 
         val highestPriorityMod = mods.lastOrNull()?.name ?: "None"
 
+        val skyrimConfig = engine.getGameDeploymentConfig("skyrim_le")
+        val deployMode = when {
+            skyrimConfig == null -> "Simulated"
+            skyrimConfig.realDeployEnabled && !skyrimConfig.targetTreeUri.isNullOrBlank() -> "Tree URI"
+            skyrimConfig.realDeployEnabled && engine.validateTargetDataPath(skyrimConfig.targetDataPath) -> "Real Path"
+            else -> "Simulated"
+        }
+
+        val targetStatus = when {
+            skyrimConfig == null -> "Not configured"
+            !skyrimConfig.targetTreeUri.isNullOrBlank() -> "Folder selected"
+            skyrimConfig.targetDataPath.isNotBlank() -> skyrimConfig.targetDataPath
+            else -> "Not configured"
+        }
+
         val summaryText = buildString {
             appendLine("Installed mods: $installedCount")
             appendLine("Enabled mods: $enabledCount")
             appendLine("Plugins: ${plugins.size}")
             appendLine("State source: $stateSourceText")
             appendLine("Highest priority mod: $highestPriorityMod")
+            appendLine("Deploy mode: $deployMode")
+            appendLine("Target: $targetStatus")
             appendLine("Last operation: $lastOperationStatus")
         }
 
@@ -2726,10 +2754,16 @@ class MainActivity : ComponentActivity() {
         val enabledMods = mods.count { it.enabled }
         val enabledPlugins = plugins.count { it.enabled }
 
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        val versionName = packageInfo.versionName ?: "unknown"
+        val versionCode = packageInfo.longVersionCode
+
         return buildString {
             appendLine("=== Droid Mod Loader Diagnostic Summary ===")
             appendLine()
-            appendLine("App Version: 0.1 Beta")
+            appendLine("App Version: $versionName ($versionCode)")
+            appendLine("Display Version: 0.1 Beta")
+            appendLine("Package: $packageName")
             appendLine("Android Version: ${android.os.Build.VERSION.RELEASE}")
             appendLine("Device: ${android.os.Build.MODEL}")
             appendLine()
@@ -2768,10 +2802,17 @@ class MainActivity : ComponentActivity() {
 
     private fun shareLogs() {
         val summary = buildDiagnosticSummary()
+        val externalBaseDir = getExternalFilesDir(null)
+        val logFileText = if (externalBaseDir != null) {
+            val logFile = File(File(externalBaseDir, "logs"), "session_log.txt")
+            if (logFile.exists()) logFile.readText() else "(no persistent log file)"
+        } else {
+            "(external files dir unavailable)"
+        }
 
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, summary)
+            putExtra(Intent.EXTRA_TEXT, summary + "\n\n=== Persistent Log File ===\n" + logFileText)
             type = "text/plain"
         }
 
@@ -2780,6 +2821,9 @@ class MainActivity : ComponentActivity() {
 
     private fun updateLastOperationStatus(status: String) {
         lastOperationStatus = status
+        runOnUiThread {
+            textStatusBanner.text = status
+        }
     }
 
     private fun bindCoreViews() {
@@ -2793,6 +2837,7 @@ class MainActivity : ComponentActivity() {
         editTargetPath = findViewById(R.id.editTargetPath)
         checkRealDeployEnabled = findViewById(R.id.checkRealDeployEnabled)
         textSelectedTreeUri = findViewById(R.id.textSelectedTreeUri)
+        textStatusBanner = findViewById(R.id.textStatusBanner)
     }
 
     private fun setupDeveloperUnlock() {
@@ -3036,7 +3081,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun queryDisplayName(uri: Uri): String? {
+        val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
 
+        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) {
+                return cursor.getString(nameIndex)
+            }
+        }
 
+        return null
+    }
+
+    private fun appendLogToFile(message: String) {
+        try {
+            val externalBaseDir = getExternalFilesDir(null) ?: return
+            val logDir = File(externalBaseDir, "logs")
+            val logFile = File(logDir, "session_log.txt")
+
+            logDir.mkdirs()
+            logFile.appendText(message + "\n")
+        } catch (_: Exception) {
+        }
+    }
 
 }

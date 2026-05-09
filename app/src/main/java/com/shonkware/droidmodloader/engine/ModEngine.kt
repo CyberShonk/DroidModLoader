@@ -225,6 +225,21 @@ class ModEngine(
             if (stagingDir.exists()) stagingDir.deleteRecursively()
             if (importsDir.exists()) importsDir.deleteRecursively()
             if (stateFile.exists()) stateFile.delete()
+            if (gameConfigFile.exists()) {
+                gameConfigFile.delete()
+            }
+
+            if (pluginListFile.exists()) {
+                pluginListFile.delete()
+            }
+
+            if (pluginsTxtFile.exists()) {
+                pluginsTxtFile.delete()
+            }
+
+            if (loadorderTxtFile.exists()) {
+                loadorderTxtFile.delete()
+            }
             if (deployRootDir.exists()) {
                 deployRootDir.deleteRecursively()
             }

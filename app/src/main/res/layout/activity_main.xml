@@ -23,6 +23,14 @@
         android:paddingBottom="12dp" />
 
     <TextView
+        android:id="@+id/textStatusBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ready."
+        android:textStyle="bold"
+        android:paddingBottom="12dp" />
+
+    <TextView
         android:id="@+id/summaryTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -37,6 +45,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Summary will appear here."
+        android:textSize="14sp"
+        android:paddingBottom="12dp" />
+
+    <TextView
+        android:id="@+id/textQuickStart"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Quick start:\n1. Pick target folder\n2. Import archive\n3. Discover plugins\n4. Deploy current state\n5. If something fails, copy diagnostic summary"
         android:textSize="14sp"
         android:paddingBottom="12dp" />
 
@@ -166,13 +182,13 @@
                 android:id="@+id/buttonLoadSelectedGameConfig"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Load Selected Game Config" />
+                android:text="Load Game Settings" />
 
             <Button
                 android:id="@+id/buttonSaveSelectedGameConfig"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Save Selected Game Config" />
+                android:text="Save Game Settings" />
 
             <Button
                 android:id="@+id/buttonDeployCurrentState"
@@ -185,6 +201,23 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Deploy Skyrim" />
+
+            <TextView
+                android:id="@+id/textDangerZone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Recovery"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Reset App Data clears imported mods, staging, saved state, configs, and exported plugin files."
+                android:textSize="14sp"
+                android:paddingBottom="8dp" />
 
             <Button
                 android:id="@+id/buttonResetAppData"
