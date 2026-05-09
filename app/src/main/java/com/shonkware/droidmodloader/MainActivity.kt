@@ -1,38 +1,41 @@
 package com.shonkware.droidmodloader
 
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
+import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
-import java.io.File
-import com.shonkware.droidmodloader.engine.util.PathUtils
-import com.shonkware.droidmodloader.engine.io.FileScanner
-import com.shonkware.droidmodloader.engine.model.FileRecord
-import com.shonkware.droidmodloader.engine.model.Mod
-import com.shonkware.droidmodloader.engine.model.ModFile
-import com.shonkware.droidmodloader.engine.model.ModType
-import com.shonkware.droidmodloader.engine.conflict.ConflictResolver
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.build.DiffEngine
 import com.shonkware.droidmodloader.engine.build.FileChange
 import com.shonkware.droidmodloader.engine.build.StagingManager
+import com.shonkware.droidmodloader.engine.conflict.ConflictResolver
 import com.shonkware.droidmodloader.engine.data.ModStateRepository
-import com.shonkware.droidmodloader.engine.ModEngine
+import com.shonkware.droidmodloader.engine.io.FileScanner
 import com.shonkware.droidmodloader.engine.model.DeployScope
+import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
+import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.engine.model.ModFile
+import com.shonkware.droidmodloader.engine.model.ModType
+import com.shonkware.droidmodloader.engine.model.PluginEntry
+import com.shonkware.droidmodloader.engine.util.PathUtils
+import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import android.net.Uri
-import androidx.activity.result.contract.ActivityResultContracts
-import android.widget.LinearLayout
-import android.app.AlertDialog
-import android.widget.ArrayAdapter
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.Spinner
-import android.content.Intent
-import androidx.documentfile.provider.DocumentFile
-import com.shonkware.droidmodloader.engine.model.PluginEntry
 
 
 class MainActivity : ComponentActivity() {
@@ -42,11 +45,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var logTextView: TextView
+    private lateinit var summaryTextView: TextView
+    private lateinit var installedModsContainer: LinearLayout
+    private lateinit var pluginsContainer: LinearLayout
+    private lateinit var developerToolsContainer: LinearLayout
+
     private lateinit var spinnerGameConfig: Spinner
     private lateinit var editTargetPath: EditText
     private lateinit var checkRealDeployEnabled: CheckBox
-
     private lateinit var textSelectedTreeUri: TextView
+
+    private var developerTapCount = 0
+    private var developerModeEnabled = false
+    private var lastOperationStatus = "No operations yet."
 
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -57,15 +68,9 @@ class MainActivity : ComponentActivity() {
         }
 
         runInBackground {
-            handleImportedZip(uri)
+            handleImportedArchive(uri)
         }
     }
-    private lateinit var installedModsContainer: LinearLayout
-    private lateinit var summaryTextView: TextView
-    private lateinit var lessonToolsContainer: LinearLayout
-    private var lessonToolsVisible = true
-
-    private lateinit var pluginsContainer: LinearLayout
 
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -80,6 +85,7 @@ class MainActivity : ComponentActivity() {
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
+
             runInBackground {
                 savePickedFolderToSelectedGameConfig(uri.toString())
             }
@@ -92,250 +98,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        logTextView = findViewById(R.id.logTextView)
-        installedModsContainer = findViewById(R.id.installedModsContainer)
-        summaryTextView = findViewById(R.id.summaryTextView)
-        lessonToolsContainer = findViewById(R.id.lessonToolsContainer)
-
-        spinnerGameConfig = findViewById(R.id.spinnerGameConfig)
-        editTargetPath = findViewById(R.id.editTargetPath)
-        checkRealDeployEnabled = findViewById(R.id.checkRealDeployEnabled)
-
-        textSelectedTreeUri = findViewById(R.id.textSelectedTreeUri)
-        pluginsContainer = findViewById(R.id.pluginsContainer)
-
-        val buttonRefreshPluginsPanel: Button = findViewById(R.id.buttonRefreshPluginsPanel)
-        val buttonSaveDiscoveredPlugins: Button = findViewById(R.id.buttonSaveDiscoveredPlugins)
-
-        val buttonTargetFolderPickerTest: Button = findViewById(R.id.buttonTargetFolderPickerTest)
-
-
-
-        val buttonPickTargetFolder: Button = findViewById(R.id.buttonPickTargetFolder)
-
-        val buttonLoadSelectedGameConfig: Button = findViewById(R.id.buttonLoadSelectedGameConfig)
-        val buttonSaveSelectedGameConfig: Button = findViewById(R.id.buttonSaveSelectedGameConfig)
-
-        val buttonRefreshDashboard: Button = findViewById(R.id.buttonRefreshDashboard)
-        val buttonToggleLessonTools: Button = findViewById(R.id.buttonToggleLessonTools)
-        val buttonRefreshModsPanel: Button = findViewById(R.id.buttonRefreshModsPanel)
-        val buttonSmokeTest: Button = findViewById(R.id.buttonSmokeTest)
-        val buttonPathUtilsTest: Button = findViewById(R.id.buttonPathUtilsTest)
-        val buttonScannerTest: Button = findViewById(R.id.buttonScannerTest)
-        val buttonConflictTest: Button = findViewById(R.id.buttonConflictTest)
-        val buttonStagingTest: Button = findViewById(R.id.buttonStagingTest)
-        val buttonDiffTest: Button = findViewById(R.id.buttonDiffTest)
-        val buttonClearLog: Button = findViewById(R.id.buttonClearLog)
-        val buttonStateTest: Button = findViewById(R.id.buttonStateTest)
-        val buttonEngineTest: Button = findViewById(R.id.buttonEngineTest)
-        val buttonInstallArchiveWorkflow: Button = findViewById(R.id.buttonInstallArchiveWorkflow)
-        val buttonInstallLooseWorkflow: Button = findViewById(R.id.buttonInstallLooseWorkflow)
-        val buttonListInstalledMods: Button = findViewById(R.id.buttonListInstalledMods)
-        val buttonSaveInstalledMods: Button = findViewById(R.id.buttonSaveInstalledMods)
-        val buttonLoadSavedMods: Button = findViewById(R.id.buttonLoadSavedMods)
-        val buttonRebuildInstalledStaging: Button = findViewById(R.id.buttonRebuildInstalledStaging)
-        val buttonImportZip: Button = findViewById(R.id.buttonImportZip)
-        val buttonDeleteModTest: Button = findViewById(R.id.buttonDeleteModTest)
-        val buttonResetAppData: Button = findViewById(R.id.buttonResetAppData)
-        val buttonInstalledRecordTest: Button = findViewById(R.id.buttonInstalledRecordTest)
-        val buttonDeployScopeTest: Button = findViewById(R.id.buttonDeployScopeTest)
-        val buttonDeployCurrentState: Button = findViewById(R.id.buttonDeployCurrentState)
-        val buttonDeploymentManifestTest: Button = findViewById(R.id.buttonDeploymentManifestTest)
-        val buttonSaveGameConfig: Button = findViewById(R.id.buttonSaveGameConfig)
-        val buttonLoadGameConfig: Button = findViewById(R.id.buttonLoadGameConfig)
-        val buttonDeploySkyrim: Button = findViewById(R.id.buttonDeploySkyrim)
-        val buttonGameTargetTest: Button = findViewById(R.id.buttonGameTargetTest)
-        val buttonGameConfigEditorTest: Button = findViewById(R.id.buttonGameConfigEditorTest)
-        val buttonTreeUriDeployTest: Button = findViewById(R.id.buttonTreeUriDeployTest)
-
-        val buttonArchiveExtractorTest: Button = findViewById(R.id.buttonArchiveExtractorTest)
-
-        val buttonPluginDiscoveryTest: Button = findViewById(R.id.buttonPluginDiscoveryTest)
-
-        val buttonPluginEditTest: Button = findViewById(R.id.buttonPluginEditTest)
-
-        val buttonExportPluginOutputs: Button = findViewById(R.id.buttonExportPluginOutputs)
-        val buttonPluginOutputTest: Button = findViewById(R.id.buttonPluginOutputTest)
-
-        buttonPluginEditTest.setOnClickListener {
-            runInBackground { runPluginEditLessonTest() }
-        }
-
-        buttonPluginDiscoveryTest.setOnClickListener {
-            runInBackground { runPluginDiscoveryLessonTest() }
-        }
-
-        buttonArchiveExtractorTest.setOnClickListener {
-            runInBackground { runArchiveExtractorLessonTest() }
-        }
-
-        buttonTreeUriDeployTest.setOnClickListener {
-            runInBackground { runTreeUriDeployLessonTest() }
-        }
-
-        buttonGameConfigEditorTest.setOnClickListener {
-            runInBackground { runGameConfigEditorLessonTest() }
-        }
-
-        buttonSmokeTest.setOnClickListener {
-            runInBackground { runSmokeTest() }
-        }
-
-        buttonPathUtilsTest.setOnClickListener {
-            runInBackground { runPathUtilsLessonTest() }
-        }
-
-        buttonScannerTest.setOnClickListener {
-            runInBackground { runFileScannerLessonTest() }
-        }
-
-        buttonConflictTest.setOnClickListener {
-            runInBackground { runConflictResolverLessonTest() }
-        }
-
-        buttonStagingTest.setOnClickListener {
-            runInBackground { runStagingManagerLessonTest() }
-        }
-
-        buttonDiffTest.setOnClickListener {
-            runInBackground { runDiffEngineLessonTest() }
-        }
-
-        buttonStateTest.setOnClickListener {
-            runInBackground { runModStateLessonTest() }
-        }
-
-        buttonClearLog.setOnClickListener {
-            logTextView.text = ""
-        }
-
-        buttonEngineTest.setOnClickListener {
-            runInBackground { runModEngineLessonTest() }
-        }
-
-        buttonInstallArchiveWorkflow.setOnClickListener {
-            runInBackground { runInstallArchiveWorkflow() }
-        }
-
-        buttonInstallLooseWorkflow.setOnClickListener {
-            runInBackground { runInstallLooseWorkflow() }
-        }
-
-        buttonListInstalledMods.setOnClickListener {
-            runInBackground { runListInstalledModsWorkflow() }
-        }
-
-        buttonSaveInstalledMods.setOnClickListener {
-            runInBackground { runSaveInstalledModsWorkflow() }
-        }
-
-        buttonLoadSavedMods.setOnClickListener {
-            runInBackground { runLoadSavedModsWorkflow() }
-        }
-
-        buttonRebuildInstalledStaging.setOnClickListener {
-            runInBackground { runRebuildInstalledStagingWorkflow() }
-        }
-
-        buttonImportZip.setOnClickListener {
-            appendLog("Opening document picker...")
-            importZipLauncher.launch(arrayOf("*/*"))
-        }
-
-        buttonRefreshModsPanel.setOnClickListener {
-            runInBackground { refreshInstalledModsPanel() }
-        }
-
-        buttonDeleteModTest.setOnClickListener {
-            runInBackground { runDeleteModLessonTest() }
-        }
-
-        buttonResetAppData.setOnClickListener {
-            runInBackground { runResetAppDataWorkflow() }
-        }
-
-        buttonRefreshDashboard.setOnClickListener {
-            runInBackground { refreshDashboard() }
-        }
-
-        buttonToggleLessonTools.setOnClickListener {
-            lessonToolsVisible = !lessonToolsVisible
-            lessonToolsContainer.visibility =
-                if (lessonToolsVisible) android.view.View.VISIBLE else android.view.View.GONE
-
-            buttonToggleLessonTools.text =
-                if (lessonToolsVisible) "Hide Lesson / Test Tools" else "Show Lesson / Test Tools"
-        }
-
-        buttonInstalledRecordTest.setOnClickListener {
-            runInBackground { runInstalledRecordLessonTest() }
-        }
-
-        buttonDeployScopeTest.setOnClickListener {
-            runInBackground { runDeployScopeLessonTest() }
-        }
-
-        buttonDeployCurrentState.setOnClickListener {
-            runInBackground { runDeployCurrentStateWorkflow() }
-        }
-
-        buttonDeploymentManifestTest.setOnClickListener {
-            runInBackground { runDeploymentManifestLessonTest() }
-        }
-
-        buttonSaveGameConfig.setOnClickListener {
-            runInBackground { runSaveGameConfigWorkflow() }
-        }
-
-        buttonLoadGameConfig.setOnClickListener {
-            runInBackground { runLoadGameConfigWorkflow() }
-        }
-
-        buttonDeploySkyrim.setOnClickListener {
-            runInBackground { runDeploySkyrimWorkflow() }
-        }
-
-        buttonGameTargetTest.setOnClickListener {
-            runInBackground { runGameTargetLessonTest() }
-        }
-
-        buttonLoadSelectedGameConfig.setOnClickListener {
-            runInBackground { loadSelectedGameConfigIntoForm() }
-        }
-
-        buttonSaveSelectedGameConfig.setOnClickListener {
-            runInBackground { saveSelectedGameConfigFromForm() }
-        }
-
-        buttonPickTargetFolder.setOnClickListener {
-            pickTargetFolderLauncher.launch(null)
-        }
-
-        buttonTargetFolderPickerTest.setOnClickListener {
-            runInBackground { runTargetFolderPickerLessonTest() }
-        }
-
-        buttonRefreshPluginsPanel.setOnClickListener {
-            runInBackground { refreshPluginsPanel() }
-        }
-
-        buttonSaveDiscoveredPlugins.setOnClickListener {
-            runInBackground { runSaveDiscoveredPluginsWorkflow() }
-        }
-
-        buttonExportPluginOutputs.setOnClickListener {
-            runInBackground { runExportPluginOutputsWorkflow() }
-        }
-
-        buttonPluginOutputTest.setOnClickListener {
-            runInBackground { runPluginOutputLessonTest() }
-        }
-
-        runInBackground { refreshGameConfigSpinner() }
-
-        appendLog("UI ready. Use the workflow buttons or manage installed mods below.")
-        runInBackground { refreshDashboard() }
-
+        bindCoreViews()
+        setupDeveloperUnlock()
+        setupButtonListeners()
+        initializeUi()
     }
 
     private fun runInBackground(block: () -> Unit) {
@@ -1384,13 +1150,14 @@ class MainActivity : ComponentActivity() {
 
             appendLog("Installed archive mod: $mod")
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Install archive succeeded.")
         } catch (e: Exception) {
             appendError("Install archive workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Install archive failed: ${e.message}")
         }
 
         refreshDashboard()
-
         appendLog("----- Install Archive Workflow End -----")
     }
 
@@ -1419,13 +1186,14 @@ class MainActivity : ComponentActivity() {
             appendLog("Installed/generated loose mod: $looseMod")
             appendLog("Installed/generated loose mod: $overwriteMod")
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Install loose mods succeeded.")
         } catch (e: Exception) {
             appendError("Install loose workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Install loose mods failed: ${e.message}")
         }
 
         refreshDashboard()
-
         appendLog("----- Install Loose Mods Workflow End -----")
     }
 
@@ -1553,7 +1321,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun handleImportedZip(uri: Uri) {
+    private fun handleImportedArchive(uri: Uri) {
         appendLog("----- Import ZIP Workflow Start -----")
 
         val engine = createModEngineForWorkflows() ?: return
@@ -1568,20 +1336,21 @@ class MainActivity : ComponentActivity() {
         val importsDir = File(externalBaseDir, "imports")
         importsDir.mkdirs()
 
-        val importedZip = File(importsDir, "imported_mod.zip")
+        val importedArchive = File(importsDir, "imported_mod.zip")
+
 
         try {
-            copyUriToAppFile(uri, importedZip)
+            copyUriToAppFile(uri, importedArchive)
 
-            appendLog("Imported file copied to: ${importedZip.absolutePath}")
-            appendLog("Imported file exists: ${importedZip.exists()}")
-            appendLog("Imported file size: ${importedZip.length()} bytes")
+            appendLog("Imported file copied to: ${importedArchive.absolutePath}")
+            appendLog("Imported file exists: ${importedArchive.exists()}")
+            appendLog("Imported file size: ${importedArchive.length()} bytes")
 
             val existingMods = engine.getInstalledModsFromFolders()
             val nextPriority = if (existingMods.isEmpty()) 10 else (existingMods.maxOf { it.priority } + 10)
 
             val installedMod = engine.installArchiveWithRecord(
-                archive = importedZip,
+                archive = importedArchive,
                 priority = nextPriority,
                 sourceType = "imported_zip"
             )
@@ -1763,6 +1532,7 @@ class MainActivity : ComponentActivity() {
             if (!result.removed) {
                 appendError("Could not remove mod: $modId")
                 appendLog("RESULT: FAIL")
+                updateLastOperationStatus("Delete mod failed: could not remove $modId.")
                 appendLog("----- Delete Installed Mod Workflow End -----")
                 return
             }
@@ -1773,11 +1543,13 @@ class MainActivity : ComponentActivity() {
             appendLog("  Removes: ${result.removeCount}")
             appendLog("  Updates: ${result.updateCount}")
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Delete mod succeeded: ${result.removedModId}")
 
             refreshDashboard()
         } catch (e: Exception) {
             appendError("Delete installed mod workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Delete mod failed: ${e.message}")
         }
 
         appendLog("----- Delete Installed Mod Workflow End -----")
@@ -1865,6 +1637,7 @@ class MainActivity : ComponentActivity() {
         if (importsDir == null) {
             appendError("Imports directory could not be created.")
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Reset app data failed: imports directory could not be created.")
             appendLog("----- Reset App Data Workflow End -----")
             return
         }
@@ -1877,6 +1650,7 @@ class MainActivity : ComponentActivity() {
             if (!success) {
                 appendError("Engine reset failed.")
                 appendLog("RESULT: FAIL")
+                updateLastOperationStatus("Reset app data failed: engine reset failed.")
                 appendLog("----- Reset App Data Workflow End -----")
                 return
             }
@@ -1894,9 +1668,11 @@ class MainActivity : ComponentActivity() {
             refreshDashboard()
             appendLog("Installed mods panel refreshed.")
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Reset app data succeeded.")
         } catch (e: Exception) {
             appendError("Reset app data workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Reset app data failed: ${e.message}")
         }
 
         appendLog("----- Reset App Data Workflow End -----")
@@ -1906,6 +1682,8 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         val mods = engine.getCurrentMods().sortedBy { it.priority }
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
+
         val installedCount = mods.size
         val enabledCount = mods.count { it.enabled }
         val savedStateExists = engine.hasSavedState()
@@ -1921,8 +1699,10 @@ class MainActivity : ComponentActivity() {
         val summaryText = buildString {
             appendLine("Installed mods: $installedCount")
             appendLine("Enabled mods: $enabledCount")
+            appendLine("Plugins: ${plugins.size}")
             appendLine("State source: $stateSourceText")
             appendLine("Highest priority mod: $highestPriorityMod")
+            appendLine("Last operation: $lastOperationStatus")
         }
 
         runOnUiThread {
@@ -2073,6 +1853,7 @@ class MainActivity : ComponentActivity() {
             if (passed) {
                 appendLog("Deploy scope filtering worked.")
                 appendLog("RESULT: PASS")
+                updateLastOperationStatus("Install archive succeeded.")
             } else {
                 appendLog("Deploy scope filtering failed.")
                 appendLog("RESULT: FAIL")
@@ -2081,6 +1862,7 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             appendError("Deploy scope lesson test failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+
         }
 
         refreshDashboard()
@@ -2095,6 +1877,7 @@ class MainActivity : ComponentActivity() {
         if (externalBaseDir == null) {
             appendError("External files directory is null")
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Deploy current state failed: external files directory is null.")
             appendLog("----- Deploy Current State Workflow End -----")
             return
         }
@@ -2121,9 +1904,11 @@ class MainActivity : ComponentActivity() {
             }
 
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Deploy current state succeeded.")
         } catch (e: Exception) {
             appendError("Deploy current state workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Deploy current state failed: ${e.message}")
         }
 
         appendLog("----- Deploy Current State Workflow End -----")
@@ -2243,6 +2028,7 @@ class MainActivity : ComponentActivity() {
         if (externalBaseDir == null) {
             appendError("External files directory is null")
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Deploy Skyrim failed: external files directory is null.")
             appendLog("----- Deploy Skyrim Workflow End -----")
             return
         }
@@ -2276,9 +2062,11 @@ class MainActivity : ComponentActivity() {
             appendLog("Updates: ${result.updateCount}")
             appendLog("Final deployed file count: ${result.finalRecordCount}")
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Deploy Skyrim succeeded.")
         } catch (e: Exception) {
             appendError("Deploy Skyrim workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Deploy Skyrim failed: ${e.message}")
         }
 
         appendLog("----- Deploy Skyrim Workflow End -----")
@@ -2676,14 +2464,15 @@ class MainActivity : ComponentActivity() {
             }
 
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Save discovered plugins succeeded.")
         } catch (e: Exception) {
             appendError("Save discovered plugins workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Save discovered plugins failed: ${e.message}")
         }
 
         refreshPluginsPanel()
         appendLog("----- Save Discovered Plugins Workflow End -----")
-        appendLog("Discovered plugins are ready for export.")
     }
 
     private fun runPluginDiscoveryLessonTest() {
@@ -2853,6 +2642,7 @@ class MainActivity : ComponentActivity() {
         if (externalBaseDir == null) {
             appendError("External files directory is null")
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Export plugin outputs failed: external files directory is null.")
             appendLog("----- Export Plugin Outputs Workflow End -----")
             return
         }
@@ -2875,9 +2665,11 @@ class MainActivity : ComponentActivity() {
             appendLog(loadorderTxt.ifBlank { "(empty)" })
 
             appendLog("RESULT: PASS")
+            updateLastOperationStatus("Export plugin outputs succeeded.")
         } catch (e: Exception) {
             appendError("Export plugin outputs workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
+            updateLastOperationStatus("Export plugin outputs failed: ${e.message}")
         }
 
         appendLog("----- Export Plugin Outputs Workflow End -----")
@@ -2924,4 +2716,327 @@ class MainActivity : ComponentActivity() {
 
         appendLog("----- Plugin Output Lesson Test End -----")
     }
+
+    private fun buildDiagnosticSummary(): String {
+        val engine = createModEngineForWorkflows()
+
+        val mods = engine?.getCurrentMods() ?: emptyList()
+        val plugins = engine?.getCurrentPlugins() ?: emptyList()
+
+        val enabledMods = mods.count { it.enabled }
+        val enabledPlugins = plugins.count { it.enabled }
+
+        return buildString {
+            appendLine("=== Droid Mod Loader Diagnostic Summary ===")
+            appendLine()
+            appendLine("App Version: 0.1 Beta")
+            appendLine("Android Version: ${android.os.Build.VERSION.RELEASE}")
+            appendLine("Device: ${android.os.Build.MODEL}")
+            appendLine()
+            appendLine("Installed Mods: ${mods.size}")
+            appendLine("Enabled Mods: $enabledMods")
+            appendLine("Plugins: ${plugins.size}")
+            appendLine("Enabled Plugins: $enabledPlugins")
+            appendLine("Last Operation Status: $lastOperationStatus")
+            appendLine()
+            appendLine("Developer Mode Enabled: $developerModeEnabled")
+            appendLine()
+            appendLine("Current Logs:")
+            appendLine(logTextView.text.toString())
+        }
+    }
+
+    private fun copyDiagnosticSummary() {
+        val summary = buildDiagnosticSummary()
+
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(
+            "DroidModLoaderDiagnosticSummary",
+            summary
+        )
+
+        clipboard.setPrimaryClip(clip)
+
+        Toast.makeText(
+            this,
+            "Diagnostic summary copied.",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        appendLog("Diagnostic summary copied.")
+    }
+
+    private fun shareLogs() {
+        val summary = buildDiagnosticSummary()
+
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, summary)
+            type = "text/plain"
+        }
+
+        startActivity(Intent.createChooser(sendIntent, "Share Diagnostic Summary"))
+    }
+
+    private fun updateLastOperationStatus(status: String) {
+        lastOperationStatus = status
+    }
+
+    private fun bindCoreViews() {
+        developerToolsContainer = findViewById(R.id.developerToolsContainer)
+        logTextView = findViewById(R.id.logTextView)
+        summaryTextView = findViewById(R.id.summaryTextView)
+        installedModsContainer = findViewById(R.id.installedModsContainer)
+        pluginsContainer = findViewById(R.id.pluginsContainer)
+
+        spinnerGameConfig = findViewById(R.id.spinnerGameConfig)
+        editTargetPath = findViewById(R.id.editTargetPath)
+        checkRealDeployEnabled = findViewById(R.id.checkRealDeployEnabled)
+        textSelectedTreeUri = findViewById(R.id.textSelectedTreeUri)
+    }
+
+    private fun setupDeveloperUnlock() {
+        val textVersionLabel: TextView = findViewById(R.id.textVersionLabel)
+
+        textVersionLabel.setOnClickListener {
+            developerTapCount++
+
+            if (!developerModeEnabled && developerTapCount >= 7) {
+                developerModeEnabled = true
+                developerToolsContainer.visibility = View.VISIBLE
+
+                appendLog("Developer tools unlocked.")
+                Toast.makeText(this, "Developer tools enabled.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun initializeUi() {
+        runInBackground { refreshGameConfigSpinner() }
+        appendLog("UI ready.")
+        runInBackground { refreshDashboard() }
+    }
+
+    private fun setupButtonListeners() {
+        val buttonRefreshPluginsPanel: Button = findViewById(R.id.buttonRefreshPluginsPanel)
+        val buttonSaveDiscoveredPlugins: Button = findViewById(R.id.buttonSaveDiscoveredPlugins)
+        val buttonTargetFolderPickerTest: Button = findViewById(R.id.buttonTargetFolderPickerTest)
+        val buttonPickTargetFolder: Button = findViewById(R.id.buttonPickTargetFolder)
+        val buttonLoadSelectedGameConfig: Button = findViewById(R.id.buttonLoadSelectedGameConfig)
+        val buttonSaveSelectedGameConfig: Button = findViewById(R.id.buttonSaveSelectedGameConfig)
+        val buttonRefreshDashboard: Button = findViewById(R.id.buttonRefreshDashboard)
+        val buttonRefreshModsPanel: Button = findViewById(R.id.buttonRefreshModsPanel)
+        val buttonSmokeTest: Button = findViewById(R.id.buttonSmokeTest)
+        val buttonPathUtilsTest: Button = findViewById(R.id.buttonPathUtilsTest)
+        val buttonScannerTest: Button = findViewById(R.id.buttonScannerTest)
+        val buttonConflictTest: Button = findViewById(R.id.buttonConflictTest)
+        val buttonStagingTest: Button = findViewById(R.id.buttonStagingTest)
+        val buttonDiffTest: Button = findViewById(R.id.buttonDiffTest)
+        val buttonClearLog: Button = findViewById(R.id.buttonClearLog)
+        val buttonStateTest: Button = findViewById(R.id.buttonStateTest)
+        val buttonEngineTest: Button = findViewById(R.id.buttonEngineTest)
+        val buttonInstallArchiveWorkflow: Button = findViewById(R.id.buttonInstallArchiveWorkflow)
+        val buttonInstallLooseWorkflow: Button = findViewById(R.id.buttonInstallLooseWorkflow)
+        val buttonListInstalledMods: Button = findViewById(R.id.buttonListInstalledMods)
+        val buttonSaveInstalledMods: Button = findViewById(R.id.buttonSaveInstalledMods)
+        val buttonLoadSavedMods: Button = findViewById(R.id.buttonLoadSavedMods)
+        val buttonRebuildInstalledStaging: Button = findViewById(R.id.buttonRebuildInstalledStaging)
+        val buttonImportZip: Button = findViewById(R.id.buttonImportZip)
+        val buttonDeleteModTest: Button = findViewById(R.id.buttonDeleteModTest)
+        val buttonResetAppData: Button = findViewById(R.id.buttonResetAppData)
+        val buttonInstalledRecordTest: Button = findViewById(R.id.buttonInstalledRecordTest)
+        val buttonDeployScopeTest: Button = findViewById(R.id.buttonDeployScopeTest)
+        val buttonDeployCurrentState: Button = findViewById(R.id.buttonDeployCurrentState)
+        val buttonDeploymentManifestTest: Button = findViewById(R.id.buttonDeploymentManifestTest)
+        val buttonSaveGameConfig: Button = findViewById(R.id.buttonSaveGameConfig)
+        val buttonLoadGameConfig: Button = findViewById(R.id.buttonLoadGameConfig)
+        val buttonDeploySkyrim: Button = findViewById(R.id.buttonDeploySkyrim)
+        val buttonGameTargetTest: Button = findViewById(R.id.buttonGameTargetTest)
+        val buttonGameConfigEditorTest: Button = findViewById(R.id.buttonGameConfigEditorTest)
+        val buttonTreeUriDeployTest: Button = findViewById(R.id.buttonTreeUriDeployTest)
+        val buttonArchiveExtractorTest: Button = findViewById(R.id.buttonArchiveExtractorTest)
+        val buttonPluginDiscoveryTest: Button = findViewById(R.id.buttonPluginDiscoveryTest)
+        val buttonPluginEditTest: Button = findViewById(R.id.buttonPluginEditTest)
+        val buttonExportPluginOutputs: Button = findViewById(R.id.buttonExportPluginOutputs)
+        val buttonPluginOutputTest: Button = findViewById(R.id.buttonPluginOutputTest)
+        val buttonCopyDiagnosticSummary: Button = findViewById(R.id.buttonCopyDiagnosticSummary)
+        val buttonShareLogs: Button = findViewById(R.id.buttonShareLogs)
+
+        buttonPluginEditTest.setOnClickListener {
+            runInBackground { runPluginEditLessonTest() }
+        }
+
+        buttonPluginDiscoveryTest.setOnClickListener {
+            runInBackground { runPluginDiscoveryLessonTest() }
+        }
+
+        buttonArchiveExtractorTest.setOnClickListener {
+            runInBackground { runArchiveExtractorLessonTest() }
+        }
+
+        buttonTreeUriDeployTest.setOnClickListener {
+            runInBackground { runTreeUriDeployLessonTest() }
+        }
+
+        buttonGameConfigEditorTest.setOnClickListener {
+            runInBackground { runGameConfigEditorLessonTest() }
+        }
+
+        buttonSmokeTest.setOnClickListener {
+            runInBackground { runSmokeTest() }
+        }
+
+        buttonPathUtilsTest.setOnClickListener {
+            runInBackground { runPathUtilsLessonTest() }
+        }
+
+        buttonScannerTest.setOnClickListener {
+            runInBackground { runFileScannerLessonTest() }
+        }
+
+        buttonConflictTest.setOnClickListener {
+            runInBackground { runConflictResolverLessonTest() }
+        }
+
+        buttonStagingTest.setOnClickListener {
+            runInBackground { runStagingManagerLessonTest() }
+        }
+
+        buttonDiffTest.setOnClickListener {
+            runInBackground { runDiffEngineLessonTest() }
+        }
+
+        buttonStateTest.setOnClickListener {
+            runInBackground { runModStateLessonTest() }
+        }
+
+        buttonClearLog.setOnClickListener {
+            logTextView.text = ""
+        }
+
+        buttonEngineTest.setOnClickListener {
+            runInBackground { runModEngineLessonTest() }
+        }
+
+        buttonInstallArchiveWorkflow.setOnClickListener {
+            runInBackground { runInstallArchiveWorkflow() }
+        }
+
+        buttonInstallLooseWorkflow.setOnClickListener {
+            runInBackground { runInstallLooseWorkflow() }
+        }
+
+        buttonListInstalledMods.setOnClickListener {
+            runInBackground { runListInstalledModsWorkflow() }
+        }
+
+        buttonSaveInstalledMods.setOnClickListener {
+            runInBackground { runSaveInstalledModsWorkflow() }
+        }
+
+        buttonLoadSavedMods.setOnClickListener {
+            runInBackground { runLoadSavedModsWorkflow() }
+        }
+
+        buttonRebuildInstalledStaging.setOnClickListener {
+            runInBackground { runRebuildInstalledStagingWorkflow() }
+        }
+
+        buttonImportZip.setOnClickListener {
+            appendLog("Opening document picker...")
+            importZipLauncher.launch(arrayOf("*/*"))
+        }
+
+        buttonRefreshModsPanel.setOnClickListener {
+            runInBackground { refreshInstalledModsPanel() }
+        }
+
+        buttonDeleteModTest.setOnClickListener {
+            runInBackground { runDeleteModLessonTest() }
+        }
+
+        buttonResetAppData.setOnClickListener {
+            runInBackground { runResetAppDataWorkflow() }
+        }
+
+        buttonRefreshDashboard.setOnClickListener {
+            runInBackground { refreshDashboard() }
+        }
+
+        buttonInstalledRecordTest.setOnClickListener {
+            runInBackground { runInstalledRecordLessonTest() }
+        }
+
+        buttonDeployScopeTest.setOnClickListener {
+            runInBackground { runDeployScopeLessonTest() }
+        }
+
+        buttonDeployCurrentState.setOnClickListener {
+            runInBackground { runDeployCurrentStateWorkflow() }
+        }
+
+        buttonDeploymentManifestTest.setOnClickListener {
+            runInBackground { runDeploymentManifestLessonTest() }
+        }
+
+        buttonSaveGameConfig.setOnClickListener {
+            runInBackground { runSaveGameConfigWorkflow() }
+        }
+
+        buttonLoadGameConfig.setOnClickListener {
+            runInBackground { runLoadGameConfigWorkflow() }
+        }
+
+        buttonDeploySkyrim.setOnClickListener {
+            runInBackground { runDeploySkyrimWorkflow() }
+        }
+
+        buttonGameTargetTest.setOnClickListener {
+            runInBackground { runGameTargetLessonTest() }
+        }
+
+        buttonLoadSelectedGameConfig.setOnClickListener {
+            runInBackground { loadSelectedGameConfigIntoForm() }
+        }
+
+        buttonSaveSelectedGameConfig.setOnClickListener {
+            runInBackground { saveSelectedGameConfigFromForm() }
+        }
+
+        buttonPickTargetFolder.setOnClickListener {
+            pickTargetFolderLauncher.launch(null)
+        }
+
+        buttonTargetFolderPickerTest.setOnClickListener {
+            runInBackground { runTargetFolderPickerLessonTest() }
+        }
+
+        buttonRefreshPluginsPanel.setOnClickListener {
+            runInBackground { refreshPluginsPanel() }
+        }
+
+        buttonSaveDiscoveredPlugins.setOnClickListener {
+            runInBackground { runSaveDiscoveredPluginsWorkflow() }
+        }
+
+        buttonExportPluginOutputs.setOnClickListener {
+            runInBackground { runExportPluginOutputsWorkflow() }
+        }
+
+        buttonPluginOutputTest.setOnClickListener {
+            runInBackground { runPluginOutputLessonTest() }
+        }
+
+        buttonCopyDiagnosticSummary.setOnClickListener {
+            copyDiagnosticSummary()
+        }
+
+        buttonShareLogs.setOnClickListener {
+            shareLogs()
+        }
+    }
+
+
+
+
 }

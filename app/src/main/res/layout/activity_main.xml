@@ -6,20 +6,30 @@
     android:padding="12dp">
 
     <TextView
-        android:id="@+id/titleText"
+        android:id="@+id/textAppTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Droid Mod Loader Test Panel"
-        android:textSize="20sp"
+        android:text="Droid Mod Loader"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:paddingBottom="4dp" />
+
+    <TextView
+        android:id="@+id/textVersionLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Version 0.1 Beta"
+        android:textSize="14sp"
         android:paddingBottom="12dp" />
 
     <TextView
         android:id="@+id/summaryTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Current App State"
+        android:text="Status"
         android:textSize="18sp"
-        android:paddingTop="12dp"
+        android:textStyle="bold"
+        android:paddingTop="4dp"
         android:paddingBottom="8dp" />
 
     <TextView
@@ -36,8 +46,6 @@
         android:layout_height="wrap_content"
         android:text="Refresh Dashboard" />
 
-
-
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -53,16 +61,23 @@
                 android:id="@+id/installedModsTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Installed Mods"
+                android:text="Mods"
                 android:textSize="18sp"
+                android:textStyle="bold"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp" />
+
+            <Button
+                android:id="@+id/buttonImportZip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Import Archive" />
 
             <Button
                 android:id="@+id/buttonRefreshModsPanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Refresh Installed Mods Panel" />
+                android:text="Refresh Mods" />
 
             <LinearLayout
                 android:id="@+id/installedModsContainer"
@@ -77,20 +92,27 @@
                 android:layout_height="wrap_content"
                 android:text="Plugins"
                 android:textSize="18sp"
+                android:textStyle="bold"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp" />
-
-            <Button
-                android:id="@+id/buttonRefreshPluginsPanel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Refresh Plugins Panel" />
 
             <Button
                 android:id="@+id/buttonSaveDiscoveredPlugins"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Discover And Save Plugins" />
+                android:text="Discover Plugins" />
+
+            <Button
+                android:id="@+id/buttonRefreshPluginsPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Refresh Plugins" />
+
+            <Button
+                android:id="@+id/buttonExportPluginOutputs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Export Plugin Outputs" />
 
             <LinearLayout
                 android:id="@+id/pluginsContainer"
@@ -103,89 +125,9 @@
                 android:id="@+id/workflowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Real App Workflows"
+                android:text="Deployment And Settings"
                 android:textSize="18sp"
-                android:paddingTop="12dp"
-                android:paddingBottom="8dp" />
-
-            <Button
-                android:id="@+id/buttonListInstalledMods"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="List Installed Mods" />
-
-            <Button
-                android:id="@+id/buttonExportPluginOutputs"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Export Plugin Outputs" />
-
-            <Button
-                android:id="@+id/buttonImportZip"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Import ZIP From Device" />
-
-            <Button
-                android:id="@+id/buttonSaveInstalledMods"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save Installed Mods" />
-
-            <Button
-                android:id="@+id/buttonLoadSavedMods"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Load Saved Mods" />
-
-            <Button
-                android:id="@+id/buttonRebuildInstalledStaging"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Rebuild Staging From Installed Mods" />
-            
-            <Button
-                android:id="@+id/buttonInstallArchiveWorkflow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Install Test Archive Mod" />
-
-            <Button
-                android:id="@+id/buttonInstallLooseWorkflow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Install Loose Test Mods" />
-
-            <Button
-                android:id="@+id/buttonDeployCurrentState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Deploy Current State" />
-
-            <Button
-                android:id="@+id/buttonSaveGameConfig"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Save Game Configs" />
-
-            <Button
-                android:id="@+id/buttonLoadGameConfig"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Load Game Configs" />
-
-            <Button
-                android:id="@+id/buttonDeploySkyrim"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Deploy Skyrim" />
-
-            <TextView
-                android:id="@+id/gameConfigTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Game Deployment Config"
-                android:textSize="18sp"
+                android:textStyle="bold"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp" />
 
@@ -233,31 +175,68 @@
                 android:text="Save Selected Game Config" />
 
             <Button
+                android:id="@+id/buttonDeployCurrentState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Deploy Current State" />
+
+            <Button
+                android:id="@+id/buttonDeploySkyrim"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Deploy Skyrim" />
+
+            <Button
                 android:id="@+id/buttonResetAppData"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Reset App Data" />
 
             <TextView
-                android:id="@+id/lessonTitle"
+                android:id="@+id/textReportSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Lesson / Test Tools"
+                android:text="Report And Diagnostics"
                 android:textSize="18sp"
+                android:textStyle="bold"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp" />
 
             <Button
-                android:id="@+id/buttonToggleLessonTools"
+                android:id="@+id/buttonCopyDiagnosticSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Hide Lesson / Test Tools" />
+                android:text="Copy Diagnostic Summary" />
+
+            <Button
+                android:id="@+id/buttonShareLogs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Share Logs" />
+
+            <TextView
+                android:id="@+id/logTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:text="Log output will appear here..."
+                android:textSize="14sp" />
 
             <LinearLayout
-                android:id="@+id/lessonToolsContainer"
+                android:id="@+id/developerToolsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingTop="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Developer Tools"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp" />
 
                 <Button
                     android:id="@+id/buttonDeleteModTest"
@@ -379,23 +358,60 @@
                     android:layout_height="wrap_content"
                     android:text="Run Plugin Output Test" />
 
+                <Button
+                    android:id="@+id/buttonListInstalledMods"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="List Installed Mods" />
+
+                <Button
+                    android:id="@+id/buttonSaveInstalledMods"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Save Installed Mods" />
+
+                <Button
+                    android:id="@+id/buttonLoadSavedMods"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Load Saved Mods" />
+
+                <Button
+                    android:id="@+id/buttonRebuildInstalledStaging"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Rebuild Staging From Installed Mods" />
+
+                <Button
+                    android:id="@+id/buttonInstallArchiveWorkflow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Install Test Archive Mod" />
+
+                <Button
+                    android:id="@+id/buttonInstallLooseWorkflow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Install Loose Test Mods" />
+
+                <Button
+                    android:id="@+id/buttonSaveGameConfig"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Save Game Configs" />
+
+                <Button
+                    android:id="@+id/buttonLoadGameConfig"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Load Game Configs" />
+
+                <Button
+                    android:id="@+id/buttonClearLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Clear Log" />
             </LinearLayout>
-
-
-            <Button
-                android:id="@+id/buttonClearLog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Clear Log" />
-
-            <TextView
-                android:id="@+id/logTextView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="12dp"
-                android:text="Log output will appear here..."
-                android:textSize="14sp" />
         </LinearLayout>
     </ScrollView>
-
 </LinearLayout>
