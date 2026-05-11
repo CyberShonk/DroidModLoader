@@ -1,5 +1,6 @@
 package com.shonkware.droidmodloader.engine.install
 
+import android.util.Log
 import java.io.File
 
 class ModInstaller(
@@ -8,8 +9,20 @@ class ModInstaller(
     private val registry: ArchiveExtractorRegistry = ArchiveExtractorRegistry()
 ) {
 
+    companion object {
+        private const val TAG = "DroidModLoader"
+    }
+
     fun installArchive(archive: File): File {
+        Log.d(TAG, "ModInstaller.installArchive start: ${archive.absolutePath}")
+        Log.d(TAG, "Archive exists=${archive.exists()} size=${archive.length()} extension=${archive.extension}")
+
         val extractor = registry.findExtractor(archive)
-        return extractor.extract(archive, tempDir, modsDir)
+        Log.d(TAG, "Using extractor: ${extractor::class.java.simpleName}")
+
+        val result = extractor.extract(archive, tempDir, modsDir)
+
+        Log.d(TAG, "ModInstaller.installArchive success: ${result.absolutePath}")
+        return result
     }
 }

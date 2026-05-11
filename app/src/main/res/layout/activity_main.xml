@@ -219,23 +219,6 @@
                 android:textSize="14sp"
                 android:paddingBottom="8dp" />
 
-            <TextView
-                android:id="@+id/textDangerZone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Recovery"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:paddingTop="12dp"
-                android:paddingBottom="8dp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Reset App Data clears imported mods, staging, saved state, configs, and exported plugin files."
-                android:textSize="14sp"
-                android:paddingBottom="8dp" />
-
             <Button
                 android:id="@+id/buttonResetAppData"
                 android:layout_width="match_parent"

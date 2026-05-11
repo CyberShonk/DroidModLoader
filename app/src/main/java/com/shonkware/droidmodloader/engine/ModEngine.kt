@@ -488,7 +488,8 @@ class ModEngine(
     }
 
     fun discoverPluginsFromCurrentMods(): List<PluginEntry> {
-        return pluginDiscovery.discoverPlugins(getCurrentMods())
+        val winningRecords = getCurrentWinningRecords()
+        return pluginDiscovery.discoverPluginsFromWinningRecords(winningRecords)
     }
 
     fun saveDiscoveredPlugins(): List<PluginEntry> {

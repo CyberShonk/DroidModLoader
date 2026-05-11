@@ -1,49 +1,41 @@
 package com.shonkware.droidmodloader.engine.plugins
 
-import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.PluginEntry
-import java.io.File
 
 class PluginDiscovery {
 
-    fun discoverPlugins(mods: List<Mod>): List<PluginEntry> {
+    fun discoverPluginsFromWinningRecords(winningRecords: List<FileRecord>): List<PluginEntry> {
+        val pluginRecords = winningRecords
+            .filter { isPluginPath(it.normalizedPath) }
+            .sortedBy { it.normalizedPath.lowercase() }
+
         val results = mutableListOf<PluginEntry>()
         var nextPriority = 10
 
-        val sortedMods = mods
-            .filter { it.enabled }
-            .sortedBy { it.priority }
+        for (record in pluginRecords) {
+            val pluginName = record.normalizedPath.substringAfterLast("/")
 
-        for (mod in sortedMods) {
-            val modDir = File(mod.installPath)
-            if (!modDir.exists() || !modDir.isDirectory) continue
-
-            val pluginFiles = modDir.walkTopDown()
-                .filter { it.isFile }
-                .filter { isPluginFile(it.name) }
-                .sortedBy { it.name.lowercase() }
-                .toList()
-
-            for (pluginFile in pluginFiles) {
-                results.add(
-                    PluginEntry(
-                        pluginName = pluginFile.name,
-                        sourceModId = mod.id,
-                        sourceModName = mod.name,
-                        enabled = true,
-                        priority = nextPriority,
-                        pluginType = detectPluginType(pluginFile.name)
-                    )
+            results.add(
+                PluginEntry(
+                    normalizedPath = record.normalizedPath,
+                    pluginName = pluginName,
+                    sourceModId = record.winningModId,
+                    sourceModName = record.winningModName,
+                    enabled = true,
+                    priority = nextPriority,
+                    pluginType = detectPluginType(pluginName)
                 )
-                nextPriority += 10
-            }
+            )
+
+            nextPriority += 10
         }
 
         return results
     }
 
-    private fun isPluginFile(fileName: String): Boolean {
-        val lower = fileName.lowercase()
+    private fun isPluginPath(normalizedPath: String): Boolean {
+        val lower = normalizedPath.lowercase()
         return lower.endsWith(".esp") || lower.endsWith(".esm") || lower.endsWith(".esl")
     }
 

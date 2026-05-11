@@ -2429,21 +2429,21 @@ class MainActivity : ComponentActivity() {
         val toggleButton = Button(this).apply {
             text = if (plugin.enabled) "Disable" else "Enable"
             setOnClickListener {
-                runInBackground { togglePluginEnabled(plugin.pluginName) }
+                runInBackground { togglePluginEnabled(plugin.normalizedPath) }
             }
         }
 
         val upButton = Button(this).apply {
             text = "Up"
             setOnClickListener {
-                runInBackground { movePluginUp(plugin.pluginName) }
+                runInBackground { movePluginUp(plugin.normalizedPath) }
             }
         }
 
         val downButton = Button(this).apply {
             text = "Down"
             setOnClickListener {
-                runInBackground { movePluginDown(plugin.pluginName) }
+                runInBackground { movePluginDown(plugin.normalizedPath) }
             }
         }
 
@@ -2543,13 +2543,13 @@ class MainActivity : ComponentActivity() {
         appendLog("----- Plugin Discovery Lesson Test End -----")
     }
 
-    private fun togglePluginEnabled(pluginName: String) {
+    private fun togglePluginEnabled(normalizedPath: String) {
         val engine = createModEngineForWorkflows() ?: return
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
 
-        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
         if (index == -1) {
-            appendError("Could not find plugin: $pluginName")
+            appendError("Could not find plugin: $normalizedPath")
             return
         }
 
@@ -2557,17 +2557,17 @@ class MainActivity : ComponentActivity() {
         val normalized = engine.normalizePluginPriorities(plugins)
         engine.saveCurrentPlugins(normalized)
 
-        appendLog("Toggled plugin enabled state for $pluginName")
+        appendLog("Toggled plugin enabled state for ${plugins[index].pluginName}")
         refreshPluginsPanel()
     }
 
-    private fun movePluginUp(pluginName: String) {
+    private fun movePluginUp(normalizedPath: String) {
         val engine = createModEngineForWorkflows() ?: return
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
 
-        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
         if (index <= 0) {
-            appendLog("Cannot move plugin up: $pluginName")
+            appendLog("Cannot move plugin up: $normalizedPath")
             return
         }
 
@@ -2578,17 +2578,17 @@ class MainActivity : ComponentActivity() {
         val normalized = engine.normalizePluginPriorities(plugins)
         engine.saveCurrentPlugins(normalized)
 
-        appendLog("Moved plugin up: $pluginName")
+        appendLog("Moved plugin up: ${plugins[index - 1].pluginName}")
         refreshPluginsPanel()
     }
 
-    private fun movePluginDown(pluginName: String) {
+    private fun movePluginDown(normalizedPath: String) {
         val engine = createModEngineForWorkflows() ?: return
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
 
-        val index = plugins.indexOfFirst { it.pluginName == pluginName }
+        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
         if (index == -1 || index >= plugins.lastIndex) {
-            appendLog("Cannot move plugin down: $pluginName")
+            appendLog("Cannot move plugin down: $normalizedPath")
             return
         }
 
@@ -2599,7 +2599,7 @@ class MainActivity : ComponentActivity() {
         val normalized = engine.normalizePluginPriorities(plugins)
         engine.saveCurrentPlugins(normalized)
 
-        appendLog("Moved plugin down: $pluginName")
+        appendLog("Moved plugin down: ${plugins[index + 1].pluginName}")
         refreshPluginsPanel()
     }
 

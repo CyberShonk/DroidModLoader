@@ -14,6 +14,7 @@ class PluginListRepository(
 
         for (entry in entries) {
             val obj = JSONObject()
+            obj.put("normalizedPath", entry.normalizedPath)
             obj.put("pluginName", entry.pluginName)
             obj.put("sourceModId", entry.sourceModId)
             obj.put("sourceModName", entry.sourceModName)
@@ -41,6 +42,7 @@ class PluginListRepository(
 
             results.add(
                 PluginEntry(
+                    normalizedPath = obj.optString("normalizedPath", ""),
                     pluginName = obj.optString("pluginName", ""),
                     sourceModId = obj.optString("sourceModId", ""),
                     sourceModName = obj.optString("sourceModName", ""),
