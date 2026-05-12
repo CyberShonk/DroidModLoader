@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
         runInBackground {
             refreshGameOptions()
             loadSelectedGameConfigIntoUi()
+            migratePrioritySpacingIfNeeded()
             refreshDashboard()
         }
         appendLog("UI ready.")
@@ -301,7 +302,7 @@ class MainActivity : ComponentActivity() {
             appendLog("About to install imported archive using engine...")
 
             val existingMods = engine.getInstalledModsFromFolders()
-            val nextPriority = if (existingMods.isEmpty()) 10 else (existingMods.maxOf { it.priority } + 10)
+            val nextPriority = if (existingMods.isEmpty()) 1 else (existingMods.maxOf { it.priority } + 1)
 
             val installedMod = engine.installArchiveWithRecord(
                 archive = importedArchive,
@@ -329,8 +330,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun normalizePriorities(mods: List<Mod>): List<Mod> {
-        return mods.mapIndexed { index, mod ->
-            mod.copy(priority = (index + 1) * 10)
+        return mods.sortedBy { it.priority }.mapIndexed { index, mod ->
+            mod.copy(priority = index + 1)
         }
     }
 
@@ -703,8 +704,6 @@ class MainActivity : ComponentActivity() {
             appendLog("Selected game: $selectedGameId")
             appendLog("Active config: $config")
 
-            syncPluginsFromCurrentState(engine)
-
             val result = engine.deployForGame(selectedGameId)
 
             val usingRealDeploy = config != null && config.realDeployEnabled
@@ -746,17 +745,24 @@ class MainActivity : ComponentActivity() {
         val previous = engine.loadPlugins().associateBy { it.normalizedPath }
         val discovered = engine.discoverPluginsFromCurrentMods()
 
-        val merged = discovered.mapIndexed { index, plugin ->
+        val newPluginsStartPriority = ((previous.values.maxOfOrNull { it.priority } ?: 0) + 1)
+
+        var nextNewPriority = newPluginsStartPriority
+
+        val merged = discovered.map { plugin ->
             val existing = previous[plugin.normalizedPath]
+
             if (existing != null) {
                 plugin.copy(
                     enabled = existing.enabled,
                     priority = existing.priority
                 )
             } else {
-                plugin.copy(priority = (index + 1) * 10)
+                val newPlugin = plugin.copy(priority = nextNewPriority)
+                nextNewPriority += 1
+                newPlugin
             }
-        }
+        }.sortedBy { it.priority }
 
         val normalized = engine.normalizePluginPriorities(merged)
         engine.saveCurrentPlugins(normalized)
@@ -840,7 +846,7 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         try {
-            syncPluginsFromCurrentState(engine)
+
 
             val (pluginsTxt, loadorderTxt) = engine.exportCurrentPluginOutputs()
 
@@ -859,6 +865,28 @@ class MainActivity : ComponentActivity() {
         }
 
         appendLog("----- Write Load Order Files Workflow End -----")
+    }
+
+    private fun migratePrioritySpacingIfNeeded() {
+        val engine = createModEngineForWorkflows() ?: return
+
+        val mods = engine.getCurrentMods().sortedBy { it.priority }
+        val normalizedMods = mods.mapIndexed { index, mod ->
+            mod.copy(priority = index + 1)
+        }
+
+        if (mods != normalizedMods) {
+            engine.saveCurrentMods(normalizedMods)
+            appendLog("Migrated mod priorities to sequential 1-based ordering.")
+        }
+
+        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
+        val normalizedPlugins = engine.normalizePluginPriorities(plugins)
+
+        if (plugins != normalizedPlugins) {
+            engine.saveCurrentPlugins(normalizedPlugins)
+            appendLog("Migrated plugin priorities to sequential 1-based ordering.")
+        }
     }
 }
 

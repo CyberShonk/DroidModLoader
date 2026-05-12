@@ -11,7 +11,7 @@ class PluginDiscovery {
             .sortedBy { it.normalizedPath.lowercase() }
 
         val results = mutableListOf<PluginEntry>()
-        var nextPriority = 10
+        var nextPriority = 1
 
         for (record in pluginRecords) {
             val pluginName = record.normalizedPath.substringAfterLast("/")
@@ -28,7 +28,7 @@ class PluginDiscovery {
                 )
             )
 
-            nextPriority += 10
+            nextPriority += 1
         }
 
         return results

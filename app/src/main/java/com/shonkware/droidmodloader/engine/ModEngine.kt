@@ -141,7 +141,7 @@ class ModEngine(
                 name = modDir.name,
                 installPath = modDir.absolutePath,
                 enabled = true,
-                priority = (index + 1) * 10,
+                priority = index + 1,
                 modType = detectModType(modDir)
             )
         }
@@ -168,7 +168,7 @@ class ModEngine(
     }
 
     fun saveCurrentMods(mods: List<Mod>) {
-        saveMods(mods.sortedBy { it.priority })
+        saveMods(normalizeModPriorities(mods))
     }
 
     fun rebuildStagingFromCurrentState(): List<FileRecord> {
@@ -192,7 +192,7 @@ class ModEngine(
         val remainingMods = currentMods
             .filterNot { it.id == modId }
             .mapIndexed { index, mod ->
-                mod.copy(priority = (index + 1) * 10)
+                mod.copy(priority = index + 1)
             }
 
         saveCurrentMods(remainingMods)
@@ -525,7 +525,7 @@ class ModEngine(
 
     fun normalizePluginPriorities(plugins: List<PluginEntry>): List<PluginEntry> {
         return plugins.sortedBy { it.priority }.mapIndexed { index, plugin ->
-            plugin.copy(priority = (index + 1) * 10)
+            plugin.copy(priority = index + 1)
         }
     }
 
@@ -560,5 +560,11 @@ class ModEngine(
 
     fun readExportedLoadorderTxt(): String {
         return pluginOutputRepository.readLoadorderTxt()
+    }
+
+    fun normalizeModPriorities(mods: List<Mod>): List<Mod> {
+        return mods.sortedBy { it.priority }.mapIndexed { index, mod ->
+            mod.copy(priority = index + 1)
+        }
     }
 }
