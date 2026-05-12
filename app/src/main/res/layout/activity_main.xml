@@ -193,16 +193,10 @@
                 android:text="Save Game Settings" />
 
             <Button
-                android:id="@+id/buttonDeployCurrentState"
+                android:id="@+id/buttonDeployMods"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Deploy Current Setup" />
-
-            <Button
-                android:id="@+id/buttonDeploySkyrim"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Deploy to Skyrim" />
+                android:text="Deploy Mods" />
 
             <TextView
                 android:id="@+id/textDangerZone"
@@ -428,6 +422,18 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Install Loose Test Mods" />
+
+                <Button
+                    android:id="@+id/buttonDeployCurrentState"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Deploy Current Setup" />
+
+                <Button
+                    android:id="@+id/buttonDeploySkyrim"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Deploy to Skyrim" />
 
                 <Button
                     android:id="@+id/buttonSaveGameConfig"
