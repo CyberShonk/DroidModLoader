@@ -1354,6 +1354,7 @@ class MainActivity : ComponentActivity() {
             appendLog("Imported file copied to: ${importedArchive.absolutePath}")
             appendLog("Imported file exists: ${importedArchive.exists()}")
             appendLog("Imported file size: ${importedArchive.length()} bytes")
+            appendLog("About to install imported archive using engine...")
 
             val existingMods = engine.getInstalledModsFromFolders()
             val nextPriority = if (existingMods.isEmpty()) 10 else (existingMods.maxOf { it.priority } + 10)
@@ -1364,16 +1365,19 @@ class MainActivity : ComponentActivity() {
                 sourceType = "imported_archive"
             )
 
+            appendLog("Archive install returned successfully.")
             val savedMods = engine.saveInstalledModsFromFolders()
+
             appendLog("Installed imported mod: $installedMod")
             appendLog("Saved installed mod count after import: ${savedMods.size}")
 
             appendLog("RESULT: PASS")
             updateLastOperationStatus("Import archive succeeded.")
-        } catch (e: Exception) {
-            appendError("Import archive workflow failed: ${e.message}", e)
+        } catch (t: Throwable) {
+            appendError("Import archive workflow failed: ${t.message}", t)
+            appendLog("CRASH TYPE: ${t::class.java.name}")
             appendLog("RESULT: FAIL")
-            updateLastOperationStatus("Import archive failed: ${e.message}")
+            updateLastOperationStatus("Import archive failed: ${t.message}")
         }
 
         refreshDashboard()

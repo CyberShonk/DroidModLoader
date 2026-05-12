@@ -11,6 +11,8 @@ class SevenZipArchiveExtractor : ArchiveExtractor {
     companion object {
         private const val TAG = "DroidModLoader"
         private const val BUFFER_SIZE = 64 * 1024
+        private const val MIN_MEMORY_LIMIT_KIB = 96 * 1024
+        private const val SAFETY_MARGIN_KIB = 64 * 1024
     }
 
     override fun supports(archive: File): Boolean {
@@ -25,50 +27,56 @@ class SevenZipArchiveExtractor : ArchiveExtractor {
             throw IOException("Could not create extract folder: ${extractFolder.absolutePath}")
         }
 
-        Log.d(TAG, "7z temp extract folder: ${extractFolder.absolutePath}")
-
-        extractSevenZip(archive, extractFolder)
-
-        Log.d(TAG, "7z extraction complete. Normalizing extracted structure...")
-        val normalizedRoot = normalizeExtractedStructure(extractFolder)
-        Log.d(TAG, "Normalized root: ${normalizedRoot.absolutePath}")
-
         val modName = archive.nameWithoutExtension
         val finalDir = File(modsDir, modName)
 
-        if (finalDir.exists()) {
-            Log.d(TAG, "Final mod dir already exists. Deleting: ${finalDir.absolutePath}")
-            finalDir.deleteRecursively()
+        try {
+            Log.d(TAG, "7z temp extract folder: ${extractFolder.absolutePath}")
+            extractSevenZip(archive, extractFolder)
+
+            Log.d(TAG, "7z extraction complete. Normalizing extracted structure...")
+            val normalizedRoot = normalizeExtractedStructure(extractFolder)
+            Log.d(TAG, "Normalized root: ${normalizedRoot.absolutePath}")
+
+            if (finalDir.exists()) {
+                Log.d(TAG, "Final mod dir already exists. Deleting: ${finalDir.absolutePath}")
+                finalDir.deleteRecursively()
+            }
+
+            moveOrCopyNormalizedRoot(normalizedRoot, finalDir)
+
+            Log.d(TAG, "SevenZipArchiveExtractor.extract success: ${finalDir.absolutePath}")
+            return finalDir
+        } catch (t: Throwable) {
+            if (finalDir.exists()) {
+                finalDir.deleteRecursively()
+            }
+            throw IOException("7z install failed for ${archive.name}: ${t.message}", t)
+        } finally {
+            if (extractFolder.exists()) {
+                extractFolder.deleteRecursively()
+            }
         }
-
-        Log.d(TAG, "Copying normalized root to final mod dir...")
-        normalizedRoot.copyRecursively(finalDir, overwrite = true)
-
-        Log.d(TAG, "Deleting temp extract folder...")
-        extractFolder.deleteRecursively()
-
-        Log.d(TAG, "SevenZipArchiveExtractor.extract success: ${finalDir.absolutePath}")
-        return finalDir
     }
 
     private fun extractSevenZip(archiveFile: File, outputDir: File) {
         Log.d(TAG, "Opening 7z archive: ${archiveFile.absolutePath}")
 
-        SevenZFile(archiveFile).use { sevenZ ->
+        openSevenZFile(archiveFile).use { sevenZ ->
             var entry: SevenZArchiveEntry? = sevenZ.nextEntry
             var entryCount = 0
 
             while (entry != null) {
                 entryCount++
 
-                try {
-                    val entryName = entry.name ?: throw IOException("7z entry name was null")
-                    if (entryName.isBlank()) {
-                        Log.w(TAG, "Skipping blank 7z entry name at index $entryCount")
-                        entry = sevenZ.nextEntry
-                        continue
-                    }
+                val entryName = entry.name ?: throw IOException("7z entry name was null")
+                if (entryName.isBlank()) {
+                    Log.w(TAG, "Skipping blank 7z entry name at index $entryCount")
+                    entry = sevenZ.nextEntry
+                    continue
+                }
 
+                try {
                     Log.d(
                         TAG,
                         "7z entry #$entryCount: name=$entryName isDirectory=${entry.isDirectory} size=${entry.size}"
@@ -102,7 +110,7 @@ class SevenZipArchiveExtractor : ArchiveExtractor {
                                     }
 
                                     if (read == 0) {
-                                        break
+                                        continue
                                     }
 
                                     fos.write(buffer, 0, read)
@@ -120,9 +128,8 @@ class SevenZipArchiveExtractor : ArchiveExtractor {
                             fos.flush()
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "7z extraction failed on entry: ${entry.name}", e)
-                    throw e
+                } catch (t: Throwable) {
+                    throw IOException("7z extraction failed on entry '$entryName': ${t.message}", t)
                 }
 
                 entry = sevenZ.nextEntry
@@ -130,6 +137,37 @@ class SevenZipArchiveExtractor : ArchiveExtractor {
 
             Log.d(TAG, "7z archive processed. Entry count=$entryCount")
         }
+    }
+
+    private fun openSevenZFile(archiveFile: File): SevenZFile {
+        val memoryLimitKiB = computeMemoryLimitKiB()
+        Log.d(TAG, "Opening SevenZFile with memoryLimitKiB=$memoryLimitKiB")
+
+        return SevenZFile.builder()
+            .setFile(archiveFile)
+            .setUseDefaultNameForUnnamedEntries(true)
+            .setMaxMemoryLimitKiB(memoryLimitKiB)
+            .get()
+    }
+
+    private fun computeMemoryLimitKiB(): Int {
+        val maxHeapKiB = (Runtime.getRuntime().maxMemory() / 1024L)
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
+
+        return (maxHeapKiB - SAFETY_MARGIN_KIB).coerceAtLeast(MIN_MEMORY_LIMIT_KIB)
+    }
+
+    private fun moveOrCopyNormalizedRoot(normalizedRoot: File, finalDir: File) {
+        Log.d(TAG, "Moving normalized root into final dir: ${finalDir.absolutePath}")
+
+        if (normalizedRoot.renameTo(finalDir)) {
+            Log.d(TAG, "renameTo succeeded for normalized root.")
+            return
+        }
+
+        Log.d(TAG, "renameTo failed, falling back to copyRecursively.")
+        normalizedRoot.copyRecursively(finalDir, overwrite = true)
     }
 
     private fun safeResolve(root: File, relativePath: String): File {

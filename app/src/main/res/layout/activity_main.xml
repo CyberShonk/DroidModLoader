@@ -156,7 +156,9 @@
                 android:id="@+id/editTargetPath"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Target Data Path" />
+                android:hint="target data path"
+                android:inputType="textUri"
+                android:importantForAutofill="no" />
 
             <TextView
                 android:id="@+id/textSelectedTreeUri"

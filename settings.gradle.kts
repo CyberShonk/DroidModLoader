@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Droid(Mod Loader"
+rootProject.name = "Droid Mod Loader"
 include(":app")

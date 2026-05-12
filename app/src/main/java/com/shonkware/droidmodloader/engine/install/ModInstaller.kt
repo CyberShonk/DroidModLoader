@@ -2,6 +2,7 @@ package com.shonkware.droidmodloader.engine.install
 
 import android.util.Log
 import java.io.File
+import java.io.IOException
 
 class ModInstaller(
     private val tempDir: File,
@@ -20,9 +21,13 @@ class ModInstaller(
         val extractor = registry.findExtractor(archive)
         Log.d(TAG, "Using extractor: ${extractor::class.java.simpleName}")
 
-        val result = extractor.extract(archive, tempDir, modsDir)
-
-        Log.d(TAG, "ModInstaller.installArchive success: ${result.absolutePath}")
-        return result
+        return try {
+            extractor.extract(archive, tempDir, modsDir)
+        } catch (t: Throwable) {
+            throw IOException(
+                "Archive install failed for ${archive.name} using ${extractor::class.java.simpleName}: ${t.message}",
+                t
+            )
+        }
     }
 }
