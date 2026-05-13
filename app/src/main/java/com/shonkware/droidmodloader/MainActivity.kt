@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,8 @@ import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
 import com.shonkware.droidmodloader.engine.profile.ProfileRepository
 import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.AppSetupState
+import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -30,15 +33,30 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "DroidModLoader"
     }
 
+    private enum class FolderPickMode {
+        ActiveProfile,
+        NewProfile
+    }
+
+    private var folderPickMode by mutableStateOf(FolderPickMode.ActiveProfile)
     private var setupComplete by mutableStateOf(false)
     private var activeProfileId by mutableStateOf<String?>(null)
     private var profileNameText by mutableStateOf("Default")
     private var profileOptions by mutableStateOf<List<GameProfile>>(emptyList())
     private var activeProfileName by mutableStateOf("No profile")
+    private var showProfileDialog by mutableStateOf(false)
     private var setupGameId by mutableStateOf("skyrim_le")
     private var setupGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
     private var setupTargetPathText by mutableStateOf("")
     private var setupRealDeployEnabled by mutableStateOf(false)
+    private var operationInProgress by mutableStateOf(false)
+    private var activeOperationText by mutableStateOf("")
+
+    private var newProfileNameText by mutableStateOf("")
+    private var newProfileGameId by mutableStateOf("skyrim_le")
+    private var newProfileGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
+    private var newProfileTreeUriText by mutableStateOf("No folder selected")
+    private var newProfileRealDeployEnabled by mutableStateOf(false)
 
     private var developerTapCount = 0
     private var developerModeEnabled by mutableStateOf(false)
@@ -54,6 +72,13 @@ class MainActivity : ComponentActivity() {
     private var targetPathText by mutableStateOf("")
     private var selectedTreeUriText by mutableStateOf("No folder selected")
     private var realDeployEnabledState by mutableStateOf(false)
+
+    private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
+    private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
+    private var showInstallerDialog by mutableStateOf(false)
+    private var installerDialogFullscreen by mutableStateOf(false)
+
+    private var visibleModContentIndexes by mutableStateOf<Map<String, ModContentIndex>>(emptyMap())
 
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -82,8 +107,21 @@ class MainActivity : ComponentActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
 
+            val uriString = uri.toString()
+
             runInBackground {
-                savePickedFolderToSelectedGameConfig(uri.toString())
+                when (folderPickMode) {
+                    FolderPickMode.ActiveProfile -> {
+                        savePickedFolderToSelectedGameConfig(uriString)
+                    }
+
+                    FolderPickMode.NewProfile -> {
+                        runOnUiThread {
+                            newProfileTreeUriText = uriString
+                        }
+                        appendLog("Selected target folder for new profile.")
+                    }
+                }
             }
         } catch (e: Exception) {
             appendError("Failed to persist folder permission: ${e.message}", e)
@@ -116,7 +154,6 @@ class MainActivity : ComponentActivity() {
             plugins = visiblePlugins,
             gameOptions = gameOptions,
             selectedGameId = selectedGameId,
-            targetPathText = targetPathText,
             selectedTreeUriText = selectedTreeUriText,
             realDeployEnabled = realDeployEnabledState,
             logText = logText,
@@ -126,7 +163,20 @@ class MainActivity : ComponentActivity() {
             setupTargetPathText = setupTargetPathText,
             setupRealDeployEnabled = setupRealDeployEnabled,
             activeProfileName = activeProfileName,
-            profileOptions = profileOptions
+            profileOptions = profileOptions,
+            activeProfileId = activeProfileId,
+            newProfileNameText = newProfileNameText,
+            newProfileGameId = newProfileGameId,
+            newProfileRealDeployEnabled = newProfileRealDeployEnabled,
+            showProfileDialog = showProfileDialog,
+            newProfileTreeUriText = newProfileTreeUriText,
+            operationInProgress = operationInProgress,
+            activeOperationText = activeOperationText,
+            modContentIndexes = visibleModContentIndexes,
+            pendingArchiveInstall = pendingArchiveInstall,
+            selectedInstallerOptionIds = pendingInstallerSelectedOptionIds,
+            showInstallerDialog = showInstallerDialog,
+            installerDialogFullscreen = installerDialogFullscreen,
 
         )
     }
@@ -175,18 +225,19 @@ class MainActivity : ComponentActivity() {
                 selectedGameId = gameId
                 runInBackground { loadSelectedGameConfigIntoUi() }
             },
-            onTargetPathChanged = { newValue ->
-                targetPathText = newValue
-            },
             onRealDeployChanged = { enabled ->
                 realDeployEnabledState = enabled
             },
             onPickTargetFolder = {
+                folderPickMode = FolderPickMode.ActiveProfile
                 pickTargetFolderLauncher.launch(null)
             },
             onSaveSettings = {
-                runInBackground { saveSelectedGameConfigFromUi()
-                    saveActiveProfileFromDashboard() }
+                runInBackground {
+                    saveSelectedGameConfigFromUi()
+                    saveActiveProfileFromDashboard()
+                    refreshDashboard()
+                }
             },
             onShareLogs = {
                 shareLogs()
@@ -204,7 +255,50 @@ class MainActivity : ComponentActivity() {
             onSetupRealDeployChanged = { setupRealDeployEnabled = it },
             onCompleteSetup = {
                 runInBackground { completeFirstSetup() }
-            }
+            },
+            onSelectProfile = { profileId ->
+                runInBackground { switchActiveProfile(profileId) }
+            },
+            onNewProfileNameChanged = { newProfileNameText = it },
+            onNewProfileGameChanged = { gameId ->
+                newProfileGameId = gameId
+                newProfileGameDisplayName = when (gameId) {
+                    "skyrim_le" -> "Skyrim Legendary Edition"
+                    "fallout_nv" -> "Fallout New Vegas"
+                    else -> gameId
+                }
+            },
+            onNewProfileRealDeployChanged = { newProfileRealDeployEnabled = it },
+            onCreateAdditionalProfile = {
+                runInBackground { createAdditionalProfile() }
+            },
+            onOpenProfileDialog = {
+                showProfileDialog = true
+            },
+            onCloseProfileDialog = {
+                showProfileDialog = false
+            },
+            onPickNewProfileTargetFolder = {
+                folderPickMode = FolderPickMode.NewProfile
+                pickTargetFolderLauncher.launch(null)
+            },
+            onDeleteProfile = { profileId ->
+                runInBackground { deleteProfile(profileId) }
+            },
+            onToggleInstallerOption = { optionId ->
+                val current = pendingInstallerSelectedOptionIds
+                pendingInstallerSelectedOptionIds =
+                    if (current.contains(optionId)) current - optionId else current + optionId
+            },
+            onConfirmInstaller = {
+                runInBackground { finalizePendingInstallerInstall() }
+            },
+            onCancelInstaller = {
+                runInBackground { cancelPendingInstallerInstall() }
+            },
+            onToggleInstallerFullscreen = {
+                installerDialogFullscreen = !installerDialogFullscreen
+            },
         )
 
     }
@@ -310,7 +404,11 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun handleImportedArchive(uri: Uri) {
-        appendLog("----- Import Archive Workflow Start -----")
+        if (operationInProgress) {
+            appendLog("Ignoring import request: operation already in progress.")
+            return
+        }
+        beginOperation("Importing archive...")
 
         val engine = createModEngineForWorkflows() ?: return
         val externalBaseDir = getExternalFilesDir(null)
@@ -340,40 +438,56 @@ class MainActivity : ComponentActivity() {
             val existingMods = engine.getInstalledModsFromFolders()
             val nextPriority = if (existingMods.isEmpty()) 1 else (existingMods.maxOf { it.priority } + 1)
 
-            val installedMod = engine.installArchiveWithRecord(
-                archive = importedArchive,
+            val prepared = engine.prepareArchiveInstall(importedArchive)
+
+            if (prepared.plan.requiresUserChoice) {
+                runOnUiThread {
+                    pendingArchiveInstall = prepared
+                    pendingInstallerSelectedOptionIds = prepared.plan.defaultSelectedOptionIds
+                    showInstallerDialog = true
+                    installerDialogFullscreen = false
+                }
+
+                appendLog("Installer choices required: ${prepared.plan.installerType}")
+                prepared.plan.warnings.forEach { appendLog("INSTALLER WARNING: $it") }
+
+                finishOperation("Choose installer options.")
+                return
+            }
+
+            val installedMod = engine.finalizePreparedArchiveInstall(
+                prepared = prepared,
+                selectedOptionIds = prepared.plan.defaultSelectedOptionIds,
                 priority = nextPriority,
                 sourceType = "imported_archive"
             )
 
             appendLog("Archive install returned successfully.")
-
             val currentMods = engine.getCurrentMods()
                 .filterNot { it.id == installedMod.id }
                 .sortedBy { it.priority }
 
             val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
-
             engine.saveCurrentMods(updatedMods)
+
             syncPluginsFromCurrentState(engine)
 
             appendLog("Installed imported mod: $installedMod")
             appendLog("Saved installed mod count after import: ${updatedMods.size}")
             appendLog("Plugins refreshed automatically.")
             appendLog("RESULT: PASS")
-            updateLastOperationStatus("Import archive succeeded.")
+            finishOperation("Archive imported successfully.")
         } catch (t: Throwable) {
-            appendError("Import archive workflow failed: ${t.message}", t)
             appendLog("CRASH TYPE: ${t::class.java.name}")
             appendLog("RESULT: FAIL")
-            updateLastOperationStatus("Import archive failed: ${t.message}")
+            failOperation("Import archive failed: ${t.message}", t)
         }
 
         refreshDashboard()
         appendLog("----- Import Archive Workflow End -----")
     }
     private fun normalizePriorities(mods: List<Mod>): List<Mod> {
-        return mods.sortedBy { it.priority }.mapIndexed { index, mod ->
+        return mods.mapIndexed { index, mod ->
             mod.copy(priority = index + 1)
         }
     }
@@ -475,6 +589,7 @@ class MainActivity : ComponentActivity() {
         val mods = engine.getCurrentMods().sortedBy { it.priority }
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
 
+
         val installedCount = mods.size
         val enabledCount = mods.count { it.enabled }
         val savedStateExists = engine.hasSavedState()
@@ -512,9 +627,14 @@ class MainActivity : ComponentActivity() {
             appendLine("Target: $targetStatus")
         }
 
+        val contentIndexes = mods.associate { mod ->
+            mod.id to engine.indexModContent(mod)
+        }
+
         runOnUiThread {
             visibleMods = mods
             visiblePlugins = plugins
+            visibleModContentIndexes = contentIndexes
             summaryText = newSummary
         }
 
@@ -575,6 +695,8 @@ class MainActivity : ComponentActivity() {
         existingConfigs[index] = updatedConfig
 
         engine.saveGameDeploymentConfigs(existingConfigs)
+        saveActiveProfileFromDashboard()
+        refreshDashboard()
 
         runOnUiThread {
             selectedTreeUriText = treeUri
@@ -732,8 +854,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runDeployWorkflow() {
-        appendLog("----- Deploy Workflow Start -----")
+        if (operationInProgress) {
+            appendLog("Ignoring deploy request: operation already in progress.")
+            return
+        }
 
+        beginOperation("Deploying mods...")
         val engine = createModEngineForWorkflows() ?: return
 
         try {
@@ -768,12 +894,11 @@ class MainActivity : ComponentActivity() {
             appendLog("Updates: ${result.updateCount}")
             appendLog("Final deployed file count: ${result.finalRecordCount}")
             appendLog("RESULT: PASS")
-
-            updateLastOperationStatus("Deploy succeeded ($effectiveMode).")
+            finishOperation("Deploy succeeded ($effectiveMode).")
         } catch (e: Exception) {
             appendError("Deploy workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            updateLastOperationStatus("Deploy failed: ${e.message}")
+            failOperation("Deploy failed: ${e.message}", e)
         }
 
         refreshDashboard()
@@ -781,16 +906,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun syncPluginsFromCurrentState(engine: ModEngine) {
+        appendLog("Scanning plugins from current mod state...")
+
         val previous = engine.loadPlugins().associateBy { it.normalizedPath }
         val discovered = engine.discoverPluginsFromCurrentMods()
 
-        val newPluginsStartPriority = ((previous.values.maxOfOrNull { it.priority } ?: 0) + 1)
-
+        val newPluginsStartPriority = (previous.values.maxOfOrNull { it.priority } ?: 0) + 1
         var nextNewPriority = newPluginsStartPriority
 
         val merged = discovered.map { plugin ->
             val existing = previous[plugin.normalizedPath]
-
             if (existing != null) {
                 plugin.copy(
                     enabled = existing.enabled,
@@ -805,8 +930,9 @@ class MainActivity : ComponentActivity() {
 
         val normalized = engine.normalizePluginPriorities(merged)
         engine.saveCurrentPlugins(normalized)
-    }
 
+        appendLog("Plugin scan complete. Plugin count: ${normalized.size}")
+    }
     private fun refreshGameOptions() {
         val engine = createModEngineForWorkflows() ?: return
         val configs = engine.loadGameDeploymentConfigs()
@@ -880,7 +1006,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runWriteLoadOrderFilesWorkflow() {
-        appendLog("----- Write Load Order Files Workflow Start -----")
+        if (operationInProgress) {
+            appendLog("Ignoring load order write request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Writing load order files...")
 
         val engine = createModEngineForWorkflows() ?: return
 
@@ -896,11 +1027,11 @@ class MainActivity : ComponentActivity() {
             appendLog(loadorderTxt.ifBlank { "(empty)" })
 
             appendLog("RESULT: PASS")
-            updateLastOperationStatus("Load order files written successfully.")
+            finishOperation("Load order files written successfully.")
         } catch (e: Exception) {
             appendError("Write load order files workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            updateLastOperationStatus("Writing load order files failed: ${e.message}")
+            failOperation("Writing load order files failed: ${e.message}", e)
         }
 
         appendLog("----- Write Load Order Files Workflow End -----")
@@ -910,9 +1041,7 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         val mods = engine.getCurrentMods().sortedBy { it.priority }
-        val normalizedMods = mods.mapIndexed { index, mod ->
-            mod.copy(priority = index + 1)
-        }
+        val normalizedMods = engine.normalizeModPriorities(mods)
 
         if (mods != normalizedMods) {
             engine.saveCurrentMods(normalizedMods)
@@ -945,6 +1074,16 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun getGameDisplayName(gameId: String): String {
+        return when (gameId) {
+            "skyrim_le" -> "Skyrim Legendary Edition"
+            "fallout_nv" -> "Fallout New Vegas"
+            "fallout_4" -> "Fallout 4"
+            "oblivion" -> "Oblivion"
+            else -> gameId
+        }
+    }
+
     private fun loadSetupState() {
         val repo = createProfileRepository() ?: return
         val state = repo.loadSetupState()
@@ -962,7 +1101,26 @@ class MainActivity : ComponentActivity() {
                 targetPathText = activeProfile.targetDataPath
                 selectedTreeUriText = activeProfile.targetTreeUri ?: "No folder selected"
                 realDeployEnabledState = activeProfile.realDeployEnabled
+            } else if (profiles.isNotEmpty()) {
+                val fallback = profiles.first()
+                activeProfileId = fallback.profileId
+                activeProfileName = fallback.profileName
+                selectedGameId = fallback.gameId
+                targetPathText = fallback.targetDataPath
+                selectedTreeUriText = fallback.targetTreeUri ?: "No folder selected"
+                realDeployEnabledState = fallback.realDeployEnabled
             }
+        }
+
+        if (state.activeProfileId == null && profiles.isNotEmpty()) {
+            val fallback = profiles.first()
+            repo.saveSetupState(
+                AppSetupState(
+                    setupComplete = true,
+                    activeProfileId = fallback.profileId
+                )
+            )
+            appendLog("Recovered missing active profile using: ${fallback.profileName}")
         }
 
         appendLog("Loaded setup state: $state")
@@ -973,13 +1131,14 @@ class MainActivity : ComponentActivity() {
         val repo = createProfileRepository() ?: return
 
         val profileId = "${setupGameId}_${System.currentTimeMillis()}"
+        val cleanProfileName = profileNameText.trim().ifBlank { "Default" }
 
         val profile = GameProfile(
             profileId = profileId,
-            profileName = profileNameText.trim().ifBlank { "Default" },
+            profileName = cleanProfileName,
             gameId = setupGameId,
-            gameDisplayName = setupGameDisplayName,
-            targetDataPath = setupTargetPathText.trim(),
+            gameDisplayName = getGameDisplayName(setupGameId),
+            targetDataPath = "",
             targetTreeUri = null,
             realDeployEnabled = setupRealDeployEnabled,
             iniPresetId = null
@@ -999,19 +1158,98 @@ class MainActivity : ComponentActivity() {
         runOnUiThread {
             setupComplete = true
             activeProfileId = profileId
+            activeProfileName = profile.profileName
+            profileOptions = existingProfiles
+
             selectedGameId = profile.gameId
             targetPathText = profile.targetDataPath
+            selectedTreeUriText = profile.targetTreeUri ?: "No folder selected"
             realDeployEnabledState = profile.realDeployEnabled
         }
+
+        saveSelectedGameConfigFromUi()
 
         appendLog("Created first profile: $profile")
         updateLastOperationStatus("Setup complete.")
         refreshDashboard()
     }
 
+    private fun createAdditionalProfile() {
+        val repo = createProfileRepository() ?: return
+
+        val cleanProfileName = newProfileNameText.trim().ifBlank {
+            "${getGameDisplayName(newProfileGameId)} Profile"
+        }
+
+        val profileId = "${newProfileGameId}_${System.currentTimeMillis()}"
+
+        val profile = GameProfile(
+            profileId = profileId,
+            profileName = cleanProfileName,
+            gameId = newProfileGameId,
+            gameDisplayName = getGameDisplayName(newProfileGameId),
+            targetDataPath = "",
+            targetTreeUri = if (newProfileTreeUriText == "No folder selected") null else newProfileTreeUriText,
+            realDeployEnabled = newProfileRealDeployEnabled,
+            iniPresetId = null
+        )
+
+        val profiles = repo.loadProfiles().toMutableList()
+        profiles.add(profile)
+        repo.saveProfiles(profiles)
+
+        runOnUiThread {
+            profileOptions = profiles
+            newProfileNameText = ""
+            newProfileTreeUriText = "No folder selected"
+            newProfileRealDeployEnabled = false
+            showProfileDialog = false
+        }
+
+        appendLog("Created additional profile: $profile")
+        updateLastOperationStatus("Profile created: ${profile.profileName}")
+    }
+
+    private fun switchActiveProfile(profileId: String) {
+        val repo = createProfileRepository() ?: return
+        val profiles = repo.loadProfiles()
+        val profile = profiles.firstOrNull { it.profileId == profileId }
+
+        if (profile == null) {
+            appendError("Profile not found: $profileId")
+            return
+        }
+
+        repo.saveSetupState(
+            AppSetupState(
+                setupComplete = true,
+                activeProfileId = profile.profileId
+            )
+        )
+
+        runOnUiThread {
+            activeProfileId = profile.profileId
+            activeProfileName = profile.profileName
+            selectedGameId = profile.gameId
+            targetPathText = profile.targetDataPath
+            selectedTreeUriText = profile.targetTreeUri ?: "No folder selected"
+            realDeployEnabledState = profile.realDeployEnabled
+        }
+
+        saveSelectedGameConfigFromUi()
+        appendLog("Switched active profile: $profile")
+        updateLastOperationStatus("Switched profile: ${profile.profileName}")
+        refreshDashboard()
+    }
+
     private fun saveActiveProfileFromDashboard() {
         val repo = createProfileRepository() ?: return
-        val currentProfileId = activeProfileId ?: return
+        val currentProfileId = activeProfileId
+
+        if (currentProfileId == null) {
+            appendError("Cannot save active profile: no active profile.")
+            return
+        }
 
         val profiles = repo.loadProfiles().toMutableList()
         val index = profiles.indexOfFirst { it.profileId == currentProfileId }
@@ -1024,11 +1262,7 @@ class MainActivity : ComponentActivity() {
         val oldProfile = profiles[index]
         val updatedProfile = oldProfile.copy(
             gameId = selectedGameId,
-            gameDisplayName = when (selectedGameId) {
-                "skyrim_le" -> "Skyrim Legendary Edition"
-                "fallout_nv" -> "Fallout New Vegas"
-                else -> selectedGameId
-            },
+            gameDisplayName = getGameDisplayName(selectedGameId),
             targetDataPath = targetPathText.trim(),
             targetTreeUri = if (selectedTreeUriText == "No folder selected") null else selectedTreeUriText,
             realDeployEnabled = realDeployEnabledState
@@ -1045,6 +1279,177 @@ class MainActivity : ComponentActivity() {
         appendLog("Saved active profile: $updatedProfile")
     }
 
+    private fun deleteProfile(profileId: String) {
+        val repo = createProfileRepository() ?: return
 
+        val profiles = repo.loadProfiles().toMutableList()
+        val profileToDelete = profiles.firstOrNull { it.profileId == profileId }
+
+        if (profileToDelete == null) {
+            appendError("Profile not found: $profileId")
+            return
+        }
+
+        profiles.removeAll { it.profileId == profileId }
+        repo.saveProfiles(profiles)
+
+        val newActiveProfile = if (activeProfileId == profileId) {
+            profiles.firstOrNull()
+        } else {
+            profiles.firstOrNull { it.profileId == activeProfileId }
+        }
+
+        repo.saveSetupState(
+            AppSetupState(
+                setupComplete = profiles.isNotEmpty(),
+                activeProfileId = newActiveProfile?.profileId
+            )
+        )
+
+        runOnUiThread {
+            profileOptions = profiles
+            activeProfileId = newActiveProfile?.profileId
+            activeProfileName = newActiveProfile?.profileName ?: "No profile"
+            setupComplete = profiles.isNotEmpty()
+
+            if (newActiveProfile != null) {
+                selectedGameId = newActiveProfile.gameId
+                targetPathText = newActiveProfile.targetDataPath
+                selectedTreeUriText = newActiveProfile.targetTreeUri ?: "No folder selected"
+                realDeployEnabledState = newActiveProfile.realDeployEnabled
+            } else {
+                selectedGameId = "skyrim_le"
+                targetPathText = ""
+                selectedTreeUriText = "No folder selected"
+                realDeployEnabledState = false
+                showProfileDialog = false
+            }
+        }
+
+        appendLog("Deleted profile settings only: ${profileToDelete.profileName}")
+        updateLastOperationStatus("Deleted profile: ${profileToDelete.profileName}")
+
+        if (newActiveProfile != null) {
+            saveSelectedGameConfigFromUi()
+        }
+
+        refreshDashboard()
+    }
+
+    private fun beginOperation(text: String) {
+        runOnUiThread {
+            operationInProgress = true
+            activeOperationText = text
+            updateLastOperationStatus(text)
+        }
+
+        showToast(text)
+        appendLog("OPERATION START: $text")
+    }
+    private fun finishOperation(successText: String) {
+        runOnUiThread {
+            operationInProgress = false
+            activeOperationText = ""
+            updateLastOperationStatus(successText)
+        }
+
+        showToast(successText)
+        appendLog("OPERATION END: $successText")
+    }
+    private fun failOperation(message: String, throwable: Throwable? = null) {
+        runOnUiThread {
+            operationInProgress = false
+            activeOperationText = ""
+            updateLastOperationStatus(message)
+        }
+
+        showToast(message)
+        appendError(message, throwable)
+    }
+    private fun showToast(message: String) {
+        runOnUiThread {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun finalizePendingInstallerInstall() {
+        if (operationInProgress) {
+            appendLog("Ignoring installer finalize request: operation already in progress.")
+            return
+        }
+
+        val prepared = pendingArchiveInstall
+        if (prepared == null) {
+            appendError("No pending installer session found.")
+            return
+        }
+
+        beginOperation("Installing selected options...")
+
+        val engine = createModEngineForWorkflows()
+        if (engine == null) {
+            failOperation("Install failed: could not create engine.")
+            return
+        }
+
+        try {
+            val existingMods = engine.getCurrentMods()
+            val nextPriority = if (existingMods.isEmpty()) 1 else existingMods.maxOf { it.priority } + 1
+
+            val installedMod = engine.finalizePreparedArchiveInstall(
+                prepared = prepared,
+                selectedOptionIds = pendingInstallerSelectedOptionIds,
+                priority = nextPriority,
+                sourceType = "imported_archive"
+            )
+
+            val currentMods = engine.getCurrentMods()
+                .filterNot { it.id == installedMod.id }
+                .sortedBy { it.priority }
+
+            val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
+            engine.saveCurrentMods(updatedMods)
+
+            syncPluginsFromCurrentState(engine)
+
+            runOnUiThread {
+                pendingArchiveInstall = null
+                pendingInstallerSelectedOptionIds = emptySet()
+                showInstallerDialog = false
+                installerDialogFullscreen = false
+            }
+
+            appendLog("Installed selected options for: ${prepared.archiveName}")
+            appendLog("Installed mod: $installedMod")
+            appendLog("RESULT: PASS")
+
+            finishOperation("Archive imported successfully.")
+            refreshDashboard()
+        } catch (t: Throwable) {
+            appendLog("CRASH TYPE: ${t::class.java.name}")
+            appendLog("RESULT: FAIL")
+            failOperation("Installer finalize failed: ${t.message}", t)
+        }
+    }
+    private fun cancelPendingInstallerInstall() {
+        val prepared = pendingArchiveInstall ?: return
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            engine.cancelPreparedArchiveInstall(prepared)
+            appendLog("Cancelled installer session for: ${prepared.archiveName}")
+        } catch (e: Exception) {
+            appendError("Failed to clean installer session: ${e.message}", e)
+        }
+
+        runOnUiThread {
+            pendingArchiveInstall = null
+            pendingInstallerSelectedOptionIds = emptySet()
+            showInstallerDialog = false
+            installerDialogFullscreen = false
+        }
+
+        updateLastOperationStatus("Installer cancelled.")
+    }
 }
 

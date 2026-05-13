@@ -1,31 +1,44 @@
 package com.shonkware.droidmodloader.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 
@@ -55,19 +68,36 @@ fun HeaderCard(
 
 @Composable
 fun StatusCard(
+    activeProfileName: String,
     lastOperationStatus: String,
     summaryText: String,
-    activeProfileName: String
+    onOpenProfileDialog: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Profile: $activeProfileName")
-            Spacer(Modifier.height(8.dp))
-            Text("Status", fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text(lastOperationStatus)
-            Spacer(Modifier.height(8.dp))
-            Text(summaryText)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Profile: $activeProfileName",
+                    fontWeight = FontWeight.Bold
+                )
+
+                Button(onClick = onOpenProfileDialog) {
+                    Text("Manage")
+                }
+            }
+
+            Text("Status: $lastOperationStatus")
+
+            if (summaryText.isNotBlank()) {
+                Text(summaryText)
+            }
         }
     }
 }
@@ -89,6 +119,7 @@ fun QuickStartCard() {
 
 @Composable
 fun MainActionsCard(
+    operationInProgress: Boolean,
     onImportArchive: () -> Unit,
     onDeployMods: () -> Unit,
     onWriteLoadOrderFiles: () -> Unit
@@ -101,6 +132,7 @@ fun MainActionsCard(
             Text("Main Actions", fontWeight = FontWeight.Bold)
 
             Button(
+                enabled = !operationInProgress,
                 onClick = onImportArchive,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -108,6 +140,7 @@ fun MainActionsCard(
             }
 
             Button(
+                enabled = !operationInProgress,
                 onClick = onDeployMods,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -115,6 +148,7 @@ fun MainActionsCard(
             }
 
             Button(
+                enabled = !operationInProgress,
                 onClick = onWriteLoadOrderFiles,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -127,6 +161,7 @@ fun MainActionsCard(
 @Composable
 fun ModsCard(
     mods: List<Mod>,
+    modContentIndexes: Map<String, ModContentIndex>,
     onToggleMod: (String) -> Unit,
     onMoveModUp: (String) -> Unit,
     onMoveModDown: (String) -> Unit,
@@ -134,7 +169,7 @@ fun ModsCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Mods", fontWeight = FontWeight.Bold)
@@ -143,31 +178,201 @@ fun ModsCard(
                 Text("No installed mods found.")
             } else {
                 mods.forEach { mod ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("${mod.priority} | ${mod.name} | ${mod.modType}")
-                            Text(if (mod.enabled) "Enabled" else "Disabled")
+                    CompactModRow(
+                        mod = mod,
+                        contentIndex = modContentIndexes[mod.id],
+                        onToggleMod = onToggleMod,
+                        onMoveModUp = onMoveModUp,
+                        onMoveModDown = onMoveModDown,
+                        onDeleteMod = onDeleteMod
+                    )
+                }
+            }
+        }
+    }
+}
 
-                            Spacer(Modifier.height(8.dp))
+@Composable
+fun CompactModRow(
+    mod: Mod,
+    contentIndex: ModContentIndex?,
+    onToggleMod: (String) -> Unit,
+    onMoveModUp: (String) -> Unit,
+    onMoveModDown: (String) -> Unit,
+    onDeleteMod: (Mod) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
 
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onToggleMod(mod.id) }) {
-                                    Text(if (mod.enabled) "Disable" else "Enable")
-                                }
-                                Button(onClick = { onMoveModUp(mod.id) }) {
-                                    Text("Up")
-                                }
-                                Button(onClick = { onMoveModDown(mod.id) }) {
-                                    Text("Down")
-                                }
-                                Button(onClick = { onDeleteMod(mod) }) {
-                                    Text("Delete")
-                                }
-                            }
-                        }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Checkbox(
+                    checked = mod.enabled,
+                    onCheckedChange = { onToggleMod(mod.id) }
+                )
+
+                Text(
+                    text = mod.priority.toString().padStart(3, '0'),
+                    fontWeight = FontWeight.Bold
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = mod.name,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = mod.modType.toString(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    if (contentIndex != null) {
+                        Text(
+                            text = "Files ${contentIndex.deployableFiles.size} | Plugins ${contentIndex.plugins.size} | Optional ${contentIndex.optionalModules.size}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    if (
+                        contentIndex != null &&
+                        contentIndex.deployableFiles.isEmpty() &&
+                        contentIndex.plugins.isEmpty()
+                    ) {
+                        Text(
+                            text = "Warning: no deployable game files detected",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
+
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Less" else "More")
+                }
+            }
+
+            if (expanded) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(onClick = { onMoveModUp(mod.id) }) {
+                            Text("Up")
+                        }
+
+                        Button(onClick = { onMoveModDown(mod.id) }) {
+                            Text("Down")
+                        }
+                    }
+
+                    Button(
+                        onClick = { onDeleteMod(mod) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Delete")
+                    }
+
+                    Text(
+                        text = "Path: ${mod.installPath}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    if (contentIndex != null) {
+                        ModContentSummary(contentIndex)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModContentSummary(
+    contentIndex: ModContentIndex
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("Content Index", fontWeight = FontWeight.Bold)
+
+        Text("Deployable files: ${contentIndex.deployableFiles.size}")
+        Text("Plugins: ${contentIndex.plugins.size}")
+        Text("Archives: ${contentIndex.archives.size}")
+        Text("Config files: ${contentIndex.configs.size}")
+        Text("Setup-only files: ${contentIndex.setupOnlyFiles.size}")
+        Text("Documentation files: ${contentIndex.documentationFiles.size}")
+        Text("Optional modules: ${contentIndex.optionalModules.size}")
+        Text("Ignored files: ${contentIndex.ignoredFiles.size}")
+        Text("Unknown files: ${contentIndex.unknownFiles.size}")
+
+        if (contentIndex.plugins.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Plugins:", fontWeight = FontWeight.Bold)
+            contentIndex.plugins.take(5).forEach {
+                Text(
+                    text = it.normalizedPath,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        if (contentIndex.archives.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Archives:", fontWeight = FontWeight.Bold)
+            contentIndex.archives.take(5).forEach {
+                Text(
+                    text = it.normalizedPath,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        if (contentIndex.configs.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Config files:", fontWeight = FontWeight.Bold)
+            contentIndex.configs.take(5).forEach {
+                Text(
+                    text = it.normalizedPath,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        if (contentIndex.optionalModules.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Optional:", fontWeight = FontWeight.Bold)
+            contentIndex.optionalModules.take(5).forEach {
+                Text(
+                    text = "${it.normalizedPath} — ${it.reason}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        if (contentIndex.unknownFiles.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Unknown:", fontWeight = FontWeight.Bold)
+            contentIndex.unknownFiles.take(5).forEach {
+                Text(
+                    text = "${it.normalizedPath} — ${it.reason}",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
@@ -191,21 +396,31 @@ fun PluginsCard(
                 Text("No plugins found.")
             } else {
                 plugins.forEach { plugin ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("${plugin.priority} | ${plugin.pluginName} | ${plugin.pluginType}")
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${plugin.priority.toString().padStart(3, '0')} | ${plugin.pluginName} | ${plugin.pluginType}",
+                                fontWeight = FontWeight.Bold
+                            )
+
                             Text(if (plugin.enabled) "Enabled" else "Disabled")
                             Text("From: ${plugin.sourceModName}")
-
-                            Spacer(Modifier.height(8.dp))
 
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { onTogglePlugin(plugin.normalizedPath) }) {
                                     Text(if (plugin.enabled) "Disable" else "Enable")
                                 }
+
                                 Button(onClick = { onMovePluginUp(plugin.normalizedPath) }) {
                                     Text("Up")
                                 }
+
                                 Button(onClick = { onMovePluginDown(plugin.normalizedPath) }) {
                                     Text("Down")
                                 }
@@ -223,8 +438,6 @@ fun DeploymentSettingsCard(
     gameOptions: List<String>,
     selectedGameId: String,
     onSelectGame: (String) -> Unit,
-    targetPathText: String,
-    onTargetPathChanged: (String) -> Unit,
     selectedTreeUriText: String,
     realDeployEnabled: Boolean,
     onRealDeployChanged: (Boolean) -> Unit,
@@ -248,14 +461,6 @@ fun DeploymentSettingsCard(
                 }
             }
 
-            OutlinedTextField(
-                value = targetPathText,
-                onValueChange = onTargetPathChanged,
-                label = { Text("Target Data Path") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
-            )
-
             Text("Selected folder: $selectedTreeUriText")
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -263,7 +468,9 @@ fun DeploymentSettingsCard(
                     checked = realDeployEnabled,
                     onCheckedChange = onRealDeployChanged
                 )
+
                 Spacer(Modifier.width(8.dp))
+
                 Text("Write to Real Target Folder")
             }
 
@@ -320,6 +527,7 @@ fun DeveloperToolsCard() {
         }
     }
 }
+
 @Composable
 fun SetupScreen(
     state: DashboardUiState,
@@ -330,7 +538,8 @@ fun SetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -358,19 +567,23 @@ fun SetupScreen(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = state.setupTargetPathText,
-                        onValueChange = actions.onSetupTargetPathChanged,
-                        label = { Text("Target Data Path") },
+                    Text("Target folder: ${state.selectedTreeUriText}")
+
+                    Button(
+                        onClick = actions.onPickTargetFolder,
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        Text("Pick Target Folder")
+                    }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = state.setupRealDeployEnabled,
                             onCheckedChange = actions.onSetupRealDeployChanged
                         )
+
                         Spacer(Modifier.width(8.dp))
+
                         Text("Write to Real Target Folder")
                     }
 
@@ -379,6 +592,240 @@ fun SetupScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Create Profile")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileManagerDialog(
+    profiles: List<GameProfile>,
+    activeProfileId: String?,
+    newProfileNameText: String,
+    newProfileGameId: String,
+    newProfileTreeUriText: String,
+    newProfileRealDeployEnabled: Boolean,
+    onSelectProfile: (String) -> Unit,
+    onDeleteProfile: (String) -> Unit,
+    onNewProfileNameChanged: (String) -> Unit,
+    onNewProfileGameChanged: (String) -> Unit,
+    onPickNewProfileTargetFolder: () -> Unit,
+    onNewProfileRealDeployChanged: (Boolean) -> Unit,
+    onCreateAdditionalProfile: () -> Unit,
+    onClose: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = {
+            TextButton(onClick = onClose) {
+                Text("Close")
+            }
+        },
+        title = {
+            Text("Manage Profiles")
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Switch Profile", fontWeight = FontWeight.Bold)
+
+                if (profiles.isEmpty()) {
+                    Text("No profiles found.")
+                } else {
+                    profiles.forEach { profile ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = profile.profileId == activeProfileId,
+                                onClick = { onSelectProfile(profile.profileId) },
+                                label = { Text(profile.profileName) }
+                            )
+
+                            Button(
+                                onClick = { onDeleteProfile(profile.profileId) }
+                            ) {
+                                Text("Delete")
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Text("Add Profile", fontWeight = FontWeight.Bold)
+
+                OutlinedTextField(
+                    value = newProfileNameText,
+                    onValueChange = onNewProfileNameChanged,
+                    label = { Text("Profile Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("skyrim_le", "fallout_nv").forEach { gameId ->
+                        FilterChip(
+                            selected = newProfileGameId == gameId,
+                            onClick = { onNewProfileGameChanged(gameId) },
+                            label = { Text(gameId) }
+                        )
+                    }
+                }
+
+                Text("Selected folder: $newProfileTreeUriText")
+
+                Button(
+                    onClick = onPickNewProfileTargetFolder,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Pick Target Folder")
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = newProfileRealDeployEnabled,
+                        onCheckedChange = onNewProfileRealDeployChanged
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Text("Write to Real Target Folder")
+                }
+
+                Button(
+                    onClick = onCreateAdditionalProfile,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Create Profile")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun InstallerChoiceDialog(
+    prepared: PreparedArchiveInstall,
+    selectedOptionIds: Set<String>,
+    fullscreen: Boolean,
+    onToggleOption: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    onToggleFullscreen: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(usePlatformDefaultWidth = !fullscreen)
+    ) {
+        Card(
+            modifier = if (fullscreen) {
+                Modifier
+                    .fillMaxSize()
+                    .padding(12.dp)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Install Options",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Text("Archive: ${prepared.archiveName}")
+                Text("Installer type: ${prepared.plan.installerType}")
+
+                prepared.plan.warnings.forEach { warning ->
+                    Text(
+                        text = "Warning: $warning",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                prepared.plan.groups.forEach { group ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(group.name, fontWeight = FontWeight.Bold)
+
+                            group.options.forEach { option ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = option.required || selectedOptionIds.contains(option.id),
+                                        enabled = !option.required,
+                                        onCheckedChange = { onToggleOption(option.id) }
+                                    )
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(option.name)
+
+                                        if (option.required) {
+                                            Text(
+                                                text = "Required",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+
+                                        if (option.description.isNotBlank()) {
+                                            Text(
+                                                text = option.description,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "Source: ${option.sourcePath}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+
+                                        if (option.destinationPath.isNotBlank()) {
+                                            Text(
+                                                text = "Destination: ${option.destinationPath}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onToggleFullscreen) {
+                        Text(if (fullscreen) "Windowed" else "Fullscreen")
+                    }
+
+                    Button(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+
+                    Button(onClick = onConfirm) {
+                        Text("Install Selected")
                     }
                 }
             }

@@ -28,6 +28,11 @@ import com.shonkware.droidmodloader.engine.data.PluginListRepository
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.plugins.PluginDiscovery
 import com.shonkware.droidmodloader.engine.data.PluginOutputRepository
+import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.index.ModContentIndexer
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstaller
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.engine.install.InstallerSelection
 
 data class UninstallResult(
     val removed: Boolean,
@@ -49,6 +54,7 @@ class ModEngine(
     private val pluginListFile: File,
     private val pluginsTxtFile: File,
     private val loadorderTxtFile: File
+
 ) {
 
     private val modInstaller = ModInstaller(tempDir, modsDir)
@@ -62,6 +68,11 @@ class ModEngine(
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
     private val pluginListRepository = PluginListRepository(pluginListFile)
     private val pluginDiscovery = PluginDiscovery()
+    private val modContentIndexer = ModContentIndexer()
+    private val preparedArchiveInstaller = PreparedArchiveInstaller(
+        tempDir = tempDir,
+        modsDir = modsDir
+    )
     private val pluginOutputRepository = PluginOutputRepository(
         pluginsTxtFile = pluginsTxtFile,
         loadorderTxtFile = loadorderTxtFile
@@ -524,7 +535,7 @@ class ModEngine(
     }
 
     fun normalizePluginPriorities(plugins: List<PluginEntry>): List<PluginEntry> {
-        return plugins.sortedBy { it.priority }.mapIndexed { index, plugin ->
+        return plugins.mapIndexed { index, plugin ->
             plugin.copy(priority = index + 1)
         }
     }
@@ -563,8 +574,50 @@ class ModEngine(
     }
 
     fun normalizeModPriorities(mods: List<Mod>): List<Mod> {
-        return mods.sortedBy { it.priority }.mapIndexed { index, mod ->
+        return mods.mapIndexed { index, mod ->
             mod.copy(priority = index + 1)
         }
+    }
+    fun indexModContent(mod: Mod): ModContentIndex {
+        return modContentIndexer.indexMod(mod)
+    }
+
+    fun indexCurrentModContent(): Map<String, ModContentIndex> {
+        return getCurrentMods().associate { mod ->
+            mod.id to modContentIndexer.indexMod(mod)
+        }
+    }
+
+    fun prepareArchiveInstall(archive: File): PreparedArchiveInstall {
+        return preparedArchiveInstaller.prepare(archive)
+    }
+
+    fun finalizePreparedArchiveInstall(
+        prepared: PreparedArchiveInstall,
+        selectedOptionIds: Set<String>,
+        priority: Int,
+        enabled: Boolean = true,
+        sourceType: String = "imported_archive"
+    ): Mod {
+        val finalDir = preparedArchiveInstaller.finalizeInstall(
+            prepared = prepared,
+            selection = InstallerSelection(selectedOptionIds)
+        )
+
+        writeInstalledModRecord(
+            modDir = finalDir,
+            sourceType = sourceType,
+            sourceArchiveName = prepared.archiveName
+        )
+
+        return buildModFromInstalledFolder(
+            modDir = finalDir,
+            priority = priority,
+            enabled = enabled
+        )
+    }
+
+    fun cancelPreparedArchiveInstall(prepared: PreparedArchiveInstall) {
+        preparedArchiveInstaller.cancel(prepared)
     }
 }

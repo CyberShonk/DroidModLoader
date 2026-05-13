@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.model.GameProfile
+import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 
 data class DashboardUiState(
     val appName: String,
@@ -24,7 +26,6 @@ data class DashboardUiState(
     val plugins: List<PluginEntry>,
     val gameOptions: List<String>,
     val selectedGameId: String,
-    val targetPathText: String,
     val selectedTreeUriText: String,
     val realDeployEnabled: Boolean,
     val logText: String,
@@ -34,7 +35,20 @@ data class DashboardUiState(
     val setupTargetPathText: String,
     val setupRealDeployEnabled: Boolean,
     val activeProfileName: String,
-    val profileOptions: List<GameProfile>
+    val profileOptions: List<GameProfile>,
+    val activeProfileId: String?,
+    val newProfileNameText: String,
+    val newProfileGameId: String,
+    val newProfileRealDeployEnabled: Boolean,
+    val showProfileDialog: Boolean,
+    val newProfileTreeUriText: String,
+    val operationInProgress: Boolean,
+    val activeOperationText: String,
+    val modContentIndexes: Map<String, ModContentIndex>,
+    val pendingArchiveInstall: PreparedArchiveInstall?,
+    val selectedInstallerOptionIds: Set<String>,
+    val showInstallerDialog: Boolean,
+    val installerDialogFullscreen: Boolean,
 )
 
 data class DashboardActions(
@@ -50,16 +64,32 @@ data class DashboardActions(
     val onMovePluginUp: (String) -> Unit,
     val onMovePluginDown: (String) -> Unit,
     val onSelectGame: (String) -> Unit,
-    val onTargetPathChanged: (String) -> Unit,
     val onRealDeployChanged: (Boolean) -> Unit,
     val onPickTargetFolder: () -> Unit,
     val onSaveSettings: () -> Unit,
     val onShareLogs: () -> Unit,
+
     val onProfileNameChanged: (String) -> Unit,
     val onSetupGameChanged: (String) -> Unit,
     val onSetupTargetPathChanged: (String) -> Unit,
     val onSetupRealDeployChanged: (Boolean) -> Unit,
-    val onCompleteSetup: () -> Unit
+    val onCompleteSetup: () -> Unit,
+
+    val onSelectProfile: (String) -> Unit,
+    val onNewProfileNameChanged: (String) -> Unit,
+    val onNewProfileGameChanged: (String) -> Unit,
+    val onNewProfileRealDeployChanged: (Boolean) -> Unit,
+    val onCreateAdditionalProfile: () -> Unit,
+
+    val onOpenProfileDialog: () -> Unit,
+    val onCloseProfileDialog: () -> Unit,
+    val onPickNewProfileTargetFolder: () -> Unit,
+    val onDeleteProfile: (String) -> Unit,
+
+    val onToggleInstallerOption: (String) -> Unit,
+    val onConfirmInstaller: () -> Unit,
+    val onCancelInstaller: () -> Unit,
+    val onToggleInstallerFullscreen: () -> Unit,
 )
 
 @Composable
@@ -92,12 +122,14 @@ fun DroidModLoaderScreen(
             StatusCard(
                 activeProfileName = state.activeProfileName,
                 lastOperationStatus = state.lastOperationStatus,
-                summaryText = state.summaryText
+                summaryText = state.summaryText,
+                onOpenProfileDialog = actions.onOpenProfileDialog
             )
 
             QuickStartCard()
 
             MainActionsCard(
+                operationInProgress = state.operationInProgress,
                 onImportArchive = actions.onImportArchive,
                 onDeployMods = actions.onDeployMods,
                 onWriteLoadOrderFiles = actions.onWriteLoadOrderFiles
@@ -105,6 +137,7 @@ fun DroidModLoaderScreen(
 
             ModsCard(
                 mods = state.mods,
+                modContentIndexes = state.modContentIndexes,
                 onToggleMod = actions.onToggleMod,
                 onMoveModUp = actions.onMoveModUp,
                 onMoveModDown = actions.onMoveModDown,
@@ -122,8 +155,6 @@ fun DroidModLoaderScreen(
                 gameOptions = state.gameOptions,
                 selectedGameId = state.selectedGameId,
                 onSelectGame = actions.onSelectGame,
-                targetPathText = state.targetPathText,
-                onTargetPathChanged = actions.onTargetPathChanged,
                 selectedTreeUriText = state.selectedTreeUriText,
                 realDeployEnabled = state.realDeployEnabled,
                 onRealDeployChanged = actions.onRealDeployChanged,
@@ -140,5 +171,34 @@ fun DroidModLoaderScreen(
                 DeveloperToolsCard()
             }
         }
+    }
+    if (state.showProfileDialog) {
+        ProfileManagerDialog(
+            profiles = state.profileOptions,
+            activeProfileId = state.activeProfileId,
+            newProfileNameText = state.newProfileNameText,
+            newProfileGameId = state.newProfileGameId,
+            newProfileTreeUriText = state.newProfileTreeUriText,
+            newProfileRealDeployEnabled = state.newProfileRealDeployEnabled,
+            onSelectProfile = actions.onSelectProfile,
+            onDeleteProfile = actions.onDeleteProfile,
+            onNewProfileNameChanged = actions.onNewProfileNameChanged,
+            onNewProfileGameChanged = actions.onNewProfileGameChanged,
+            onPickNewProfileTargetFolder = actions.onPickNewProfileTargetFolder,
+            onNewProfileRealDeployChanged = actions.onNewProfileRealDeployChanged,
+            onCreateAdditionalProfile = actions.onCreateAdditionalProfile,
+            onClose = actions.onCloseProfileDialog
+        )
+    }
+    if (state.showInstallerDialog && state.pendingArchiveInstall != null) {
+        InstallerChoiceDialog(
+            prepared = state.pendingArchiveInstall,
+            selectedOptionIds = state.selectedInstallerOptionIds,
+            fullscreen = state.installerDialogFullscreen,
+            onToggleOption = actions.onToggleInstallerOption,
+            onConfirm = actions.onConfirmInstaller,
+            onCancel = actions.onCancelInstaller,
+            onToggleFullscreen = actions.onToggleInstallerFullscreen
+        )
     }
 }
