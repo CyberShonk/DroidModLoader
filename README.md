@@ -226,4 +226,5 @@ This project does not claim ownership over third party mods, game assets, or ext
 ---
 
 ## Tip
-If you'd like to support me here my Ko-fi:https://ko-fi.com/seansboottom
+If you'd like to support me here's my 
+Ko-fi: https://ko-fi.com/seansboottom
