@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
+import com.shonkware.droidmodloader.engine.model.GameProfile
 
 data class DashboardUiState(
     val appName: String,
@@ -31,7 +32,9 @@ data class DashboardUiState(
     val profileNameText: String,
     val setupGameId: String,
     val setupTargetPathText: String,
-    val setupRealDeployEnabled: Boolean
+    val setupRealDeployEnabled: Boolean,
+    val activeProfileName: String,
+    val profileOptions: List<GameProfile>
 )
 
 data class DashboardActions(
@@ -87,6 +90,7 @@ fun DroidModLoaderScreen(
             )
 
             StatusCard(
+                activeProfileName = state.activeProfileName,
                 lastOperationStatus = state.lastOperationStatus,
                 summaryText = state.summaryText
             )

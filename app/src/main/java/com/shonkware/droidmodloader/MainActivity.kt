@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
     private var setupComplete by mutableStateOf(false)
     private var activeProfileId by mutableStateOf<String?>(null)
     private var profileNameText by mutableStateOf("Default")
+    private var profileOptions by mutableStateOf<List<GameProfile>>(emptyList())
+    private var activeProfileName by mutableStateOf("No profile")
     private var setupGameId by mutableStateOf("skyrim_le")
     private var setupGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
     private var setupTargetPathText by mutableStateOf("")
@@ -122,7 +124,9 @@ class MainActivity : ComponentActivity() {
             profileNameText = profileNameText,
             setupGameId = setupGameId,
             setupTargetPathText = setupTargetPathText,
-            setupRealDeployEnabled = setupRealDeployEnabled
+            setupRealDeployEnabled = setupRealDeployEnabled,
+            activeProfileName = activeProfileName,
+            profileOptions = profileOptions
 
         )
     }
@@ -181,7 +185,8 @@ class MainActivity : ComponentActivity() {
                 pickTargetFolderLauncher.launch(null)
             },
             onSaveSettings = {
-                runInBackground { saveSelectedGameConfigFromUi() }
+                runInBackground { saveSelectedGameConfigFromUi()
+                    saveActiveProfileFromDashboard() }
             },
             onShareLogs = {
                 shareLogs()
@@ -943,13 +948,25 @@ class MainActivity : ComponentActivity() {
     private fun loadSetupState() {
         val repo = createProfileRepository() ?: return
         val state = repo.loadSetupState()
+        val profiles = repo.loadProfiles()
+        val activeProfile = profiles.firstOrNull { it.profileId == state.activeProfileId }
 
         runOnUiThread {
             setupComplete = state.setupComplete
             activeProfileId = state.activeProfileId
+            profileOptions = profiles
+
+            if (activeProfile != null) {
+                activeProfileName = activeProfile.profileName
+                selectedGameId = activeProfile.gameId
+                targetPathText = activeProfile.targetDataPath
+                selectedTreeUriText = activeProfile.targetTreeUri ?: "No folder selected"
+                realDeployEnabledState = activeProfile.realDeployEnabled
+            }
         }
 
         appendLog("Loaded setup state: $state")
+        appendLog("Loaded profile count: ${profiles.size}")
     }
 
     private fun completeFirstSetup() {
@@ -991,5 +1008,43 @@ class MainActivity : ComponentActivity() {
         updateLastOperationStatus("Setup complete.")
         refreshDashboard()
     }
+
+    private fun saveActiveProfileFromDashboard() {
+        val repo = createProfileRepository() ?: return
+        val currentProfileId = activeProfileId ?: return
+
+        val profiles = repo.loadProfiles().toMutableList()
+        val index = profiles.indexOfFirst { it.profileId == currentProfileId }
+
+        if (index == -1) {
+            appendError("Active profile not found: $currentProfileId")
+            return
+        }
+
+        val oldProfile = profiles[index]
+        val updatedProfile = oldProfile.copy(
+            gameId = selectedGameId,
+            gameDisplayName = when (selectedGameId) {
+                "skyrim_le" -> "Skyrim Legendary Edition"
+                "fallout_nv" -> "Fallout New Vegas"
+                else -> selectedGameId
+            },
+            targetDataPath = targetPathText.trim(),
+            targetTreeUri = if (selectedTreeUriText == "No folder selected") null else selectedTreeUriText,
+            realDeployEnabled = realDeployEnabledState
+        )
+
+        profiles[index] = updatedProfile
+        repo.saveProfiles(profiles)
+
+        runOnUiThread {
+            profileOptions = profiles
+            activeProfileName = updatedProfile.profileName
+        }
+
+        appendLog("Saved active profile: $updatedProfile")
+    }
+
+
 }
 

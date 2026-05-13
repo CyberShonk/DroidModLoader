@@ -56,10 +56,13 @@ fun HeaderCard(
 @Composable
 fun StatusCard(
     lastOperationStatus: String,
-    summaryText: String
+    summaryText: String,
+    activeProfileName: String
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text("Profile: $activeProfileName")
+            Spacer(Modifier.height(8.dp))
             Text("Status", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(lastOperationStatus)
