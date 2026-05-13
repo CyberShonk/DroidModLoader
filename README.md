@@ -224,3 +224,6 @@ DroidModLoader is an independent project. Users are responsible for complying wi
 This project does not claim ownership over third party mods, game assets, or external community tools.
 
 ---
+
+## Tip
+If you'd like to support me here my Ko-fi:https://ko-fi.com/seansboottom
