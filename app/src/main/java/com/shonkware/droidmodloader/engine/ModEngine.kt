@@ -37,6 +37,8 @@ import com.shonkware.droidmodloader.engine.index.ModContentCategory
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.engine.index.ModFilePreviewEntry
 import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
+import com.shonkware.droidmodloader.engine.plugins.DataFolderPluginScanner
+import com.shonkware.droidmodloader.engine.plugins.GamePluginRules
 
 data class UninstallResult(
     val removed: Boolean,
@@ -81,6 +83,8 @@ class ModEngine(
         pluginsTxtFile = pluginsTxtFile,
         loadorderTxtFile = loadorderTxtFile
     )
+    private val dataFolderPluginScanner = DataFolderPluginScanner(appContext)
+    private val gamePluginRules = GamePluginRules()
 
     fun installArchive(archive: File, priority: Int, enabled: Boolean = true): Mod {
         val extractedDir = modInstaller.installArchive(archive)
@@ -669,6 +673,55 @@ class ModEngine(
             modName = mod.name,
             entries = entries.sortedBy { it.normalizedPath }
         )
+    }
+
+    fun scanDataFolderPlugins(gameId: String): List<PluginEntry> {
+        val config = getGameDeploymentConfig(gameId) ?: return emptyList()
+
+        val foundNames = when {
+            config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
+                dataFolderPluginScanner.scanTreeUriDataFolder(config.targetTreeUri)
+            }
+
+            config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
+                dataFolderPluginScanner.scanLocalDataFolder(File(config.targetDataPath))
+            }
+
+            else -> {
+                dataFolderPluginScanner.scanLocalDataFolder(deployRootDir)
+            }
+        }
+
+        return foundNames.mapIndexed { index, pluginName ->
+            val rule = gamePluginRules.findRule(gameId, pluginName)
+            val pluginType = detectPluginType(pluginName)
+
+            PluginEntry(
+                normalizedPath = pluginName.lowercase(),
+                pluginName = pluginName,
+                sourceModId = rule?.sourceType ?: "unmanaged_data",
+                sourceModName = when (rule?.sourceType) {
+                    "base_game" -> "Base Game"
+                    "official_dlc" -> "Official DLC"
+                    else -> "Unmanaged Data Folder"
+                },
+                enabled = rule?.defaultEnabled ?: false,
+                priority = rule?.orderRank ?: Int.MAX_VALUE - index,
+                pluginType = pluginType,
+                sourceType = rule?.sourceType ?: "unmanaged_data",
+                locked = rule?.locked ?: false,
+                filePresentInDataFolder = true
+            )
+        }
+    }
+
+    private fun detectPluginType(pluginName: String): String {
+        val lower = pluginName.lowercase()
+        return when {
+            lower.endsWith(".esm") -> "ESM"
+            lower.endsWith(".esl") -> "ESL"
+            else -> "ESP"
+        }
     }
 
 }

@@ -421,18 +421,50 @@ fun PluginsCard(
                             )
 
                             Text(if (plugin.enabled) "Enabled" else "Disabled")
-                            Text("From: ${plugin.sourceModName}")
+
+                            val sourceLabel = when (plugin.sourceType) {
+                                "base_game" -> "Base Game"
+                                "official_dlc" -> "Official DLC"
+                                "unmanaged_data" -> "Unmanaged Data Folder"
+                                "managed_mod" -> plugin.sourceModName
+                                else -> plugin.sourceModName
+                            }
+
+                            Text("From: $sourceLabel")
+
+                            if (plugin.sourceType == "unmanaged_data") {
+                                Text(
+                                    text = "Detected in target Data folder",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+
+                            if (plugin.locked) {
+                                Text(
+                                    text = "Locked official plugin",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
 
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onTogglePlugin(plugin.normalizedPath) }) {
+                                Button(
+                                    enabled = !plugin.locked,
+                                    onClick = { onTogglePlugin(plugin.normalizedPath) }
+                                ) {
                                     Text(if (plugin.enabled) "Disable" else "Enable")
                                 }
 
-                                Button(onClick = { onMovePluginUp(plugin.normalizedPath) }) {
+                                Button(
+                                    enabled = !plugin.locked,
+                                    onClick = { onMovePluginUp(plugin.normalizedPath) }
+                                ) {
                                     Text("Up")
                                 }
 
-                                Button(onClick = { onMovePluginDown(plugin.normalizedPath) }) {
+                                Button(
+                                    enabled = !plugin.locked,
+                                    onClick = { onMovePluginDown(plugin.normalizedPath) }
+                                ) {
                                     Text("Down")
                                 }
                             }

@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
     private fun buildUiState(): DashboardUiState {
         return DashboardUiState(
             appName = "Droid Mod Loader",
-            versionLabel = "Version 0.3 Beta",
+            versionLabel = "Version 0.4 Beta",
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
             summaryText = summaryText,
@@ -328,6 +328,12 @@ class MainActivity : ComponentActivity() {
             refreshGameOptions()
             loadSelectedGameConfigIntoUi()
             migratePrioritySpacingIfNeeded()
+
+            val engine = createModEngineForWorkflows()
+            if (engine != null) {
+                syncPluginsFromCurrentState(engine)
+            }
+
             refreshDashboard()
         }
         appendLog("UI ready.")
@@ -842,11 +848,9 @@ class MainActivity : ComponentActivity() {
 
         startActivity(Intent.createChooser(sendIntent, "Share Logs"))
     }
-
     private fun updateLastOperationStatus(status: String) {
         lastOperationStatus = status
     }
-
     private fun queryDisplayName(uri: Uri): String? {
         val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
 
@@ -859,7 +863,6 @@ class MainActivity : ComponentActivity() {
 
         return null
     }
-
     private fun appendLogToFile(message: String) {
         try {
             val externalBaseDir = getExternalFilesDir(null) ?: return
@@ -871,7 +874,6 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {
         }
     }
-
     private fun runDeployWorkflow() {
         if (operationInProgress) {
             appendLog("Ignoring deploy request: operation already in progress.")
@@ -925,33 +927,75 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun syncPluginsFromCurrentState(engine: ModEngine) {
-        appendLog("Scanning plugins from current mod state...")
+        appendLog("Scanning plugins from current mod state and target Data folder...")
 
         val previous = engine.loadPlugins().associateBy { it.normalizedPath }
-        val discovered = engine.discoverPluginsFromCurrentMods()
 
-        val newPluginsStartPriority = (previous.values.maxOfOrNull { it.priority } ?: 0) + 1
-        var nextNewPriority = newPluginsStartPriority
+        val dataFolderPlugins = engine.scanDataFolderPlugins(selectedGameId)
+        val managedPlugins = engine.discoverPluginsFromCurrentMods()
 
-        val merged = discovered.map { plugin ->
-            val existing = previous[plugin.normalizedPath]
-            if (existing != null) {
-                plugin.copy(
-                    enabled = existing.enabled,
-                    priority = existing.priority
+        val officialDataPlugins = dataFolderPlugins.filter {
+            it.sourceType == "base_game" || it.sourceType == "official_dlc"
+        }
+
+        val unmanagedDataPlugins = dataFolderPlugins.filter {
+            it.sourceType == "unmanaged_data"
+        }
+
+        val dataPluginPaths = dataFolderPlugins.map { it.normalizedPath }.toSet()
+
+        val managedMerged = managedPlugins
+            .map { managed ->
+                val existing = previous[managed.normalizedPath]
+
+                managed.copy(
+                    enabled = existing?.enabled ?: true,
+                    priority = existing?.priority ?: Int.MAX_VALUE,
+                    sourceType = "managed_mod",
+                    locked = false,
+                    filePresentInDataFolder = managed.normalizedPath in dataPluginPaths
                 )
-            } else {
-                val newPlugin = plugin.copy(priority = nextNewPriority)
-                nextNewPriority += 1
-                newPlugin
             }
-        }.sortedBy { it.priority }
+
+        val unmanagedMerged = unmanagedDataPlugins.map { unmanaged ->
+            val existing = previous[unmanaged.normalizedPath]
+
+            unmanaged.copy(
+                enabled = existing?.enabled ?: false,
+                priority = existing?.priority ?: Int.MAX_VALUE,
+                locked = false,
+                filePresentInDataFolder = true
+            )
+        }
+
+        val officialMerged = officialDataPlugins
+            .sortedBy { it.priority }
+            .map { official ->
+                official.copy(
+                    enabled = true,
+                    locked = true,
+                    filePresentInDataFolder = true
+                )
+            }
+
+        val officialPaths = officialMerged.map { it.normalizedPath }.toSet()
+
+        val nonOfficial = (managedMerged + unmanagedMerged)
+            .filterNot { it.normalizedPath in officialPaths }
+            .distinctBy { it.normalizedPath }
+            .sortedWith(
+                compareBy<PluginEntry> { previous[it.normalizedPath]?.priority ?: it.priority }
+                    .thenBy { it.pluginName.lowercase() }
+            )
+
+        val merged = officialMerged + nonOfficial
 
         val normalized = engine.normalizePluginPriorities(merged)
         engine.saveCurrentPlugins(normalized)
 
         appendLog("Plugin scan complete. Plugin count: ${normalized.size}")
     }
+
     private fun refreshGameOptions() {
         val engine = createModEngineForWorkflows() ?: return
         val configs = engine.loadGameDeploymentConfigs()
@@ -1035,8 +1079,7 @@ class MainActivity : ComponentActivity() {
         val engine = createModEngineForWorkflows() ?: return
 
         try {
-
-
+            syncPluginsFromCurrentState(engine)
             val (pluginsTxt, loadorderTxt) = engine.exportCurrentPluginOutputs()
 
             appendLog("plugins.txt contents:")

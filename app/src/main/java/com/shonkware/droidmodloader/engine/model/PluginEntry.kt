@@ -7,5 +7,9 @@ data class PluginEntry(
     val sourceModName: String,
     val enabled: Boolean,
     val priority: Int,
-    val pluginType: String
+    val pluginType: String,
+
+    val sourceType: String = "managed_mod",
+    val locked: Boolean = false,
+    val filePresentInDataFolder: Boolean = false,
 )
