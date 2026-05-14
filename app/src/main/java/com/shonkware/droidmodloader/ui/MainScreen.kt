@@ -129,23 +129,19 @@ fun DroidModLoaderScreen(
                 versionLabel = state.versionLabel,
                 onVersionTap = actions.onVersionTap
             )
-
             StatusCard(
                 activeProfileName = state.activeProfileName,
                 lastOperationStatus = state.lastOperationStatus,
                 summaryText = state.summaryText,
                 onOpenProfileDialog = actions.onOpenProfileDialog
             )
-
             QuickStartCard()
-
             MainActionsCard(
                 operationInProgress = state.operationInProgress,
                 onImportArchive = actions.onImportArchive,
                 onDeployMods = actions.onDeployMods,
                 onWriteLoadOrderFiles = actions.onWriteLoadOrderFiles
             )
-
             ModsCard(
                 mods = state.mods,
                 modContentIndexes = state.modContentIndexes,
@@ -155,32 +151,29 @@ fun DroidModLoaderScreen(
                 onDeleteMod = actions.onDeleteMod,
                 onViewModFiles = actions.onViewModFiles
             )
-
             PluginsCard(
                 plugins = state.plugins,
                 onTogglePlugin = actions.onTogglePlugin,
                 onMovePluginUp = actions.onMovePluginUp,
                 onMovePluginDown = actions.onMovePluginDown
             )
-
             DeploymentSettingsCard(
                 gameOptions = state.gameOptions,
                 selectedGameId = state.selectedGameId,
                 onSelectGame = actions.onSelectGame,
                 selectedTreeUriText = state.selectedTreeUriText,
                 realDeployEnabled = state.realDeployEnabled,
+                secondScreenEnabled = state.secondScreenEnabled,
                 onRealDeployChanged = actions.onRealDeployChanged,
                 onPickTargetFolder = actions.onPickTargetFolder,
                 onSaveSettings = actions.onSaveSettings,
                 onToggleSecondScreen = actions.onToggleSecondScreen
 
             )
-
             ReportCard(
                 logText = state.logText,
                 onShareLogs = actions.onShareLogs
             )
-
             if (state.developerModeEnabled) {
                 DeveloperToolsCard()
             }
