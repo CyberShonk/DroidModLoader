@@ -3,7 +3,8 @@ package com.shonkware.droidmodloader.engine.index
 data class ModFilePreview(
     val modId: String,
     val modName: String,
-    val entries: List<ModFilePreviewEntry>
+    val entries: List<ModFilePreviewEntry>,
+    val folderSummaries: List<ModFileFolderSummary> = emptyList()
 ) {
     val winningFiles: List<ModFilePreviewEntry>
         get() = entries.filter { it.status == ModFilePreviewStatus.WINNING }
@@ -28,6 +29,9 @@ data class ModFilePreview(
 
     val optionalFiles: List<ModFilePreviewEntry>
         get() = entries.filter { it.status == ModFilePreviewStatus.OPTIONAL }
+
+    val ignoredFiles: List<ModFilePreviewEntry>
+        get() = entries.filter { it.status == ModFilePreviewStatus.IGNORED }
 
     val unknownFiles: List<ModFilePreviewEntry>
         get() = entries.filter { it.status == ModFilePreviewStatus.UNKNOWN }

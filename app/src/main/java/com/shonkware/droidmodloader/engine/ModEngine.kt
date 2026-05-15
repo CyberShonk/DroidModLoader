@@ -39,6 +39,9 @@ import com.shonkware.droidmodloader.engine.index.ModFilePreviewEntry
 import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
 import com.shonkware.droidmodloader.engine.plugins.DataFolderPluginScanner
 import com.shonkware.droidmodloader.engine.plugins.GamePluginRules
+import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
+import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
+import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanner
 
 data class UninstallResult(
     val removed: Boolean,
@@ -75,6 +78,9 @@ class ModEngine(
     private val pluginListRepository = PluginListRepository(pluginListFile)
     private val pluginDiscovery = PluginDiscovery()
     private val modContentIndexer = ModContentIndexer()
+
+    private val overwriteScanner = OverwriteScanner(appContext)
+
     private val preparedArchiveInstaller = PreparedArchiveInstaller(
         tempDir = tempDir,
         modsDir = modsDir
@@ -464,11 +470,7 @@ class ModEngine(
     fun deployForGame(gameId: String): DeploymentResult {
         val config = getGameDeploymentConfig(gameId)
 
-        val effectiveManifestFile = if (config != null) {
-            File(deploymentManifestFile.parentFile, "deployment_manifest_${config.gameId}.json")
-        } else {
-            deploymentManifestFile
-        }
+        val effectiveManifestFile = getEffectiveDeploymentManifestFile(gameId)
 
         val effectiveManifestRepository = DeploymentManifestRepository(effectiveManifestFile)
         val oldManifest = effectiveManifestRepository.load()
@@ -504,6 +506,16 @@ class ModEngine(
 
         effectiveManifestRepository.save(newManifest)
         return result
+    }
+
+    private fun getEffectiveDeploymentManifestFile(gameId: String): File {
+        val config = getGameDeploymentConfig(gameId)
+
+        return if (config != null) {
+            File(deploymentManifestFile.parentFile, "deployment_manifest_${config.gameId}.json")
+        } else {
+            deploymentManifestFile
+        }
     }
 
     fun discoverPluginsFromCurrentMods(): List<PluginEntry> {
@@ -667,11 +679,13 @@ class ModEngine(
                 winningModName = winner?.winningModName
             )
         }
+        val sortedEntries = entries.sortedBy { it.normalizedPath }
 
         return ModFilePreview(
             modId = mod.id,
             modName = mod.name,
-            entries = entries.sortedBy { it.normalizedPath }
+            entries = sortedEntries,
+            folderSummaries = buildFolderSummaries(sortedEntries)
         )
     }
 
@@ -713,6 +727,208 @@ class ModEngine(
                 filePresentInDataFolder = true
             )
         }
+    }
+
+    fun applyModPriorityOrder(orderedModIds: List<String>) {
+        val current = getCurrentMods().sortedBy { it.priority }
+        val byId = current.associateBy { it.id }
+
+        val reordered = orderedModIds.mapNotNull { byId[it] }
+
+        if (reordered.size != current.size) {
+            throw IllegalArgumentException(
+                "Could not apply mod order: expected ${current.size} mods but got ${reordered.size}."
+            )
+        }
+
+        val currentIds = current.map { it.id }.toSet()
+        val orderedIds = orderedModIds.toSet()
+
+        if (currentIds != orderedIds) {
+            throw IllegalArgumentException("Could not apply mod order: ordered mod IDs do not match current mods.")
+        }
+
+        saveCurrentMods(
+            reordered.mapIndexed { index, mod ->
+                mod.copy(priority = index + 1)
+            }
+        )
+    }
+
+    fun applyPluginPriorityOrder(orderedPluginPaths: List<String>) {
+        val current = getCurrentPlugins().sortedBy { it.priority }
+        val byPath = current.associateBy { it.normalizedPath }
+
+        val lockedPlugins = current
+            .filter { it.locked }
+            .sortedBy { it.priority }
+
+        val lockedPaths = lockedPlugins.map { it.normalizedPath }.toSet()
+
+        val orderedUnlockedPaths = orderedPluginPaths.filterNot { it in lockedPaths }
+
+        val currentUnlocked = current.filterNot { it.locked }
+        val currentUnlockedPaths = currentUnlocked.map { it.normalizedPath }.toSet()
+
+        if (orderedUnlockedPaths.toSet() != currentUnlockedPaths) {
+            throw IllegalArgumentException("Could not apply plugin order: ordered plugin paths do not match current unlocked plugins.")
+        }
+
+        val reorderedUnlocked = orderedUnlockedPaths.mapNotNull { byPath[it] }
+
+        if (reorderedUnlocked.size != currentUnlocked.size) {
+            throw IllegalArgumentException(
+                "Could not apply plugin order: expected ${currentUnlocked.size} unlocked plugins but got ${reorderedUnlocked.size}."
+            )
+        }
+
+        val reordered = lockedPlugins + reorderedUnlocked
+
+        saveCurrentPlugins(
+            reordered.mapIndexed { index, plugin ->
+                plugin.copy(priority = index + 1)
+            }
+        )
+    }
+
+    fun scanOverwriteFiles(gameId: String): List<OverwriteEntry> {
+        val config = getGameDeploymentConfig(gameId)
+
+        val targetFiles = when {
+            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
+                overwriteScanner.scanTreeUriDataFolder(config.targetTreeUri)
+            }
+
+            config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
+                overwriteScanner.scanLocalDataFolder(File(config.targetDataPath))
+            }
+
+            else -> {
+                overwriteScanner.scanLocalDataFolder(deployRootDir)
+            }
+        }
+
+        val manifestRepository = DeploymentManifestRepository(
+            getEffectiveDeploymentManifestFile(gameId)
+        )
+
+        val deployedPaths = manifestRepository.load()
+            .map { it.normalizedPath }
+            .toSet()
+
+        val knownPluginPaths = getCurrentPlugins()
+            .map { it.normalizedPath }
+            .toSet()
+
+        return targetFiles
+            .filterNot { it.normalizedPath in deployedPaths }
+            .filterNot { it.normalizedPath in knownPluginPaths }
+            .filterNot { shouldIgnoreOverwritePath(it.normalizedPath) }
+            .map { file ->
+                OverwriteEntry(
+                    normalizedPath = file.normalizedPath,
+                    reason = getOverwriteReason(file.normalizedPath),
+                    sizeBytes = file.sizeBytes
+                )
+            }
+            .sortedBy { it.normalizedPath }
+    }
+
+    private fun shouldIgnoreOverwritePath(normalizedPath: String): Boolean {
+        val lower = normalizedPath.lowercase()
+
+        return lower == "plugins.txt" ||
+                lower == "loadorder.txt" ||
+                lower.endsWith(".bak") ||
+                lower.endsWith(".tmp") ||
+                lower.endsWith(".old")
+    }
+
+    private fun getOverwriteReason(normalizedPath: String): String {
+        val lower = normalizedPath.lowercase()
+
+        return when {
+            lower.endsWith(".log") ->
+                "Generated log file"
+
+            lower.startsWith("skse/plugins/") ||
+                    lower.startsWith("nvse/plugins/") ||
+                    lower.startsWith("obse/plugins/") ||
+                    lower.startsWith("f4se/plugins/") ->
+                "Script extender generated file"
+
+            lower.contains("cache") ->
+                "Possible generated cache file"
+
+            lower.endsWith(".ini") ->
+                "Generated or externally modified config file"
+
+            else ->
+                "File exists in target Data folder but is not tracked by Droid Mod Loader"
+        }
+    }
+
+    private fun buildFolderSummaries(
+        entries: List<ModFilePreviewEntry>
+    ): List<ModFileFolderSummary> {
+        val grouped = entries.groupBy { entry ->
+            val path = entry.normalizedPath
+            if (path.contains("/")) {
+                path.substringBefore("/") + "/"
+            } else {
+                path
+            }
+        }
+
+        return grouped.map { (topLevelPath, groupEntries) ->
+            val winningCount = groupEntries.count { it.status == ModFilePreviewStatus.WINNING }
+            val overwrittenCount = groupEntries.count { it.status == ModFilePreviewStatus.OVERWRITTEN }
+            val notDeployedCount = groupEntries.count { it.status == ModFilePreviewStatus.NOT_DEPLOYED }
+            val pluginCount = groupEntries.count { it.status == ModFilePreviewStatus.PLUGIN }
+            val archiveCount = groupEntries.count { it.status == ModFilePreviewStatus.ARCHIVE }
+            val configCount = groupEntries.count { it.status == ModFilePreviewStatus.CONFIG }
+            val setupCount = groupEntries.count { it.status == ModFilePreviewStatus.SETUP_ONLY }
+            val documentationCount = groupEntries.count { it.status == ModFilePreviewStatus.DOCUMENTATION }
+            val optionalCount = groupEntries.count { it.status == ModFilePreviewStatus.OPTIONAL }
+            val ignoredCount = groupEntries.count { it.status == ModFilePreviewStatus.IGNORED }
+            val unknownCount = groupEntries.count { it.status == ModFilePreviewStatus.UNKNOWN }
+
+            val dominantStatus = when {
+                overwrittenCount > 0 -> ModFilePreviewStatus.OVERWRITTEN
+                winningCount > 0 -> ModFilePreviewStatus.WINNING
+                pluginCount > 0 -> ModFilePreviewStatus.PLUGIN
+                archiveCount > 0 -> ModFilePreviewStatus.ARCHIVE
+                configCount > 0 -> ModFilePreviewStatus.CONFIG
+                optionalCount > 0 -> ModFilePreviewStatus.OPTIONAL
+                setupCount > 0 -> ModFilePreviewStatus.SETUP_ONLY
+                documentationCount > 0 -> ModFilePreviewStatus.DOCUMENTATION
+                ignoredCount > 0 -> ModFilePreviewStatus.IGNORED
+                notDeployedCount > 0 -> ModFilePreviewStatus.NOT_DEPLOYED
+                else -> ModFilePreviewStatus.UNKNOWN
+            }
+
+            ModFileFolderSummary(
+                displayName = topLevelPath,
+                normalizedPath = topLevelPath.removeSuffix("/"),
+                isTopLevelFile = !topLevelPath.endsWith("/"),
+                totalCount = groupEntries.size,
+                winningCount = winningCount,
+                overwrittenCount = overwrittenCount,
+                notDeployedCount = notDeployedCount,
+                pluginCount = pluginCount,
+                archiveCount = archiveCount,
+                configCount = configCount,
+                setupCount = setupCount,
+                documentationCount = documentationCount,
+                optionalCount = optionalCount,
+                ignoredCount = ignoredCount,
+                unknownCount = unknownCount,
+                dominantStatus = dominantStatus
+            )
+        }.sortedWith(
+            compareBy<ModFileFolderSummary> { it.isTopLevelFile }
+                .thenBy { it.displayName.lowercase() }
+        )
     }
 
     private fun detectPluginType(pluginName: String): String {

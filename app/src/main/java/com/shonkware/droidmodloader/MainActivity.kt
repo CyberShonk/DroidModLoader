@@ -29,6 +29,7 @@ import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.ui.SecondScreenController
 import java.io.File
 import com.shonkware.droidmodloader.ui.FullscreenPanel
+import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 
 class MainActivity : ComponentActivity() {
 
@@ -92,6 +93,9 @@ class MainActivity : ComponentActivity() {
     private var modFilePreviewFullscreen by mutableStateOf(false)
 
     private var fullscreenPanel by mutableStateOf(FullscreenPanel.NONE)
+
+    private var overwriteEntries by mutableStateOf<List<OverwriteEntry>>(emptyList())
+    private var showOverwriteDialog by mutableStateOf(false)
 
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -221,6 +225,8 @@ class MainActivity : ComponentActivity() {
             modFilePreviewFullscreen = modFilePreviewFullscreen,
             secondScreenEnabled = secondScreenEnabled,
             fullscreenPanel = fullscreenPanel,
+            overwriteEntries = overwriteEntries,
+            showOverwriteDialog = showOverwriteDialog,
 
         )
     }
@@ -365,6 +371,18 @@ class MainActivity : ComponentActivity() {
             },
             onCloseFullscreenPanel = {
                 fullscreenPanel = FullscreenPanel.NONE
+            },
+            onApplyModOrder = { orderedModIds ->
+                runInBackground { applyModOrder(orderedModIds) }
+            },
+            onApplyPluginOrder = { orderedPluginPaths ->
+                runInBackground { applyPluginOrder(orderedPluginPaths) }
+            },
+            onOpenOverwriteFolder = {
+                runInBackground { openOverwriteFolderPanel() }
+            },
+            onCloseOverwriteFolder = {
+                showOverwriteDialog = false
             },
         )
 
@@ -1482,7 +1500,6 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
-
     private fun finalizePendingInstallerInstall() {
         if (operationInProgress) {
             appendLog("Ignoring installer finalize request: operation already in progress.")
@@ -1601,6 +1618,48 @@ class MainActivity : ComponentActivity() {
             appendLog("Second screen plugin display disabled.")
             updateLastOperationStatus("Second screen plugin display disabled.")
             showToast("Second screen plugin display disabled.")
+        }
+    }
+
+    private fun applyModOrder(orderedModIds: List<String>) {
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            engine.applyModPriorityOrder(orderedModIds)
+            syncPluginsFromCurrentState(engine)
+            appendLog("Applied dragged mod order.")
+            refreshDashboard()
+        } catch (e: Exception) {
+            appendError("Could not apply dragged mod order: ${e.message}", e)
+        }
+    }
+
+    private fun applyPluginOrder(orderedPluginPaths: List<String>) {
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            engine.applyPluginPriorityOrder(orderedPluginPaths)
+            appendLog("Applied dragged plugin order.")
+            refreshDashboard()
+        } catch (e: Exception) {
+            appendError("Could not apply dragged plugin order: ${e.message}", e)
+        }
+    }
+
+    private fun openOverwriteFolderPanel() {
+        val engine = createModEngineForWorkflows() ?: return
+
+        try {
+            val entries = engine.scanOverwriteFiles(selectedGameId)
+
+            runOnUiThread {
+                overwriteEntries = entries
+                showOverwriteDialog = true
+            }
+
+            appendLog("Opened overwrite folder panel. Entry count: ${entries.size}")
+        } catch (e: Exception) {
+            appendError("Failed to scan overwrite files: ${e.message}", e)
         }
     }
 }

@@ -43,6 +43,65 @@ import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.engine.index.ModFilePreviewEntry
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.CardDefaults
+import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
+import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
+import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
+
+private data class UiFileTreeNode(
+    val name: String,
+    val path: String,
+    val isFile: Boolean,
+    val status: ModFilePreviewStatus?,
+    val children: MutableList<UiFileTreeNode> = mutableListOf()
+)
+
+private fun buildPreviewTree(entries: List<ModFilePreviewEntry>): List<UiFileTreeNode> {
+    val roots = mutableMapOf<String, UiFileTreeNode>()
+
+    for (entry in entries) {
+        val parts = entry.normalizedPath.split("/").filter { it.isNotBlank() }
+        if (parts.isEmpty()) continue
+
+        var currentMap = roots
+        var currentPath = ""
+
+        for ((index, part) in parts.withIndex()) {
+            currentPath = if (currentPath.isBlank()) part else "$currentPath/$part"
+            val isFile = index == parts.lastIndex
+
+            val node = currentMap.getOrPut(part) {
+                UiFileTreeNode(
+                    name = part,
+                    path = currentPath,
+                    isFile = isFile,
+                    status = if (isFile) entry.status else null
+                )
+            }
+
+            if (!isFile) {
+                currentMap = node.children.associateBy { it.name }.toMutableMap()
+                node.children.clear()
+                node.children.addAll(currentMap.values)
+            }
+        }
+    }
+
+    return roots.values.sortedBy { it.name }
+}
+
+private fun groupPreviewByTopFolder(entries: List<ModFilePreviewEntry>): Map<String, List<ModFilePreviewEntry>> {
+    return entries.groupBy { entry ->
+        entry.normalizedPath.substringBefore("/", entry.normalizedPath)
+    }.toSortedMap()
+}
+
 
 @Composable
 fun HeaderCard(
@@ -169,22 +228,37 @@ fun ModsCard(
     onMoveModDown: (String) -> Unit,
     onDeleteMod: (Mod) -> Unit,
     onViewModFiles: (String) -> Unit,
-    onOpenFullscreen: () -> Unit
+    onOpenFullscreen: () -> Unit,
+    onOpenOverwriteFolder: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Mods", fontWeight = FontWeight.Bold)
-            Button(onClick = onOpenFullscreen) {
-                Text("Open Fullscreen")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Mods", fontWeight = FontWeight.Bold)
+
+                Button(onClick = onOpenFullscreen) {
+                    Text("Open Fullscreen")
+                }
+            }
+
+            Button(
+                onClick = onOpenOverwriteFolder,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Open Overwrite Folder")
             }
 
             if (mods.isEmpty()) {
                 Text("No installed mods found.")
             } else {
-                mods.forEach { mod ->
+                mods.sortedBy { it.priority }.forEach { mod ->
                     CompactModRow(
                         mod = mod,
                         contentIndex = modContentIndexes[mod.id],
@@ -812,21 +886,16 @@ fun InstallerChoiceDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
-            modifier = if (fullscreen) {
-                Modifier
-                    .fillMaxSize()
-                    .padding(12.dp)
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            }
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(12.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.94f)
-                    .fillMaxHeight(0.88f)
-                    .padding(12.dp)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Install Options",
@@ -870,29 +939,17 @@ fun InstallerChoiceDialog(
                                         Text(option.name)
 
                                         if (option.required) {
-                                            Text(
-                                                text = "Required",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
+                                            Text("Required", style = MaterialTheme.typography.bodySmall)
                                         }
 
                                         if (option.description.isNotBlank()) {
-                                            Text(
-                                                text = option.description,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
+                                            Text(option.description, style = MaterialTheme.typography.bodySmall)
                                         }
 
-                                        Text(
-                                            text = "Source: ${option.sourcePath}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
+                                        Text("Source: ${option.sourcePath}", style = MaterialTheme.typography.bodySmall)
 
                                         if (option.destinationPath.isNotBlank()) {
-                                            Text(
-                                                text = "Destination: ${option.destinationPath}",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
+                                            Text("Destination: ${option.destinationPath}", style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
@@ -905,6 +962,7 @@ fun InstallerChoiceDialog(
                     Button(onClick = onCancel) {
                         Text("Cancel")
                     }
+
                     Button(onClick = onConfirm) {
                         Text("Install Selected")
                     }
@@ -925,21 +983,16 @@ fun ModFilePreviewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
-            modifier = if (fullscreen) {
-                Modifier
-                    .fillMaxSize()
-                    .padding(12.dp)
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            }
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(12.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.94f)
-                    .fillMaxHeight(0.88f)
-                    .padding(12.dp)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Files: ${preview.modName}",
@@ -952,31 +1005,138 @@ fun ModFilePreviewDialog(
                 Text("Plugins: ${preview.pluginFiles.size}")
                 Text("Archives: ${preview.archiveFiles.size}")
                 Text("Configs: ${preview.configFiles.size}")
-                Text("Setup/docs/optional/unknown: ${preview.setupFiles.size + preview.documentationFiles.size + preview.optionalFiles.size + preview.unknownFiles.size}")
 
-                FilePreviewSection("Winning / Deployed", preview.winningFiles)
-                FilePreviewSection("Overwritten", preview.overwrittenFiles)
-                FilePreviewSection("Plugins", preview.pluginFiles)
-                FilePreviewSection("Archives", preview.archiveFiles)
-                FilePreviewSection("Config Files", preview.configFiles)
-                FilePreviewSection("Setup Files", preview.setupFiles)
-                FilePreviewSection("Documentation", preview.documentationFiles)
-                FilePreviewSection("Optional", preview.optionalFiles)
-                FilePreviewSection("Unknown", preview.unknownFiles)
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onToggleFullscreen) {
-                        Text(if (fullscreen) "Windowed" else "Fullscreen")
+                if (preview.folderSummaries.isEmpty()) {
+                    Text("No files found.")
+                } else {
+                    preview.folderSummaries.forEach { summary ->
+                        FolderSummaryRow(summary)
                     }
+                }
 
-                    Button(onClick = onClose) {
-                        Text("Close")
-                    }
+                Button(onClick = onClose) {
+                    Text("Close")
                 }
             }
         }
     }
 }
+
+@Composable
+fun OverwriteDialog(
+    entries: List<OverwriteEntry>,
+    onClose: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.88f)
+                .padding(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Overwrite Folder",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Files detected in the target Data folder that are not currently tracked by Droid Mod Loader.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                if (entries.isEmpty()) {
+                    Text("No overwrite files detected.")
+                } else {
+                    entries.forEach { entry ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(entry.normalizedPath, fontWeight = FontWeight.Bold)
+                                Text(entry.reason, style = MaterialTheme.typography.bodySmall)
+
+                                if (entry.sizeBytes != null) {
+                                    Text(
+                                        text = "Size: ${entry.sizeBytes} bytes",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button(onClick = onClose) {
+                    Text("Close")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FolderSummaryRow(
+    summary: ModFileFolderSummary
+) {
+    val background = when (summary.dominantStatus) {
+        ModFilePreviewStatus.WINNING -> Color(0xFFE5F4E8)
+        ModFilePreviewStatus.OVERWRITTEN -> Color(0xFFFFE5E5)
+        ModFilePreviewStatus.PLUGIN -> Color(0xFFE8F0FE)
+        ModFilePreviewStatus.ARCHIVE -> Color(0xFFE8F0FE)
+        ModFilePreviewStatus.CONFIG -> Color(0xFFFFF4D6)
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = background),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = summary.displayName,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = buildString {
+                    append("Total: ${summary.totalCount}")
+
+                    if (summary.winningCount > 0) append(" | Winning: ${summary.winningCount}")
+                    if (summary.overwrittenCount > 0) append(" | Overwritten: ${summary.overwrittenCount}")
+                    if (summary.notDeployedCount > 0) append(" | Not deployed: ${summary.notDeployedCount}")
+                    if (summary.pluginCount > 0) append(" | Plugins: ${summary.pluginCount}")
+                    if (summary.archiveCount > 0) append(" | Archives: ${summary.archiveCount}")
+                    if (summary.configCount > 0) append(" | Configs: ${summary.configCount}")
+                    if (summary.setupCount > 0) append(" | Setup: ${summary.setupCount}")
+                    if (summary.documentationCount > 0) append(" | Docs: ${summary.documentationCount}")
+                    if (summary.optionalCount > 0) append(" | Optional: ${summary.optionalCount}")
+                    if (summary.ignoredCount > 0) append(" | Ignored: ${summary.ignoredCount}")
+                    if (summary.unknownCount > 0) append(" | Unknown: ${summary.unknownCount}")
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
 @Composable
 fun FilePreviewSection(
     title: String,
@@ -1027,8 +1187,24 @@ fun FullscreenModsPanel(
     onMoveModDown: (String) -> Unit,
     onDeleteMod: (Mod) -> Unit,
     onViewModFiles: (String) -> Unit,
+    onApplyModOrder: (List<String>) -> Unit,
+    onOpenOverwriteFolder: () -> Unit,
     onClose: () -> Unit
 ) {
+    var orderedMods by remember(mods) {
+        mutableStateOf(mods.sortedBy { it.priority })
+    }
+
+    fun moveMod(index: Int, direction: Int) {
+        val target = (index + direction).coerceIn(0, orderedMods.lastIndex)
+        if (target == index) return
+
+        val mutable = orderedMods.toMutableList()
+        val item = mutable.removeAt(index)
+        mutable.add(target, item)
+        orderedMods = mutable
+    }
+
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -1048,27 +1224,61 @@ fun FullscreenModsPanel(
                     fontWeight = FontWeight.Bold
                 )
 
-                Button(onClick = onClose) {
-                    Text("Close")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpenOverwriteFolder) {
+                        Text("Overwrite")
+                    }
+
+                    Button(onClick = {
+                        onApplyModOrder(orderedMods.map { it.id })
+                    }) {
+                        Text("Save Order")
+                    }
+
+                    Button(onClick = onClose) {
+                        Text("Close")
+                    }
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+            Text(
+                text = "Long-press and drag ☰ to reorder. Tap Save Order when done.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                mods.sortedBy { it.priority }.forEach { mod ->
-                    CompactModRow(
-                        mod = mod,
-                        contentIndex = modContentIndexes[mod.id],
-                        onToggleMod = onToggleMod,
-                        onMoveModUp = onMoveModUp,
-                        onMoveModDown = onMoveModDown,
-                        onDeleteMod = onDeleteMod,
-                        onViewModFiles = onViewModFiles
-                    )
+                itemsIndexed(
+                    items = orderedMods,
+                    key = { _, mod -> mod.id }
+                ) { index, mod ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DragHandle(
+                            onStep = { direction ->
+                                moveMod(index, direction)
+                            },
+                            onDragFinished = {
+                                onApplyModOrder(orderedMods.map { it.id })
+                            }
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            CompactModRow(
+                                mod = mod,
+                                contentIndex = modContentIndexes[mod.id],
+                                onToggleMod = onToggleMod,
+                                onMoveModUp = onMoveModUp,
+                                onMoveModDown = onMoveModDown,
+                                onDeleteMod = onDeleteMod,
+                                onViewModFiles = onViewModFiles
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1081,8 +1291,27 @@ fun FullscreenPluginsPanel(
     onTogglePlugin: (String) -> Unit,
     onMovePluginUp: (String) -> Unit,
     onMovePluginDown: (String) -> Unit,
+    onApplyPluginOrder: (List<String>) -> Unit,
     onClose: () -> Unit
 ) {
+    var orderedPlugins by remember(plugins) {
+        mutableStateOf(plugins.sortedBy { it.priority })
+    }
+
+    fun movePlugin(index: Int, direction: Int) {
+        val plugin = orderedPlugins.getOrNull(index) ?: return
+        if (plugin.locked) return
+
+        val target = (index + direction).coerceIn(0, orderedPlugins.lastIndex)
+        if (target == index) return
+        if (orderedPlugins[target].locked) return
+
+        val mutable = orderedPlugins.toMutableList()
+        val item = mutable.removeAt(index)
+        mutable.add(target, item)
+        orderedPlugins = mutable
+    }
+
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -1102,27 +1331,109 @@ fun FullscreenPluginsPanel(
                     fontWeight = FontWeight.Bold
                 )
 
-                Button(onClick = onClose) {
-                    Text("Close")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
+                    }) {
+                        Text("Save Order")
+                    }
+
+                    Button(onClick = onClose) {
+                        Text("Close")
+                    }
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+            Text(
+                text = "Long-press and drag ☰ to reorder unlocked plugins. Official plugins stay pinned.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                plugins.sortedBy { it.priority }.forEach { plugin ->
-                    PluginRow(
-                        plugin = plugin,
-                        onTogglePlugin = onTogglePlugin,
-                        onMovePluginUp = onMovePluginUp,
-                        onMovePluginDown = onMovePluginDown
-                    )
+                itemsIndexed(
+                    items = orderedPlugins,
+                    key = { _, plugin -> plugin.normalizedPath }
+                ) { index, plugin ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DragHandle(
+                            enabled = !plugin.locked,
+                            onStep = { direction ->
+                                movePlugin(index, direction)
+                            },
+                            onDragFinished = {
+                                onApplyPluginOrder(orderedPlugins.map { it.normalizedPath })
+                            }
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            PluginRow(
+                                plugin = plugin,
+                                onTogglePlugin = onTogglePlugin,
+                                onMovePluginUp = onMovePluginUp,
+                                onMovePluginDown = onMovePluginDown
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DragHandle(
+    enabled: Boolean = true,
+    onStep: (Int) -> Unit,
+    onDragFinished: () -> Unit
+) {
+    val thresholdPx = with(LocalDensity.current) { 56.dp.toPx() }
+    var accumulatedY by remember { mutableStateOf(0f) }
+
+    Text(
+        text = "☰",
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .padding(8.dp)
+            .then(
+                if (enabled) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                accumulatedY = 0f
+                            },
+                            onDragEnd = {
+                                accumulatedY = 0f
+                                onDragFinished()
+                            },
+                            onDragCancel = {
+                                accumulatedY = 0f
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                accumulatedY += dragAmount.y
+
+                                while (accumulatedY > thresholdPx) {
+                                    onStep(1)
+                                    accumulatedY -= thresholdPx
+                                }
+
+                                while (accumulatedY < -thresholdPx) {
+                                    onStep(-1)
+                                    accumulatedY += thresholdPx
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+    )
 }
 

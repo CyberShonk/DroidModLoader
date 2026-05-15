@@ -16,6 +16,21 @@ data class DeploymentResult(
 class DeploymentManager(
     private val deployRootDir: File
 ) {
+    private val protectedFolderNames = setOf(
+        "data",
+        "meshes",
+        "textures",
+        "scripts",
+        "interface",
+        "sound",
+        "music",
+        "strings",
+        "video",
+        "skse",
+        "nvse",
+        "obse",
+        "f4se"
+    )
 
     fun deploy(
         oldRecords: List<DeploymentRecord>,
@@ -41,13 +56,17 @@ class DeploymentManager(
                 is FileChange.Add -> {
                     copyIntoDeployRoot(change.record)
                 }
+
                 is FileChange.Update -> {
                     copyIntoDeployRoot(change.newRecord)
                 }
+
                 is FileChange.Remove -> {
-                    val targetFile = File(deployRootDir, change.normalizedPath)
-                    if (targetFile.exists()) {
+                    val targetFile = resolveInsideDeployRoot(change.normalizedPath)
+
+                    if (targetFile.exists() && targetFile.isFile) {
                         targetFile.delete()
+                        cleanupEmptyParents(targetFile)
                     }
                 }
             }
@@ -77,8 +96,39 @@ class DeploymentManager(
         val sourceFile = File(record.sourceFilePath)
         if (!sourceFile.exists() || !sourceFile.isFile) return
 
-        val targetFile = File(deployRootDir, record.normalizedPath)
+        val targetFile = resolveInsideDeployRoot(record.normalizedPath)
         targetFile.parentFile?.mkdirs()
         sourceFile.copyTo(targetFile, overwrite = true)
+    }
+
+    private fun resolveInsideDeployRoot(normalizedPath: String): File {
+        val target = File(deployRootDir, normalizedPath)
+        val rootPath = deployRootDir.canonicalPath + File.separator
+        val targetPath = target.canonicalPath
+
+        if (!targetPath.startsWith(rootPath)) {
+            throw SecurityException("Blocked unsafe deployment path: $normalizedPath")
+        }
+
+        return target
+    }
+
+    private fun cleanupEmptyParents(startFile: File) {
+        val rootCanonical = deployRootDir.canonicalFile
+        var current = startFile.parentFile?.canonicalFile
+
+        while (current != null) {
+            if (current == rootCanonical) return
+            if (!current.canonicalPath.startsWith(rootCanonical.canonicalPath)) return
+
+            val children = current.listFiles()
+            if (children != null && children.isNotEmpty()) return
+
+            if (protectedFolderNames.contains(current.name.lowercase())) return
+
+            val parent = current.parentFile?.canonicalFile
+            current.delete()
+            current = parent
+        }
     }
 }
