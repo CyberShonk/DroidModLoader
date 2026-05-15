@@ -518,7 +518,7 @@ fun DeploymentSettingsCard(
 
                 Text("Write to Real Target Folder")
             }
-
+            Text("Pick 'Data' folder of your installed game")
             Button(
                 onClick = onPickTargetFolder,
                 modifier = Modifier.fillMaxWidth()
@@ -767,7 +767,6 @@ fun ProfileManagerDialog(
         }
     )
 }
-
 @Composable
 fun InstallerChoiceDialog(
     prepared: PreparedArchiveInstall,
@@ -889,7 +888,6 @@ fun InstallerChoiceDialog(
         }
     }
 }
-
 @Composable
 fun ModFilePreviewDialog(
     preview: ModFilePreview,
@@ -954,7 +952,6 @@ fun ModFilePreviewDialog(
         }
     }
 }
-
 @Composable
 fun FilePreviewSection(
     title: String,
