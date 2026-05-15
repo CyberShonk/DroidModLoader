@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -808,7 +809,7 @@ fun InstallerChoiceDialog(
 ) {
     Dialog(
         onDismissRequest = onCancel,
-        properties = DialogProperties(usePlatformDefaultWidth = !fullscreen)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
             modifier = if (fullscreen) {
@@ -823,9 +824,9 @@ fun InstallerChoiceDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxWidth(0.94f)
+                    .fillMaxHeight(0.88f)
+                    .padding(12.dp)
             ) {
                 Text(
                     text = "Install Options",
@@ -901,14 +902,9 @@ fun InstallerChoiceDialog(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onToggleFullscreen) {
-                        Text(if (fullscreen) "Windowed" else "Fullscreen")
-                    }
-
                     Button(onClick = onCancel) {
                         Text("Cancel")
                     }
-
                     Button(onClick = onConfirm) {
                         Text("Install Selected")
                     }
@@ -926,7 +922,7 @@ fun ModFilePreviewDialog(
 ) {
     Dialog(
         onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = !fullscreen)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
             modifier = if (fullscreen) {
@@ -941,9 +937,9 @@ fun ModFilePreviewDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxWidth(0.94f)
+                    .fillMaxHeight(0.88f)
+                    .padding(12.dp)
             ) {
                 Text(
                     text = "Files: ${preview.modName}",
