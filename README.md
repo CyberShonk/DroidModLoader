@@ -28,6 +28,13 @@ DroidModLoader is being developed around a few core goals:
 - provide a more realistic path to Bethesda modding on mobile hardware
 
 ---
+## Roadmap
+
+Droid Mod Loader has a public roadmap covering deployment reliability, existing manual modlist adoption, GameNative integration, diagnostics, performance, themes, collections, and advanced plugin/installer support.
+
+See the full roadmap here: [ROADMAP.md](ROADMAP.md)
+
+---
 
 ## Target Games
 
