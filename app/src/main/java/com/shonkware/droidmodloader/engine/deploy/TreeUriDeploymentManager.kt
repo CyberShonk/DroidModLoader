@@ -4,34 +4,37 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.shonkware.droidmodloader.engine.model.DeploymentRecord
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import java.io.File
 import java.io.IOException
-import com.shonkware.droidmodloader.engine.model.DeploymentRecord
-
 
 class TreeUriDeploymentManager(
     private val context: Context,
     private val contentResolver: ContentResolver,
     private val treeUri: Uri
-
 ) {
-
 
     private val root: DocumentFile by lazy {
         DocumentFile.fromTreeUri(context, treeUri)
             ?: throw IOException("Could not open selected Tree URI target folder.")
     }
 
+    // Directory path -> DocumentFile directory.
+    // Example: "" -> root, "textures", "textures/armor"
     private val directoryCache = mutableMapOf<String, DocumentFile>()
-    private val fileCache = mutableMapOf<String, DocumentFile?>()
+
+    // Parent directory path -> child name -> DocumentFile.
+    // This avoids calling parentDir.findFile(name) repeatedly for every file.
+    private val childCache = mutableMapOf<String, MutableMap<String, DocumentFile>>()
 
     fun deploy(
         oldManifest: List<DeploymentRecord>,
         newWinningRecords: List<FileRecord>
     ): Pair<List<DeploymentRecord>, DeploymentResult> {
         directoryCache.clear()
-        fileCache.clear()
+        childCache.clear()
+
         directoryCache[""] = root
 
         val oldByPath = oldManifest.associateBy { it.normalizedPath }
@@ -68,16 +71,16 @@ class TreeUriDeploymentManager(
             copyRecordToTarget(record)
         }
 
+        val newManifest = newWinningRecords
+            .map { it.toDeploymentRecord() }
+            .sortedBy { it.normalizedPath }
+
         val result = DeploymentResult(
             addCount = adds.size,
             removeCount = removes.size,
             updateCount = updates.size,
-            finalRecordCount = newWinningRecords.size
+            finalRecordCount = newManifest.size
         )
-
-        val newManifest = newWinningRecords
-            .map { it.toDeploymentRecord() }
-            .sortedBy { it.normalizedPath }
 
         return Pair(newManifest, result)
     }
@@ -89,12 +92,24 @@ class TreeUriDeploymentManager(
             throw IOException("Source file missing during Tree URI deploy: ${record.sourceFilePath}")
         }
 
-        val parentDir = getOrCreateParentDirectory(record.normalizedPath)
-        val fileName = record.normalizedPath.substringAfterLast("/")
+        val parentPath = getParentPath(record.normalizedPath)
+        val fileName = getFileName(record.normalizedPath)
+        val parentDir = getOrCreateDirectory(parentPath)
 
-        val existing = findCachedFile(record.normalizedPath, parentDir, fileName)
-        existing?.delete()
-        fileCache.remove(record.normalizedPath)
+        val existing = getCachedChild(
+            parentPath = parentPath,
+            parentDir = parentDir,
+            childName = fileName
+        )
+
+        if (existing != null) {
+            if (existing.isDirectory) {
+                throw IOException("Target path is a directory, expected file: ${record.normalizedPath}")
+            }
+
+            existing.delete()
+            removeCachedChild(parentPath, fileName)
+        }
 
         val targetFile = parentDir.createFile(
             guessMimeType(fileName),
@@ -111,80 +126,43 @@ class TreeUriDeploymentManager(
             }
         }
 
-        fileCache[record.normalizedPath] = targetFile
+        putCachedChild(parentPath, fileName, targetFile)
     }
 
     private fun deleteFileIfPresent(normalizedPath: String) {
-        val parentPath = normalizedPath.substringBeforeLast("/", missingDelimiterValue = "")
-        val fileName = normalizedPath.substringAfterLast("/")
+        val parentPath = getParentPath(normalizedPath)
+        val fileName = getFileName(normalizedPath)
 
         val parentDir = getExistingDirectory(parentPath) ?: return
-        val file = findCachedFile(normalizedPath, parentDir, fileName) ?: return
 
-        file.delete()
-        fileCache.remove(normalizedPath)
-    }
+        val existing = getCachedChild(
+            parentPath = parentPath,
+            parentDir = parentDir,
+            childName = fileName
+        ) ?: return
 
-    private fun getOrCreateParentDirectory(normalizedPath: String): DocumentFile {
-        val parentPath = normalizedPath.substringBeforeLast("/", missingDelimiterValue = "")
-
-        if (parentPath.isBlank()) {
-            return root
+        // Do not delete directories through a file-delete path.
+        if (!existing.isFile) {
+            return
         }
 
-        var currentPath = ""
-        var currentDir = root
-
-        val parts = parentPath
-            .split("/")
-            .filter { it.isNotBlank() }
-
-        for (part in parts) {
-            currentPath = if (currentPath.isBlank()) {
-                part
-            } else {
-                "$currentPath/$part"
-            }
-
-            val cached = directoryCache[currentPath]
-            if (cached != null && cached.exists() && cached.isDirectory) {
-                currentDir = cached
-                continue
-            }
-
-            val existing = currentDir.findFile(part)
-            val nextDir = when {
-                existing != null && existing.isDirectory -> existing
-
-                existing != null && existing.isFile -> {
-                    throw IOException("Target path segment is a file, expected directory: $currentPath")
-                }
-
-                else -> {
-                    currentDir.createDirectory(part)
-                        ?: throw IOException("Could not create target directory through Tree URI: $currentPath")
-                }
-            }
-
-            directoryCache[currentPath] = nextDir
-            currentDir = nextDir
-        }
-
-        return currentDir
+        existing.delete()
+        removeCachedChild(parentPath, fileName)
     }
 
-    private fun getExistingDirectory(path: String): DocumentFile? {
+    private fun getOrCreateDirectory(path: String): DocumentFile {
         if (path.isBlank()) {
             return root
         }
 
         val cached = directoryCache[path]
-        if (cached != null && cached.exists() && cached.isDirectory) {
+        if (cached != null) {
             return cached
         }
 
         var currentPath = ""
         var currentDir = root
+        var parentPath = ""
 
         val parts = path
             .split("/")
@@ -197,44 +175,148 @@ class TreeUriDeploymentManager(
                 "$currentPath/$part"
             }
 
-            val cachedPart = directoryCache[currentPath]
-            if (cachedPart != null && cachedPart.exists() && cachedPart.isDirectory) {
-                currentDir = cachedPart
+            val cachedDir = directoryCache[currentPath]
+            if (cachedDir != null) {
+                currentDir = cachedDir
+                parentPath = currentPath
                 continue
             }
 
-            val next = currentDir.findFile(part)
-            if (next == null || !next.isDirectory) {
-                return null
+            val child = getCachedChild(
+                parentPath = parentPath,
+                parentDir = currentDir,
+                childName = part
+            )
+
+            val nextDir = when {
+                child != null && child.isDirectory -> child
+
+                child != null && child.isFile -> {
+                    throw IOException("Target path segment is a file, expected directory: $currentPath")
+                }
+
+                else -> {
+                    val created = currentDir.createDirectory(part)
+                        ?: throw IOException("Could not create target directory through Tree URI: $currentPath")
+
+                    putCachedChild(parentPath, part, created)
+                    created
+                }
             }
 
-            directoryCache[currentPath] = next
-            currentDir = next
+            directoryCache[currentPath] = nextDir
+            currentDir = nextDir
+            parentPath = currentPath
         }
 
         return currentDir
     }
 
-    private fun findCachedFile(
-        normalizedPath: String,
-        parentDir: DocumentFile,
-        fileName: String
-    ): DocumentFile? {
-        if (fileCache.containsKey(normalizedPath)) {
-            val cached = fileCache[normalizedPath]
-            if (cached != null && cached.exists()) {
-                return cached
-            }
-
-            if (cached == null) {
-                return null
-            }
+    private fun getExistingDirectory(path: String): DocumentFile? {
+        if (path.isBlank()) {
+            return root
         }
 
-        val found = parentDir.findFile(fileName)
-        fileCache[normalizedPath] = found
+        val cached = directoryCache[path]
+        if (cached != null) {
+            return cached
+        }
 
-        return found
+        var currentPath = ""
+        var currentDir = root
+        var parentPath = ""
+
+        val parts = path
+            .split("/")
+            .filter { it.isNotBlank() }
+
+        for (part in parts) {
+            currentPath = if (currentPath.isBlank()) {
+                part
+            } else {
+                "$currentPath/$part"
+            }
+
+            val cachedDir = directoryCache[currentPath]
+            if (cachedDir != null) {
+                currentDir = cachedDir
+                parentPath = currentPath
+                continue
+            }
+
+            val child = getCachedChild(
+                parentPath = parentPath,
+                parentDir = currentDir,
+                childName = part
+            )
+
+            if (child == null || !child.isDirectory) {
+                return null
+            }
+
+            directoryCache[currentPath] = child
+            currentDir = child
+            parentPath = currentPath
+        }
+
+        return currentDir
+    }
+
+    private fun getCachedChild(
+        parentPath: String,
+        parentDir: DocumentFile,
+        childName: String
+    ): DocumentFile? {
+        val children = getCachedChildren(parentPath, parentDir)
+        return children[childName]
+    }
+
+    private fun getCachedChildren(
+        parentPath: String,
+        parentDir: DocumentFile
+    ): MutableMap<String, DocumentFile> {
+        val cached = childCache[parentPath]
+        if (cached != null) {
+            return cached
+        }
+
+        val loaded = parentDir
+            .listFiles()
+            .mapNotNull { child ->
+                val name = child.name ?: return@mapNotNull null
+                name to child
+            }
+            .toMap()
+            .toMutableMap()
+
+        childCache[parentPath] = loaded
+        return loaded
+    }
+
+    private fun putCachedChild(
+        parentPath: String,
+        childName: String,
+        child: DocumentFile
+    ) {
+        val children = childCache[parentPath]
+        if (children != null) {
+            children[childName] = child
+        }
+    }
+
+    private fun removeCachedChild(
+        parentPath: String,
+        childName: String
+    ) {
+        childCache[parentPath]?.remove(childName)
+    }
+
+    private fun getParentPath(normalizedPath: String): String {
+        return normalizedPath.substringBeforeLast("/", missingDelimiterValue = "")
+    }
+
+    private fun getFileName(normalizedPath: String): String {
+        return normalizedPath.substringAfterLast("/")
     }
 
     private fun guessMimeType(fileName: String): String {
