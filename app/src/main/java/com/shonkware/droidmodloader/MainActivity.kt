@@ -28,6 +28,9 @@ import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.ui.SecondScreenController
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
@@ -113,7 +116,6 @@ class MainActivity : ComponentActivity() {
             handleImportedArchive(uri)
         }
     }
-
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -148,6 +150,7 @@ class MainActivity : ComponentActivity() {
             appendError("Failed to persist folder permission: ${e.message}", e)
         }
     }
+    private var activeOperationStartedAtMillis: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -419,34 +422,96 @@ class MainActivity : ComponentActivity() {
             block()
         }.start()
     }
+
+    //log stuff
     private fun appendLog(message: String) {
-        Log.d(TAG, message)
-        appendLogToFile(message)
+        val line = formatLogLine(message)
+
+        Log.d(TAG, line)
+        appendLogToFile(line)
 
         runOnUiThread {
             logText = if (logText.isBlank()) {
-                message
+                line
             } else {
-                logText + "\n" + message
+                logText + "\n" + line
             }
         }
     }
     private fun appendError(message: String, throwable: Throwable? = null) {
+        val line = formatLogLine("ERROR: $message")
+
         if (throwable != null) {
-            Log.e(TAG, message, throwable)
-            appendLogToFile("ERROR: $message\n${Log.getStackTraceString(throwable)}")
+            Log.e(TAG, line, throwable)
+            appendLogToFile(line + "\n" + Log.getStackTraceString(throwable))
         } else {
-            Log.e(TAG, message)
-            appendLogToFile("ERROR: $message")
+            Log.e(TAG, line)
+            appendLogToFile(line)
         }
 
         runOnUiThread {
             logText = if (logText.isBlank()) {
-                "ERROR: $message"
+                line
             } else {
-                logText + "\nERROR: $message"
+                logText + "\n" + line
             }
         }
+    }
+    private fun timestampNow(): String {
+        return SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+    }
+    private fun formatLogLine(message: String): String {
+        return "[${timestampNow()}] $message"
+    }
+    private fun formatOperationDuration(startedAtMillis: Long): String {
+        if (startedAtMillis <= 0L) {
+            return "0 ms"
+        }
+
+        val elapsedMillis = System.currentTimeMillis() - startedAtMillis
+        return "${elapsedMillis.coerceAtLeast(0L)} ms"
+    }
+    private fun beginOperation(text: String) {
+        activeOperationStartedAtMillis = System.currentTimeMillis()
+
+        runOnUiThread {
+            operationInProgress = true
+            activeOperationText = text
+            updateLastOperationStatus(text)
+        }
+
+        showToast(text)
+        appendLog("OPERATION START: $text")
+    }
+    private fun finishOperation(successText: String) {
+        val durationText = formatOperationDuration(activeOperationStartedAtMillis)
+        activeOperationStartedAtMillis = 0L
+
+        val completedText = "$successText ($durationText)"
+
+        runOnUiThread {
+            operationInProgress = false
+            activeOperationText = ""
+            updateLastOperationStatus(completedText)
+        }
+
+        showToast(successText)
+        appendLog("OPERATION END: $completedText")
+    }
+    private fun failOperation(message: String, throwable: Throwable? = null) {
+        val durationText = formatOperationDuration(activeOperationStartedAtMillis)
+        activeOperationStartedAtMillis = 0L
+
+        val failedText = "$message ($durationText)"
+
+        runOnUiThread {
+            operationInProgress = false
+            activeOperationText = ""
+            updateLastOperationStatus(failedText)
+        }
+
+        showToast(message)
+        appendError("OPERATION FAILED: $failedText", throwable)
     }
 
     private fun createModEngineForWorkflows(): ModEngine? {
@@ -1633,36 +1698,7 @@ class MainActivity : ComponentActivity() {
         refreshDashboard()
     }
 
-    private fun beginOperation(text: String) {
-        runOnUiThread {
-            operationInProgress = true
-            activeOperationText = text
-            updateLastOperationStatus(text)
-        }
 
-        showToast(text)
-        appendLog("OPERATION START: $text")
-    }
-    private fun finishOperation(successText: String) {
-        runOnUiThread {
-            operationInProgress = false
-            activeOperationText = ""
-            updateLastOperationStatus(successText)
-        }
-
-        showToast(successText)
-        appendLog("OPERATION END: $successText")
-    }
-    private fun failOperation(message: String, throwable: Throwable? = null) {
-        runOnUiThread {
-            operationInProgress = false
-            activeOperationText = ""
-            updateLastOperationStatus(message)
-        }
-
-        showToast(message)
-        appendError(message, throwable)
-    }
     private fun showToast(message: String) {
         runOnUiThread {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
