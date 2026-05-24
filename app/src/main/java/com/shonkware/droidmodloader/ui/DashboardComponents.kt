@@ -682,6 +682,7 @@ fun ReportCard(
 @Composable
 fun DeveloperToolsCard(
     operationInProgress: Boolean,
+    onBuildResolvedDataGraph: () -> Unit,
     onRepairV050Artifacts: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -690,6 +691,19 @@ fun DeveloperToolsCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Developer Tools", fontWeight = FontWeight.Bold)
+
+            Button(
+                enabled = !operationInProgress,
+                onClick = onBuildResolvedDataGraph,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Build Resolved Graph Summary")
+            }
+
+            Text(
+                text = "Developer check: builds the current profile's resolved game view summary without deploying or modifying target files.",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Text(
                 text = "Advanced repair tools. Use these only when troubleshooting beta builds.",

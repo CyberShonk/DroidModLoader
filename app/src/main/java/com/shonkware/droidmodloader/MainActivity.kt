@@ -408,6 +408,9 @@ class MainActivity : ComponentActivity() {
             onRepairV050Artifacts = {
                 runInBackground { runV050ArtifactRepairTool() }
             },
+            onBuildResolvedDataGraph = {
+                runInBackground { runResolvedDataGraphDebugSummary() }
+            },
 
         )
 
@@ -2389,6 +2392,37 @@ class MainActivity : ComponentActivity() {
 
         refreshDashboard()
         appendLog("----- v0.5.0-beta Artifact Repair End -----")
+    }
+
+    private fun runResolvedDataGraphDebugSummary() {
+        if (operationInProgress) {
+            appendLog("Ignoring resolved graph request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Building resolved data graph...")
+
+        try {
+            val engine = createModEngineForWorkflows()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
+
+            val summary = engine.buildResolvedDataGraphDebugSummary()
+
+            appendLog("----- Resolved Data Graph Summary -----")
+            summary.lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Resolved Data Graph Summary End -----")
+            appendLog("RESULT: PASS")
+
+            finishOperation("Resolved data graph built.")
+        } catch (e: Exception) {
+            appendError("Resolved data graph failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+            failOperation("Resolved data graph failed: ${e.message}", e)
+        }
+
+        refreshDashboard()
     }
 }
 

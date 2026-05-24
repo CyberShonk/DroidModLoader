@@ -49,7 +49,9 @@ import com.shonkware.droidmodloader.engine.index.ModFileIndexService
 import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
 import com.shonkware.droidmodloader.engine.model.DeploymentRecord
 import com.shonkware.droidmodloader.engine.install.ModDisplayNameNormalizer
-
+import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraph
+import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraphBuilder
+import com.shonkware.droidmodloader.engine.resolve.ResolvedFileIdentity
 
 data class UninstallResult(
     val removed: Boolean,
@@ -715,6 +717,41 @@ class ModEngine(
 
     fun readExportedLoadorderTxt(): String {
         return pluginOutputRepository.readLoadorderTxt()
+    }
+
+    fun buildCurrentResolvedDataGraph(): ResolvedDataGraph {
+        val mods = getCurrentMods().sortedBy { it.priority }
+
+        val contentIndexesByModId = mods.associate { mod ->
+            mod.id to indexModContent(mod)
+        }
+
+        val fileIdentitiesByModId = mods.associate { mod ->
+            val snapshot = modFileIndexService.getOrBuildIndex(mod)
+
+            val identitiesByPath = snapshot.entries.associate { entry ->
+                entry.normalizedPath to ResolvedFileIdentity(
+                    contentHash = entry.hash,
+                    fileSizeBytes = entry.sizeBytes.takeIf { it >= 0L },
+                    modifiedEpochMillis = entry.modifiedEpochMillis.takeIf { it >= 0L }
+                )
+            }
+
+            mod.id to identitiesByPath
+        }
+
+        val installedRecordsByModId = loadInstalledModRecords(mods)
+
+        return ResolvedDataGraphBuilder().build(
+            mods = mods,
+            contentIndexesByModId = contentIndexesByModId,
+            fileIdentitiesByModId = fileIdentitiesByModId,
+            installedRecordsByModId = installedRecordsByModId
+        )
+    }
+
+    fun buildResolvedDataGraphDebugSummary(): String {
+        return buildCurrentResolvedDataGraph().toDebugSummary()
     }
 
     fun normalizeModPriorities(mods: List<Mod>): List<Mod> {
