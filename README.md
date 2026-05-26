@@ -224,6 +224,16 @@ Bug reports, technical suggestions, and compatibility findings are all useful.
 
 ---
 
+## License and attribution
+
+Droid Mod Loader is released under the MIT License.
+
+You are welcome to fork, modify, and build from this project. Please keep the
+license notice intact and credit Droid Mod Loader / CyberShonk when sharing
+derivative work.
+
+---
+
 ## Disclaimer
 
 DroidModLoader is an independent project. Users are responsible for complying with the permissions, licenses, and distribution terms associated with any third party mods they install or manage.
