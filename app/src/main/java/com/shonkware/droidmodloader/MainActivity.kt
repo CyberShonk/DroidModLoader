@@ -205,7 +205,7 @@ class MainActivity : ComponentActivity() {
     private fun buildUiState(): DashboardUiState {
         return DashboardUiState(
             appName = "Droid Mod Loader",
-            versionLabel = "Version 0.5.3 Beta",
+            versionLabel = "Version 0.5.4 Beta",
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
             summaryText = summaryText,
@@ -410,6 +410,9 @@ class MainActivity : ComponentActivity() {
             },
             onBuildResolvedDataGraph = {
                 runInBackground { runResolvedDataGraphDebugSummary() }
+            },
+            onBuildDeploymentPlan = {
+                runInBackground { runDeploymentPlanDebugSummary() }
             },
 
         )
@@ -2420,6 +2423,38 @@ class MainActivity : ComponentActivity() {
             appendError("Resolved data graph failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
             failOperation("Resolved data graph failed: ${e.message}", e)
+        }
+
+        refreshDashboard()
+    }
+
+    private fun runDeploymentPlanDebugSummary() {
+        if (operationInProgress) {
+            appendLog("Ignoring deploy plan request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Building deploy plan...")
+
+        try {
+            val engine = createModEngineForWorkflows()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
+
+            val summary = engine.buildDeploymentPlanDebugSummary(selectedGameId)
+
+            appendLog("----- Deploy Plan Summary -----")
+            summary.lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Deploy Plan Summary End -----")
+            appendLog("No files were changed.")
+            appendLog("RESULT: PASS")
+
+            finishOperation("Deploy plan built.")
+        } catch (e: Exception) {
+            appendError("Deploy plan failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+            failOperation("Deploy plan failed: ${e.message}", e)
         }
 
         refreshDashboard()

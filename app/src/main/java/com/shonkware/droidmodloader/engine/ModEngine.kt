@@ -52,6 +52,9 @@ import com.shonkware.droidmodloader.engine.install.ModDisplayNameNormalizer
 import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraph
 import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraphBuilder
 import com.shonkware.droidmodloader.engine.resolve.ResolvedFileIdentity
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanBuilder
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanScope
+import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 
 data class UninstallResult(
     val removed: Boolean,
@@ -567,6 +570,45 @@ class ModEngine(
                 deploymentManager.deploy(oldManifest, newWinningRecords)
             }
         }
+    }
+
+    fun buildDeploymentPlanForGame(gameId: String): ScopedDeploymentPlan {
+        val dataManifestRepository = DeploymentManifestRepository(
+            getEffectiveDeploymentManifestFile(gameId)
+        )
+
+        val oldDataManifest = dataManifestRepository.load()
+        val dataWinningRecords = getCurrentDataWinningRecords()
+
+        val rootManifestRepository = DeploymentManifestRepository(
+            getEffectiveRootDeploymentManifestFile(gameId)
+        )
+
+        val oldRootManifest = rootManifestRepository.load()
+        val rootWinningRecords = getCurrentRootWinningRecords()
+
+        val builder = DeploymentPlanBuilder()
+
+        val dataPlan = builder.build(
+            scope = DeploymentPlanScope.DATA,
+            oldManifest = oldDataManifest,
+            newWinningRecords = dataWinningRecords
+        )
+
+        val rootPlan = builder.build(
+            scope = DeploymentPlanScope.GAME_ROOT,
+            oldManifest = oldRootManifest,
+            newWinningRecords = rootWinningRecords
+        )
+
+        return ScopedDeploymentPlan(
+            dataPlan = dataPlan,
+            rootPlan = rootPlan
+        )
+    }
+
+    fun buildDeploymentPlanDebugSummary(gameId: String): String {
+        return buildDeploymentPlanForGame(gameId).toDebugSummary()
     }
 
     private fun canDeployGameRoot(config: GameDeploymentConfig?): Boolean {

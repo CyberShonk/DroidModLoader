@@ -741,6 +741,7 @@ fun ReportCard(
 fun DeveloperToolsCard(
     operationInProgress: Boolean,
     onBuildResolvedDataGraph: () -> Unit,
+    onBuildDeploymentPlan: () -> Unit,
     onRepairV050Artifacts: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -765,6 +766,19 @@ fun DeveloperToolsCard(
 
             Text(
                 text = "Developer check: builds the current profile's resolved game view summary without deploying or modifying target files.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Button(
+                enabled = !operationInProgress,
+                onClick = onBuildDeploymentPlan,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Build Deploy Plan Summary")
+            }
+
+            Text(
+                text = "Developer check: compares the current resolved winners against the saved deploy manifests. No files are changed.",
                 style = MaterialTheme.typography.bodySmall
             )
 

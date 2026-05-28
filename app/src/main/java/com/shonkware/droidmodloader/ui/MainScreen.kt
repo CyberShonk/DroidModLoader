@@ -123,7 +123,9 @@ data class DashboardActions(
     val onCloseOverwriteFolder: () -> Unit,
     val onRepairV050Artifacts: () -> Unit = {},
 
-    val onBuildResolvedDataGraph: () -> Unit = {}
+    val onBuildResolvedDataGraph: () -> Unit = {},
+
+    val onBuildDeploymentPlan: () -> Unit = {},
 )
 
 @Composable
@@ -206,7 +208,8 @@ private fun MainDashboardScreen(
             DeveloperToolsCard(
                 operationInProgress = state.operationInProgress,
                 onBuildResolvedDataGraph = actions.onBuildResolvedDataGraph,
-                onRepairV050Artifacts = actions.onRepairV050Artifacts
+                onBuildDeploymentPlan = actions.onBuildDeploymentPlan,
+                onRepairV050Artifacts = actions.onRepairV050Artifacts,
             )
         }
     }
