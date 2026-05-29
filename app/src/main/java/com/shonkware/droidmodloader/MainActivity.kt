@@ -113,6 +113,8 @@ class MainActivity : ComponentActivity() {
     private var deployRecoveryWarningText by mutableStateOf("")
     private var showDeployRecoveryDialog by mutableStateOf(false)
 
+    private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
+
     private val importZipLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -253,6 +255,8 @@ class MainActivity : ComponentActivity() {
 
             deployRecoveryWarningText = deployRecoveryWarningText,
             showDeployRecoveryDialog = showDeployRecoveryDialog,
+
+            showForceFullRedeployConfirmDialog = showForceFullRedeployConfirmDialog,
 
         )
     }
@@ -444,6 +448,17 @@ class MainActivity : ComponentActivity() {
 
             onMarkDeployRecoveryReviewed = {
                 runInBackground { markLastDeployJournalReviewed() }
+            },
+
+            onRequestForceFullRedeploy = {
+                showForceFullRedeployConfirmDialog = true
+            },
+            onConfirmForceFullRedeploy = {
+                showForceFullRedeployConfirmDialog = false
+                runInBackground { runForceFullRedeployWorkflow() }
+            },
+            onCancelForceFullRedeploy = {
+                showForceFullRedeployConfirmDialog = false
             },
 
         )
@@ -1399,6 +1414,91 @@ class MainActivity : ComponentActivity() {
 
         refreshDashboard()
         appendLog("----- Deploy Workflow End -----")
+    }
+
+    private fun runForceFullRedeployWorkflow() {
+        if (operationInProgress) {
+            appendLog("Ignoring full redeploy request: operation already in progress.")
+            return
+        }
+
+        beginOperation("Force full redeploy...")
+
+        try {
+            saveActiveProfileFromDashboard()
+            saveSelectedGameConfigFromUi()
+
+            val engine = createModEngineForWorkflows()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
+
+            val config = engine.getGameDeploymentConfig(selectedGameId)
+
+            appendLog("----- Force Full Redeploy Start -----")
+            appendLog("Selected game: $selectedGameId")
+            appendLog("Active config: $config")
+            appendLog(engine.getDeploymentTargetDebugSummary(selectedGameId))
+
+            appendLog("----- Full Redeploy Plan Before Execution -----")
+            engine.buildFullRedeployPlanDebugSummary(selectedGameId)
+                .lineSequence()
+                .forEach { line ->
+                    appendLog(line)
+                }
+            appendLog("----- Full Redeploy Plan Before Execution End -----")
+
+            val result = engine.forceFullRedeployForGame(selectedGameId)
+
+            appendDeploymentResultBlock(
+                title = "Data full redeploy result",
+                result = result.dataResult
+            )
+
+            appendDeploymentResultBlock(
+                title = "Game Root full redeploy result",
+                result = result.rootResult
+            )
+
+            appendLog("Combined full redeploy result:")
+            appendLog("  Adds: ${result.addCount}")
+            appendLog("  Removes: ${result.removeCount}")
+            appendLog("  Updates: ${result.updateCount}")
+            appendLog("  Backups created: ${result.dataResult.backupCount + result.rootResult.backupCount}")
+            appendLog("  Backups restored: ${result.dataResult.restoreCount + result.rootResult.restoreCount}")
+            appendLog("  Protected conflicts: ${result.dataResult.protectedConflictCount + result.rootResult.protectedConflictCount}")
+            appendLog("  Final file count: ${result.finalRecordCount}")
+
+            appendLog("----- Last Deploy Journal -----")
+            engine.getDeploymentJournalDebugSummary(selectedGameId)
+                .lineSequence()
+                .forEach { line ->
+                    appendLog(line)
+                }
+            appendLog("----- Last Deploy Journal End -----")
+
+            syncPluginsFromCurrentState(engine)
+
+            appendLog("RESULT: PASS")
+            finishOperation("Full redeploy succeeded.")
+        } catch (e: DeploymentPreflightException) {
+            appendError("Full redeploy blocked by preflight check.", e)
+
+            appendLog("----- Deploy Readiness Check Failed -----")
+            e.result.toDebugSummary().lineSequence().forEach { line ->
+                appendLog(line)
+            }
+            appendLog("----- Deploy Readiness Check Failed End -----")
+            appendLog("No files were changed.")
+            appendLog("RESULT: FAIL")
+
+            failOperation("Full redeploy blocked by readiness check.", e)
+        } catch (e: Exception) {
+            appendError("Full redeploy failed: ${e.message}", e)
+            appendLog("RESULT: FAIL")
+            failOperation("Full redeploy failed: ${e.message}", e)
+        }
+
+        refreshDashboard()
+        appendLog("----- Force Full Redeploy End -----")
     }
 
     private fun syncPluginsFromCurrentState(engine: ModEngine) {

@@ -1282,6 +1282,7 @@ fun RecoveryToolsCard(
     deployRecoveryWarningText: String,
     onViewLastDeployJournal: () -> Unit,
     onMarkDeployRecoveryReviewed: () -> Unit,
+    onRequestForceFullRedeploy: () -> Unit,
     onBuildFullRedeployPlan: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -1350,12 +1351,19 @@ fun RecoveryToolsCard(
             }
 
             Button(
-                enabled = false,
-                onClick = {},
+                enabled = !operationInProgress,
+                onClick = onRequestForceFullRedeploy,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Force Full Redeploy")
             }
+
+            Text(
+                text = "Rewrites all current managed files from the active mod list. Use this after an interrupted deploy or if the target folder looks out of sync.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+
 
             Button(
                 enabled = false,

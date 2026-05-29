@@ -587,6 +587,136 @@ class ModEngine(
         }
     }
 
+    fun forceFullRedeployForGame(gameId: String): ScopedDeploymentResult {
+        val plan = buildFullRedeployPlanForGame(gameId)
+        val config = getGameDeploymentConfig(gameId)
+
+        val preflight = DeploymentPreflightChecker(appContext).check(
+            config = config,
+            plan = plan
+        )
+
+        if (!preflight.canDeploy) {
+            throw DeploymentPreflightException(preflight)
+        }
+
+        val rootPlanHasWork = plan.rootPlan.operationCount > 0
+        val rootCanDeploy = canDeployGameRoot(config)
+
+        if (rootPlanHasWork && !rootCanDeploy) {
+            throw IllegalStateException(
+                "Full redeploy needs Game Root work, but no Game Root target is available."
+            )
+        }
+
+        val journalRepository = DeploymentJournalRepository(
+            getDeploymentJournalFile(gameId)
+        )
+
+        val journalRecord = createStartedDeploymentJournal(
+            gameId = gameId,
+            plan = plan,
+            preflight = preflight
+        )
+
+        journalRepository.saveStarted(journalRecord)
+
+        try {
+            val dataManifestRepository = DeploymentManifestRepository(
+                getEffectiveDeploymentManifestFile(gameId)
+            )
+
+            val oldDataManifest = dataManifestRepository.load()
+            val dataWinningRecords = getCurrentDataWinningRecords()
+
+            val forcedOldDataManifest = forceManifestToRewriteCurrentWinners(
+                oldManifest = oldDataManifest,
+                currentWinners = dataWinningRecords
+            )
+
+            val (newDataManifest, dataResult) = deployRecordsToConfiguredTarget(
+                oldManifest = forcedOldDataManifest,
+                newWinningRecords = dataWinningRecords,
+                realDeployEnabled = config?.realDeployEnabled == true,
+                targetTreeUri = config?.targetTreeUri,
+                targetPath = config?.targetDataPath ?: "",
+                fallbackRootDir = deployRootDir,
+                backupRootDir = getDeploymentBackupDir(
+                    gameId = gameId,
+                    scopeName = "data",
+                    rootTarget = false
+                )
+            )
+
+            dataManifestRepository.save(newDataManifest)
+
+            val rootManifestRepository = DeploymentManifestRepository(
+                getEffectiveRootDeploymentManifestFile(gameId)
+            )
+
+            val oldRootManifest = rootManifestRepository.load()
+            val rootWinningRecords = getCurrentRootWinningRecords()
+
+            val rootResult = if (rootCanDeploy && (rootWinningRecords.isNotEmpty() || oldRootManifest.isNotEmpty())) {
+                val forcedOldRootManifest = forceManifestToRewriteCurrentWinners(
+                    oldManifest = oldRootManifest,
+                    currentWinners = rootWinningRecords
+                )
+
+                val (newRootManifest, result) = deployRecordsToConfiguredTarget(
+                    oldManifest = forcedOldRootManifest,
+                    newWinningRecords = rootWinningRecords,
+                    realDeployEnabled = config?.realDeployEnabled == true,
+                    targetTreeUri = config?.targetRootTreeUri,
+                    targetPath = config?.targetRootPath ?: "",
+                    fallbackRootDir = getSimulatedGameRootDir(),
+                    backupRootDir = getDeploymentBackupDir(
+                        gameId = gameId,
+                        scopeName = "root",
+                        rootTarget = true
+                    )
+                )
+
+                rootManifestRepository.save(newRootManifest)
+                result
+            } else {
+                DeploymentResult(
+                    addCount = 0,
+                    removeCount = 0,
+                    updateCount = 0,
+                    finalRecordCount = 0
+                )
+            }
+
+            val scopedResult = ScopedDeploymentResult(
+                dataResult = dataResult,
+                rootResult = rootResult
+            )
+
+            journalRepository.markCompleted(
+                record = journalRecord,
+                resultSummary = DeploymentJournalResultSummary(
+                    addCount = scopedResult.addCount,
+                    updateCount = scopedResult.updateCount,
+                    removeCount = scopedResult.removeCount,
+                    backupCount = scopedResult.dataResult.backupCount + scopedResult.rootResult.backupCount,
+                    restoreCount = scopedResult.dataResult.restoreCount + scopedResult.rootResult.restoreCount,
+                    protectedConflictCount = scopedResult.dataResult.protectedConflictCount + scopedResult.rootResult.protectedConflictCount,
+                    finalRecordCount = scopedResult.finalRecordCount
+                )
+            )
+
+            return scopedResult
+        } catch (e: Exception) {
+            journalRepository.markFailed(
+                record = journalRecord,
+                message = e.message ?: e::class.java.name
+            )
+
+            throw e
+        }
+    }
+
     private fun deployRecordsToConfiguredTarget(
         oldManifest: List<DeploymentRecord>,
         newWinningRecords: List<FileRecord>,
@@ -1750,6 +1880,23 @@ class ModEngine(
         }
     }
 
+    private fun forceManifestToRewriteCurrentWinners(
+        oldManifest: List<DeploymentRecord>,
+        currentWinners: List<FileRecord>
+    ): List<DeploymentRecord> {
+        val currentWinnerPaths = currentWinners
+            .map { it.normalizedPath }
+            .toSet()
 
+        return oldManifest.map { record ->
+            if (record.normalizedPath in currentWinnerPaths) {
+                record.copy(
+                    hash = "__force_full_redeploy__${record.hash}"
+                )
+            } else {
+                record
+            }
+        }
+    }
 
 }
