@@ -389,4 +389,29 @@ fun DroidModLoaderScreen(
             onClose = actions.onCloseOverwriteFolder
         )
     }
+    if (state.showForceFullRedeployConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = actions.onCancelForceFullRedeploy,
+            title = {
+                Text("Force Full Redeploy")
+            },
+            text = {
+                Text(
+                    "This will rewrite every currently managed file for this profile.\n\n" +
+                            "It will not intentionally delete unmanaged files, but it can replace files already managed by Droid Mod Loader.\n\n" +
+                            "Use this after an interrupted deploy or when the deployed folder looks out of sync."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = actions.onConfirmForceFullRedeploy) {
+                    Text("Run Full Redeploy")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = actions.onCancelForceFullRedeploy) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
