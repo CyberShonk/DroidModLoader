@@ -302,7 +302,7 @@ Droid Mod Loader is a personal project built around Android modding, GameNative 
 
 If you enjoy the project and want to support the time that goes into it, my Ko-fi is here:
 
-https://ko-fi.com/seansboottom
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/D1D81ZHV4E)
 
 No pressure. Testing the app, reporting bugs, sharing notes, and helping other users already helps a lot.
 
