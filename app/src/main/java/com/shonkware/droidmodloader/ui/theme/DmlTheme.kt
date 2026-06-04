@@ -340,7 +340,7 @@ fun DmlMatteBackground(
 ) {
     val palette = LocalDmlPalette.current
     val density = LocalDensity.current
-    val speckleStep = with(density) { 11.dp.toPx() }
+    val grainStep = with(density) { 7.dp.toPx() }
 
     Box(
         modifier = modifier
@@ -353,21 +353,20 @@ fun DmlMatteBackground(
                     colors = listOf(
                         palette.backgroundRaised,
                         palette.background,
-                        Color.Black
+                        Color.Black.copy(alpha = 0.96f)
                     )
                 )
             )
 
-            drawCircle(
-                color = palette.glow.copy(alpha = 0.10f),
-                radius = size.width * 0.55f,
-                center = Offset(size.width * 0.18f, size.height * 0.08f)
-            )
-
-            drawCircle(
-                color = palette.glow.copy(alpha = 0.05f),
-                radius = size.width * 0.75f,
-                center = Offset(size.width * 0.90f, size.height * 0.35f)
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.025f),
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.45f, size.height * 0.12f),
+                    radius = size.width * 0.95f
+                )
             )
 
             var y = 0f
@@ -378,23 +377,40 @@ fun DmlMatteBackground(
                 var col = 0
 
                 while (x < size.width) {
-                    val visible = ((row * 17 + col * 31) % 9) == 0
+                    val grainSeed = (row * 37 + col * 19) % 13
 
-                    if (visible) {
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.018f),
-                            radius = 0.75f,
-                            center = Offset(x, y)
+                    if (grainSeed == 0) {
+                        drawRect(
+                            color = Color.White.copy(alpha = 0.010f),
+                            topLeft = Offset(x, y),
+                            size = Size(1.1f, 1.1f)
                         )
                     }
 
-                    x += speckleStep
+                    if (grainSeed == 7) {
+                        drawRect(
+                            color = Color.Black.copy(alpha = 0.045f),
+                            topLeft = Offset(x, y),
+                            size = Size(1.0f, 1.0f)
+                        )
+                    }
+
+                    x += grainStep
                     col++
                 }
 
-                y += speckleStep
+                y += grainStep
                 row++
             }
+
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.18f)
+                    )
+                )
+            )
         }
 
         content()
