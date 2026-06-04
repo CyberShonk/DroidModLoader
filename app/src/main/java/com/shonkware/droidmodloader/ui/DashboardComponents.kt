@@ -53,6 +53,7 @@ import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 import com.shonkware.droidmodloader.ui.theme.DmlColors
+import com.shonkware.droidmodloader.ui.theme.DmlButtons
 
 @Composable
 fun HeaderCard(
@@ -127,9 +128,10 @@ fun StatusCard(
                     )
                 }
 
-                Button(onClick = onOpenProfileDialog) {
-                    Text("Manage")
-                }
+                DmlButtons.Secondary(
+                    text = "Manage",
+                    onClick = onOpenProfileDialog
+                )
             }
 
             Text(
@@ -209,7 +211,7 @@ fun MainActionsCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = DmlDefaults.panelCardColors(),
-        border = BorderStroke(1.dp, DmlColors.BorderDim)
+        border = BorderStroke(1.dp, DmlColors.BorderHot)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -217,29 +219,26 @@ fun MainActionsCard(
         ) {
             Text("Main Actions", fontWeight = FontWeight.Bold)
 
-            Button(
+            DmlButtons.Primary(
+                text = "Import Mod Archive",
                 enabled = !operationInProgress,
                 onClick = onImportArchive,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Import Mod Archive")
-            }
+            )
 
-            Button(
+            DmlButtons.Primary(
+                text = "Deploy Mods",
                 enabled = !operationInProgress,
                 onClick = onDeployMods,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Deploy Mods")
-            }
+            )
 
-            Button(
+            DmlButtons.Primary(
+                text = "Write Plugin Files",
                 enabled = !operationInProgress,
                 onClick = onWriteLoadOrderFiles,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Write Plugin Files")
-            }
+            )
         }
     }
 }
@@ -272,17 +271,17 @@ fun ModsCard(
             ) {
                 Text("Mods", fontWeight = FontWeight.Bold)
 
-                Button(onClick = onOpenFullscreen) {
-                    Text("Open Fullscreen")
-                }
+                DmlButtons.Secondary(
+                    text = "Fullscreen",
+                    onClick = onOpenFullscreen
+                )
             }
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Open Overwrite Folder",
                 onClick = onOpenOverwriteFolder,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Open Overwrite Folder")
-            }
+            )
 
             if (mods.isEmpty()) {
                 Text("No installed mods found.")
@@ -389,28 +388,28 @@ fun CompactModRow(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onMoveModUp(mod.id) }) {
-                            Text("Up")
-                        }
+                        DmlButtons.Secondary(
+                            text = "Up",
+                            onClick = { onMoveModUp(mod.id) }
+                        )
 
-                        Button(onClick = { onMoveModDown(mod.id) }) {
-                            Text("Down")
-                        }
+                        DmlButtons.Secondary(
+                            text = "Down",
+                            onClick = { onMoveModDown(mod.id) }
+                        )
                     }
 
-                    Button(
+                    DmlButtons.Secondary(
+                        text = "View Files",
                         onClick = { onViewModFiles(mod.id) },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("View Files")
-                    }
+                    )
 
-                    Button(
+                    DmlButtons.Danger(
+                        text = "Delete",
                         onClick = { onDeleteMod(mod) },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Delete")
-                    }
+                    )
 
                     Text(
                         text = "Path: ${mod.installPath}",
@@ -540,9 +539,10 @@ fun PluginsCard(
             ) {
                 Text("Plugins", fontWeight = FontWeight.Bold)
 
-                Button(onClick = onOpenFullscreen) {
-                    Text("Open Fullscreen")
-                }
+                DmlButtons.Secondary(
+                    text = "Fullscreen",
+                    onClick = onOpenFullscreen
+                )
             }
 
             if (plugins.isEmpty()) {
@@ -608,26 +608,23 @@ fun PluginRow(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                DmlButtons.Secondary(
+                    text = if (plugin.enabled) "Disable" else "Enable",
                     enabled = !plugin.locked,
                     onClick = { onTogglePlugin(plugin.normalizedPath) }
-                ) {
-                    Text(if (plugin.enabled) "Disable" else "Enable")
-                }
+                )
 
-                Button(
+                DmlButtons.Secondary(
+                    text = "Up",
                     enabled = !plugin.locked,
                     onClick = { onMovePluginUp(plugin.normalizedPath) }
-                ) {
-                    Text("Up")
-                }
+                )
 
-                Button(
+                DmlButtons.Secondary(
+                    text = "Down",
                     enabled = !plugin.locked,
                     onClick = { onMovePluginDown(plugin.normalizedPath) }
-                ) {
-                    Text("Down")
-                }
+                )
             }
         }
     }
@@ -677,12 +674,12 @@ fun DeploymentSettingsCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Pick Data Folder",
                 onClick = onPickTargetFolder,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Pick Data Folder")
-            }
+            )
+
             Text(
                 text = "Game Root folder: $selectedRootTreeUriText",
                 style = MaterialTheme.typography.bodySmall
@@ -693,32 +690,27 @@ fun DeploymentSettingsCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Pick Game Root Folder",
                 onClick = onPickRootTargetFolder,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Pick Game Root Folder")
-            }
+            )
 
-            Button(
+            DmlButtons.Primary(
+                text = "Save Settings",
                 onClick = onSaveSettings,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Settings")
-            }
+            )
 
-            Button(
+            DmlButtons.Secondary(
+                text = if (secondScreenEnabled) {
+                    "Disable Second Screen Plugin Display"
+                } else {
+                    "Enable Second Screen Plugin Display"
+                },
                 onClick = onToggleSecondScreen,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    if (secondScreenEnabled) {
-                        "Disable Second Screen Plugin Display"
-                    } else {
-                        "Enable Second Screen Plugin Display"
-                    }
-                )
-            }
+            )
         }
     }
 }
@@ -760,12 +752,11 @@ fun ReportCard(
         ) {
             Text("Report & Diagnostics", fontWeight = FontWeight.Bold)
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Share Logs",
                 onClick = onShareLogs,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Share Logs")
-            }
+            )
 
             Text(logText)
         }
@@ -1288,7 +1279,7 @@ fun DeployRecoveryWarningCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = DmlDefaults.panelCardColors(),
-        border = BorderStroke(1.dp, DmlColors.BorderDim)
+        border = BorderStroke(1.dp, DmlColors.BorderHot)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1307,13 +1298,15 @@ fun DeployRecoveryWarningCard(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = onViewDetails) {
-                    Text("View Details")
-                }
+                DmlButtons.Secondary(
+                    text = "View Details",
+                    onClick = onViewDetails
+                )
 
-                Button(onClick = onDismiss) {
-                    Text("Dismiss")
-                }
+                DmlButtons.Secondary(
+                    text = "Dismiss",
+                    onClick = onDismiss
+                )
             }
         }
     }
@@ -1347,86 +1340,76 @@ fun RecoveryToolsCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "View Last Deploy Journal",
                 enabled = !operationInProgress,
                 onClick = onViewLastDeployJournal,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("View Last Deploy Journal")
-            }
+            )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Build Full Redeploy Plan",
                 enabled = !operationInProgress,
                 onClick = onBuildFullRedeployPlan,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Build Full Redeploy Plan")
-            }
+            )
 
             Text(
                 text = "Shows what DML would rewrite if you rebuilt the deployed game folder from the current mod list. This does not change files.",
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Mark Warning Reviewed",
                 enabled = !operationInProgress && deployRecoveryWarningText.isNotBlank(),
                 onClick = onMarkDeployRecoveryReviewed,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Mark Warning Reviewed")
-            }
+            )
 
             Text(
                 text = "Coming later:",
                 fontWeight = FontWeight.Bold
             )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Resume Interrupted Deploy",
                 enabled = false,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Resume Interrupted Deploy")
-            }
+            )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Rollback Last Deploy",
                 enabled = false,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Rollback Last Deploy")
-            }
+            )
 
-            Button(
+            DmlButtons.Danger(
+                text = "Force Full Redeploy",
                 enabled = !operationInProgress,
                 onClick = onRequestForceFullRedeploy,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Force Full Redeploy")
-            }
+            )
 
             Text(
                 text = "Rewrites all current managed files from the active mod list. Use this after an interrupted deploy or if the target folder looks out of sync.",
                 style = MaterialTheme.typography.bodySmall
             )
 
-
-
-            Button(
+            DmlButtons.Secondary(
+                text = "Rebuild Deploy Manifest",
                 enabled = false,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Rebuild Deploy Manifest")
-            }
+            )
 
-            Button(
+            DmlButtons.Secondary(
+                text = "Rebuild Data Baseline",
                 enabled = false,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Rebuild Data Baseline")
-            }
+            )
 
             Text(
                 text = "Disabled tools are planned recovery actions. They are shown here early so testers know where this system is going.",
