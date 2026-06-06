@@ -210,6 +210,7 @@ Major work still planned before a stable 1.0 release includes:
 * cleaner public guides
 * more tests for risky file logic
 
+
 ## Roadmap
 
 The full roadmap is here:
@@ -226,6 +227,12 @@ The short version is:
 * make GameNative setup less confusing
 * make support reports useful
 * then build collections, guides, and larger ecosystem features
+
+## Project Vision
+
+The deeper project direction is documented here:
+
+- [Project Vision](docs/vision.md)
 
 ## Installer support
 
