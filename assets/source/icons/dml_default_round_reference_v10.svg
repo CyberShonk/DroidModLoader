@@ -1,0 +1,274 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">DML true round icon v10</title>
+  <desc id="desc">True circular DML icon v10. Based on v9, with the requested square-style folder path replacement applied in the round icon.</desc>
+
+  <defs>
+    <linearGradient id="outerShell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f1013"/>
+      <stop offset="100%" stop-color="#040506"/>
+    </linearGradient>
+
+    <radialGradient id="shellLight" cx="35%" cy="28%" r="85%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.06"/>
+      <stop offset="36%" stop-color="white" stop-opacity="0.015"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="metalStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9aa3b5"/>
+      <stop offset="45%" stop-color="#566074"/>
+      <stop offset="100%" stop-color="#212734"/>
+    </linearGradient>
+
+    <linearGradient id="redStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#87110f"/>
+      <stop offset="45%" stop-color="#ff3529"/>
+      <stop offset="100%" stop-color="#a61410"/>
+    </linearGradient>
+
+    <pattern id="matteCarbon" width="64" height="64" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)">
+      <rect width="64" height="64" fill="#070809"/>
+      <rect x="0" y="0" width="18" height="64" fill="#101214"/>
+      <rect x="18" y="0" width="10" height="64" fill="#08090a"/>
+      <rect x="28" y="0" width="16" height="64" fill="#141618"/>
+      <rect x="44" y="0" width="8" height="64" fill="#090a0b"/>
+      <rect x="52" y="0" width="12" height="64" fill="#111315"/>
+    </pattern>
+
+    <linearGradient id="matteShift" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0"/>
+      <stop offset="18%" stop-color="white" stop-opacity="0.02"/>
+      <stop offset="34%" stop-color="white" stop-opacity="0.07"/>
+      <stop offset="44%" stop-color="white" stop-opacity="0.025"/>
+      <stop offset="58%" stop-color="white" stop-opacity="0"/>
+      <stop offset="72%" stop-color="white" stop-opacity="0.05"/>
+      <stop offset="84%" stop-color="white" stop-opacity="0"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+
+    <radialGradient id="innerVignette" cx="50%" cy="48%" r="78%">
+      <stop offset="56%" stop-color="black" stop-opacity="0"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.26"/>
+    </radialGradient>
+
+    <linearGradient id="folderFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#151922"/>
+      <stop offset="100%" stop-color="#080b10"/>
+    </linearGradient>
+
+    <linearGradient id="folderInner" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1017"/>
+      <stop offset="100%" stop-color="#05070b"/>
+    </linearGradient>
+
+    <linearGradient id="folderFaceBevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.08"/>
+      <stop offset="36%" stop-color="white" stop-opacity="0"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.14"/>
+    </linearGradient>
+
+    <radialGradient id="eyeGlow" cx="50%" cy="48%" r="60%">
+      <stop offset="0%" stop-color="#fff5d7" stop-opacity="0.95"/>
+      <stop offset="8%" stop-color="#ffe3be" stop-opacity="0.96"/>
+      <stop offset="18%" stop-color="#ff966f" stop-opacity="0.98"/>
+      <stop offset="34%" stop-color="#ff5b43" stop-opacity="1"/>
+      <stop offset="56%" stop-color="#c72019" stop-opacity="0.94"/>
+      <stop offset="100%" stop-color="#450707" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="badgeOuter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1f28"/>
+      <stop offset="100%" stop-color="#090c11"/>
+    </linearGradient>
+
+    <linearGradient id="badgeInner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10151d"/>
+      <stop offset="100%" stop-color="#07090d"/>
+    </linearGradient>
+
+    <linearGradient id="textMetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="42%" stop-color="#d8d3ca"/>
+      <stop offset="52%" stop-color="#827d76"/>
+      <stop offset="100%" stop-color="#f2eee6"/>
+    </linearGradient>
+
+    <filter id="shellShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.48"/>
+    </filter>
+
+    <filter id="panelDepth" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="1.1" dy="6" stdDeviation="7" flood-color="#000000" flood-opacity="0.42"/>
+      <feDropShadow dx="0" dy="-1" stdDeviation="1.6" flood-color="#ffffff" flood-opacity="0.05"/>
+    </filter>
+
+    <filter id="redGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8.2" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0
+                0 0.22 0 0 0
+                0 0 0.16 0 0
+                0 0 0 .48 0" result="tinted"/>
+      <feMerge>
+        <feMergeNode in="tinted"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="eyeBloom" x="-55%" y="-55%" width="210%" height="210%">
+      <feGaussianBlur stdDeviation="20" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0
+                0 0.22 0 0 0
+                0 0 0.13 0 0
+                0 0 0 .56 0" result="tinted"/>
+      <feMerge>
+        <feMergeNode in="tinted"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="badgeDepth" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0.9" dy="5.2" stdDeviation="5.5" flood-color="#000000" flood-opacity="0.44"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="2.6" flood-color="#ff3529" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <!-- circular shell -->
+  <circle cx="512" cy="512" r="438" fill="url(#outerShell)" filter="url(#shellShadow)"/>
+  <circle cx="512" cy="512" r="438" fill="url(#shellLight)"/>
+  <circle cx="512" cy="512" r="398" fill="#040507"/>
+
+  <!-- circular inner panel -->
+  <circle cx="512" cy="512" r="386" fill="url(#matteCarbon)"/>
+  <circle cx="512" cy="512" r="386" fill="url(#matteShift)" opacity="0.88"/>
+  <circle cx="512" cy="512" r="386" fill="url(#innerVignette)"/>
+  <circle cx="512" cy="512" r="386" fill="none" stroke="url(#redStroke)" stroke-width="11" filter="url(#redGlow)"/>
+  <circle cx="512" cy="512" r="408" fill="none" stroke="url(#metalStroke)" stroke-width="9"/>
+
+  <!-- folder retained from v5 -->
+  <g transform="translate(46,3) scale(0.932)">
+    <path d="M294 334
+             H432
+             C449 334 461 325 469 314
+             L489 285
+             C497 274 509 268 524 268
+             H684
+             C724 268 756 300 756 340
+             V598
+             C756 638 724 670 684 670
+             H294
+             C254 670 222 638 222 598
+             V406
+             C222 366 254 334 294 334Z"
+          fill="#0d1118"
+          stroke="#222a37"
+          stroke-width="12"
+          opacity="0.82"
+          filter="url(#panelDepth)"/>
+
+    <path d="M266 310
+             H424
+             C442 310 454 300 463 287
+             L485 256
+             C493 244 506 238 523 238
+             H712
+             C756 238 792 274 792 318
+             V626
+             C792 670 756 706 712 706
+             H266
+             C222 706 186 670 186 626
+             V382
+             C186 338 222 310 266 310Z"
+          fill="url(#folderFill)"
+          stroke="url(#metalStroke)"
+          stroke-width="15"
+          filter="url(#panelDepth)"/>
+
+    <path d="M266 310
+             H424
+             C442 310 454 300 463 287
+             L485 256
+             C493 244 506 238 523 238
+             H712
+             C756 238 792 274 792 318
+             V626
+             C792 670 756 706 712 706
+             H266
+             C222 706 186 670 186 626
+             V382
+             C186 338 222 310 266 310Z"
+          fill="url(#folderFill)"
+          stroke="url(#metalStroke)"
+          stroke-width="15"/>
+
+    <path d="M282 346
+             H432
+             C449 346 461 336 469 324
+             L489 296
+             C497 285 509 280 523 280
+             H690
+             C718 280 740 302 740 330
+             V590
+             C740 618 718 640 690 640
+             H282
+             C254 640 232 618 232 590
+             V398
+             C232 370 254 346 282 346Z"
+          fill="url(#folderInner)"
+          stroke="#5b6984"
+          stroke-width="8"/>
+</g>
+
+  <!-- eye nudged 1% down and left from v5 -->
+  <g transform="translate(1,-18) translate(512 477) scale(0.97) translate(-512 -477)">
+    <polygon points="512,350 622,414 622,540 512,604 402,540 402,414"
+             fill="none" stroke="url(#metalStroke)" stroke-width="17" filter="url(#panelDepth)"/>
+    <polygon points="512,380 594,428 594,526 512,574 430,526 430,428"
+             fill="none" stroke="url(#redStroke)" stroke-width="6.8" filter="url(#redGlow)"/>
+    <circle cx="512" cy="477" r="96" fill="url(#eyeGlow)" filter="url(#eyeBloom)"/>
+    <circle cx="512" cy="477" r="58" fill="none" stroke="#ff8d63" stroke-width="9"/>
+    <circle cx="512" cy="477" r="23" fill="#ffe0bb" opacity="0.95"/>
+    <ellipse cx="531" cy="460" rx="15.5" ry="9.4" fill="#fff6e5" opacity="0.60" transform="rotate(24 531 460)"/>
+    <ellipse cx="507" cy="471" rx="10.5" ry="7.1" fill="#fff1db" opacity="0.28"/>
+  </g>
+
+  <!-- badge restored closer to square reference position/style -->
+  <g transform="translate(0,16)">
+    <path d="M320 676
+             H704
+             L670 822
+             H354
+             Z"
+          fill="url(#badgeOuter)"
+          stroke="url(#redStroke)"
+          stroke-width="5"
+          filter="url(#badgeDepth)"/>
+
+    <path d="M348 702
+             H676
+             L650 804
+             H378
+             Z"
+          fill="url(#badgeInner)"
+          stroke="#1b2433"
+          stroke-width="3"/>
+<text x="512" y="794"
+          text-anchor="middle"
+          font-family="Arial Black, Impact, sans-serif"
+          font-size="110"
+          letter-spacing="8"
+          fill="#0b0b0b"
+          opacity="0.28"
+          transform="translate(1.0,1.7)">DML</text>
+
+    <text x="512" y="794"
+          text-anchor="middle"
+          font-family="Arial Black, Impact, sans-serif"
+          font-size="110"
+          letter-spacing="8"
+          fill="url(#textMetal)"
+          stroke="#6a7384"
+          stroke-width="1.25">DML</text>
+  </g>
+</svg>
