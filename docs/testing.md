@@ -115,6 +115,21 @@ Start tests around dangerous logic first.
 | ModDisplayNameNormalizer     | Prevent ugly or confusing mod names     |
 | ResolvedDataGraphBuilder     | Prevent wrong conflict winners          |
 
+## Current JVM Unit Tests
+
+These tests run without an Android device.
+
+| Test File                      | Purpose                                                                |
+|--------------------------------|------------------------------------------------------------------------|
+| `PathUtilsTest`                | Verifies path normalization and ignored metadata paths                 |
+| `DeployFileClassifierTest`     | Verifies deploy scope classification and unsafe path blocking          |
+| `ModDisplayNameNormalizerTest` | Verifies archive/mod name cleanup                                      |
+| `PluginDiscoveryTest`          | Verifies plugin discovery, plugin type detection, and 1-based priority |
+
+Run with:
+```bash
+./gradlew testDebugUnitTest
+```
 ## Release Rule
 
 A release should not be uploaded until:

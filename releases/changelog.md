@@ -46,6 +46,7 @@ Use this format for each release:
 - Pull request checklist template.
 - Expanded decision log rules and core accepted decisions.
 - Source map documentation for major app files and engine areas.
+- JVM unit tests for path normalization, deploy file classification, mod display name cleanup, and plugin discovery.
 
 ### Changed
 
