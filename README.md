@@ -211,10 +211,15 @@ Major work still planned before a stable 1.0 release includes:
 * more tests for risky file logic
 
 ## Project Documentation
+
 - [Documentation Index](docs/index.md)
+- [User Guide](docs/user-guide.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Glossary](docs/glossary.md)
 - [Project Vision](docs/vision.md)
 - [Requirements](docs/requirements.md)
 - [Architecture](docs/architecture.md)
+- [Source Map](docs/architecture/source-map.md)
 - [Decision Log](docs/decisions.md)
 - [Testing](docs/testing.md)
 - [Release Checklist](docs/release-checklist.md)
@@ -225,7 +230,7 @@ Major work still planned before a stable 1.0 release includes:
 - [Current Priorities](docs/tasks/current-priorities.md)
 - [Backlog](docs/tasks/backlog.md)
 - [Brand Assets](docs/assets/brand-assets.md)
-- [Changelog](releases/changelog.md)## Project Documentation
+- [Changelog](releases/changelog.md)
 
 ## Installer support
 

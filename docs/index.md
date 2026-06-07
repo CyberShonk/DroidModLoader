@@ -17,6 +17,9 @@ This folder contains the project documentation for Droid Mod Loader.
 | [Development Loop](process/development-loop.md) | Defines the task to code to test to commit process                              |
 | [Roadmap vs Tasks](process/roadmap-vs-tasks.md) | Explains how roadmap items, backlog items, priorities, and issues are separated |
 | [Source Map](architecture/source-map.md)        | Maps source folders/files to responsibilities                                   |
+| [User Guide](user-guide.md)                     | Explains normal app use                                                         |
+| [Troubleshooting](troubleshooting.md)           | Lists common problems and fixes                                                 |
+| [Glossary](glossary.md)                         | Defines app and modding terms                                                   |
 
 ## Development Rule
 
