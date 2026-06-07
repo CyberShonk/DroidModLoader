@@ -23,6 +23,7 @@ This folder contains the project documentation for Droid Mod Loader.
 | [Versioning](process/versioning.md)                                       | Defines app version, versionCode, APK filename, and changelog rules             |
 | [Release Notes Template](../releases/templates/release-notes-template.md) | Template for public release notes                                               |
 | [APK Upload Checklist](../releases/templates/apk-upload-checklist.md)     | Checklist for public APK uploads                                                |
+| [Git Workflow](process/git-workflow.md)                                   | Defines branch, commit, push, and local environment rules                       |
 
 ## Development Rule
 
