@@ -54,6 +54,10 @@ Use this format for each release:
 - Public release notes template.
 - APK upload checklist template.
 - Git workflow documentation.
+- Local project check scripts.
+- Documentation structure check script.
+- Release notes preparation script.
+- GitHub Actions CI for unit tests, debug builds, and documentation checks.
 
 ### Changed
 
@@ -62,6 +66,7 @@ Use this format for each release:
 - Clarified versionName, versionCode, APK filename, and changelog expectations.
 - Expanded release checklist links to release templates and versioning documentation.
 - Documented Bazzite terminal setup notes for Gradle, Java/JBR, and executable Gradle wrapper usage.
+- Added repository automation to catch missing docs, committed artifacts, and failing unit tests earlier.
 
 ### Fixed
 

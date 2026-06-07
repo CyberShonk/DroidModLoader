@@ -24,6 +24,9 @@ This folder contains the project documentation for Droid Mod Loader.
 | [Release Notes Template](../releases/templates/release-notes-template.md) | Template for public release notes                                               |
 | [APK Upload Checklist](../releases/templates/apk-upload-checklist.md)     | Checklist for public APK uploads                                                |
 | [Git Workflow](process/git-workflow.md)                                   | Defines branch, commit, push, and local environment rules                       |
+| [Task Template](tasks/task-template.md)                                   | Template for scoped implementation tasks                                        |
+| [Current Priorities](tasks/current-priorities.md)                         | Short active task list                                                          |
+| [Backlog](tasks/backlog.md)                                               | Rough future work and deferred ideas                                            |
 
 ## Development Rule
 

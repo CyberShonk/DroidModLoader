@@ -1,0 +1,34 @@
+name: Docs Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Documentation structure
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x tools/check-docs.sh
+
+      - name: Check docs
+        run: ./tools/check-docs.sh
+
+      - name: Reject committed build artifacts and temp files
+        run: |
+          bad_files="$(git ls-files | grep -Ei '\.(apk|aab|save|bak|tmp)$|~$' || true)"
+          if [ -n "$bad_files" ]; then
+            echo "Bad files committed:"
+            echo "$bad_files"
+            exit 1
+          fi

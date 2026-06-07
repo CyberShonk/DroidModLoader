@@ -16,3 +16,21 @@ local.properties
 /app/release/
 *.apk
 *.aab
+# Android/Gradle build output
+.gradle/
+build/
+app/build/
+
+# Signing/private files
+*.jks
+*.keystore
+keystore.properties
+
+# Temporary/backup files
+*.save
+*.bak
+*.tmp
+*~
+
+# Private local notes
+private-notes/
