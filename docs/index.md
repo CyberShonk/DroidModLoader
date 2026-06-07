@@ -4,17 +4,17 @@ This folder contains the project documentation for Droid Mod Loader.
 
 ## Core Docs
 
-| Document                                  | Purpose                                           |
-|-------------------------------------------|---------------------------------------------------|
-| [Vision](vision.md)                       | Defines what Droid Mod Loader is trying to become |
-| [Requirements](requirements.md)           | Defines what the app must do                      |
-| [Architecture](architecture.md)           | Explains the current project structure            |
-| [Decision Log](decisions.md)              | Records major technical and product decisions     |
-| [Testing](testing.md)                     | Tracks what needs to be tested                    |
-| [Release Checklist](release-checklist.md) | Lists checks before publishing builds             |
-| [Brand Assets](assets/brand-assets.md)    | Tracks icon and branding asset rules              |
-| [Changelog](../releases/changelog.md)     | Tracks release history                            |
-
+| Document                                        | Purpose                                            |
+|-------------------------------------------------|----------------------------------------------------|
+| [Vision](vision.md)                             | Defines what Droid Mod Loader is trying to become  |
+| [Requirements](requirements.md)                 | Defines what the app must do                       |
+| [Architecture](architecture.md)                 | Explains the current project structure             |
+| [Decision Log](decisions.md)                    | Records major technical and product decisions      |
+| [Testing](testing.md)                           | Tracks what needs to be tested                     |
+| [Release Checklist](release-checklist.md)       | Lists checks before publishing builds              |
+| [Brand Assets](assets/brand-assets.md)          | Tracks icon and branding asset rules               |
+| [Changelog](../releases/changelog.md)           | Tracks release history                             |
+| [Development Loop](process/development-loop.md) | Defines the task to code to test to commit process |
 ## Development Rule
 
 Before adding a new feature:

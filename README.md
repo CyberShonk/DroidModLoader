@@ -219,6 +219,7 @@ Major work still planned before a stable 1.0 release includes:
 - [Decision Log](docs/decisions.md)
 - [Testing](docs/testing.md)
 - [Release Checklist](docs/release-checklist.md)
+- [Development Loop](docs/process/development-loop.md)
 - [Roadmap](ROADMAP.md)
 - [Task Template](docs/tasks/task-template.md)
 - [Current Priorities](docs/tasks/current-priorities.md)

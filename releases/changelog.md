@@ -42,6 +42,8 @@ Use this format for each release:
 - Decision log.
 - Testing documentation.
 - Release checklist.
+- Development loop documentation.
+- Pull request checklist template.
 
 ### Changed
 
