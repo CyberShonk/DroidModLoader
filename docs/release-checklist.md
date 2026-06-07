@@ -4,10 +4,12 @@ Use this checklist before uploading an APK publicly.
 
 ## Version
 
-- [ ] versionName is correct in app/build.gradle.kts
-- [ ] versionCode is incremented if needed
+- [ ] `versionName` is correct in `app/build.gradle.kts`
+- [ ] `versionCode` is incremented if needed
+- [ ] `versionName` follows `v0.x.y-beta` before stable 1.0
 - [ ] App diagnostics show the real version
 - [ ] APK filename includes the version
+- [ ] `releases/changelog.md` has an entry for this version
 
 ## Code State
 

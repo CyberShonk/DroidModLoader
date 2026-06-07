@@ -50,11 +50,13 @@ Use this format for each release:
 - Starter user guide.
 - Troubleshooting documentation.
 - Glossary for DML and modding terms.
+- Versioning documentation.
 
 ### Changed
 
 - README now links to project documentation.
 - Expanded architecture documentation maintenance rules.
+- Clarified versionName, versionCode, APK filename, and changelog expectations.
 
 ### Fixed
 

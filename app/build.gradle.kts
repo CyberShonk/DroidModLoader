@@ -14,6 +14,7 @@ android {
     defaultConfig {
         applicationId = "com.shonkware.droidmodloader"
         minSdk = 28
+        //noinspection OldTargetApi
         targetSdk = 36
         versionCode = 1
         versionName = "v0.5.4-beta"
@@ -55,8 +56,12 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    //noinspection UseTomlInstead
     implementation("androidx.documentfile:documentfile:1.1.0")
+    //noinspection UseTomlInstead
     implementation("org.apache.commons:commons-compress:1.28.0")
+    //noinspection UseTomlInstead
     implementation("org.tukaani:xz:1.12")
+    //noinspection UseTomlInstead
     implementation("com.github.junrar:junrar:7.6.0")
 }

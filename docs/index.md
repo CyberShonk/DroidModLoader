@@ -20,6 +20,7 @@ This folder contains the project documentation for Droid Mod Loader.
 | [User Guide](user-guide.md)                     | Explains normal app use                                                         |
 | [Troubleshooting](troubleshooting.md)           | Lists common problems and fixes                                                 |
 | [Glossary](glossary.md)                         | Defines app and modding terms                                                   |
+| [Versioning](process/versioning.md)             | Defines app version, versionCode, APK filename, and changelog rules             |
 
 ## Development Rule
 
