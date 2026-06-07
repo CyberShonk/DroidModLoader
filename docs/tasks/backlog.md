@@ -18,7 +18,6 @@ These are known candidates from the current roadmap and docs.
 
 ### UI
 
-- Fix dashboard card text overflow.
 - Hide Developer Tools behind developer mode.
 - Keep Recovery Tools visible outside developer mode.
 - Improve beginner wording on main actions.

@@ -16,7 +16,7 @@ Short plain-English summary of the release.
 
 Example:
 
-This release improves deployment safety, diagnostics, and small-screen UI behavior.
+This release improves deployment safety, diagnostics, and general app behavior.
 
 ## Added
 

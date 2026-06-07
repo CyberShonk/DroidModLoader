@@ -29,7 +29,7 @@ UI rules:
 
 - UI should display state and trigger actions.
 - UI should not directly own deployment, deletion, backup, or recovery logic.
-- UI text must be tested on small screens.
+- UI should remain readable across normal phone and handheld layouts.
 - Developer tools should stay hidden unless developer mode is unlocked.
 - Recovery tools should stay reachable for normal users.
 

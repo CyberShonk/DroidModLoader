@@ -8,7 +8,7 @@ Short action title.
 
 Example:
 
-Fix dashboard text overflow
+Show real version in diagnostics
 
 ## Type
 
@@ -27,7 +27,8 @@ List related requirements.
 
 Example:
 
-- REQ-UI-003
+
+- REQ-RELEASE-001
 - REQ-DIAG-001
 
 ## Problem

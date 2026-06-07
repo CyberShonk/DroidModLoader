@@ -40,7 +40,7 @@ Paste screenshots, diagnostics, or logs here.
 
 Example:
 
-- REQ-UI-003
+- REQ-DIAG-001
 
 ## Done When
 

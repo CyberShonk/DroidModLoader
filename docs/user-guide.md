@@ -148,4 +148,4 @@ Known areas still being improved:
 - plugin intelligence
 - diagnostics export
 - beginner wording
-- small-screen UI behavior
+- general UI polish

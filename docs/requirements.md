@@ -433,18 +433,6 @@ Done when:
 - developer mode can reveal them
 - recovery tools remain available outside developer mode
 
-### REQ-UI-003: Text Must Fit
-
-Status: Planned
-
-Dashboard cards, buttons, and status panels must handle text without clipping.
-
-Done when:
-
-- common screen sizes do not clip important text
-- long labels wrap or shorten safely
-- landscape and portrait layouts remain usable
-
 ## 10. Branding and Asset Requirements
 
 ### REQ-ASSET-001: Handmade Asset Sources Are Preserved

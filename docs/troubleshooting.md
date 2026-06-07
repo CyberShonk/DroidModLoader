@@ -131,16 +131,6 @@ Try:
 4. Run diagnostics.
 5. Use full redeploy if the app recommends it.
 
-## Dashboard Text Is Cut Off
-
-This is a known UI polish area.
-
-Try:
-
-1. Rotate the device.
-2. Use landscape mode if available.
-3. Report the screen size and screenshot.
-4. Include the DML version.
 
 ## Reporting a Problem
 

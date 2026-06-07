@@ -134,6 +134,5 @@ Do not let architecture docs become fictional. If the code changes, update the d
 - MainActivity.kt is too large and should be reduced over time.
 - ModEngine.kt is large and should eventually be split into smaller services.
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
-- Dashboard text overflow still needs focused testing.
 - Release APKs should not be committed.
 

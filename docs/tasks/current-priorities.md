@@ -23,21 +23,7 @@ Before coding:
 
 ## Active Priorities
 
-### 1. Fix dashboard text overflow
-
-Requirement IDs:
-
-- REQ-UI-003
-
-Reason:
-
-Text clipping has appeared repeatedly in screenshots and makes the UI look broken.
-
-Expected result:
-
-Dashboard cards, buttons, and status surfaces should handle longer text safely.
-
-### 2. Hide Developer Tools behind dev mode
+### 1. Hide Developer Tools behind dev mode
 
 Requirement IDs:
 
@@ -51,7 +37,7 @@ Expected result:
 
 Developer Tools only appear after developer mode is unlocked.
 
-### 3. Keep Recovery Tools visible
+### 2. Keep Recovery Tools visible
 
 Requirement IDs:
 
@@ -66,7 +52,7 @@ Expected result:
 
 Recovery Tools remain reachable even when Developer Tools are hidden.
 
-### 4. Show real version in diagnostics
+### 3. Show real version in diagnostics
 
 Requirement IDs:
 
@@ -81,7 +67,7 @@ Expected result:
 
 Diagnostics use `versionName` from the build config/package info instead of hardcoded text.
 
-### 5. Add unfinished deploy warning
+### 4. Add unfinished deploy warning
 
 Requirement IDs:
 

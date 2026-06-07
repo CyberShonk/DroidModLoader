@@ -6,8 +6,7 @@ This document tracks handmade Droid Mod Loader visual assets.
 
 - Source art must be preserved.
 - Generated Android resources must not be the only copy.
-- Launcher icons, UI icons, SteamGridDB assets, and mockup assets should be separated.
-- Carbon red is the default visual direction.
+- Launcher icons, UI icons, SteamGridDB assets, and design reference assets should be separated.- Carbon red is the default visual direction.
 - Skyrim, Fallout 3, and Fallout New Vegas themes may use harder, boxier visual language.
 - Default DML theme may use rounder cards/buttons.
 

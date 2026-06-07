@@ -63,7 +63,7 @@ Minimum release test:
 - [ ] Test deployment works on safe folder
 - [ ] Diagnostics screen opens
 - [ ] Recovery warning behavior is sane
-- [ ] No major dashboard text clipping
+- [ ] Main screens render without obvious layout breakage
 
 ## File Safety
 

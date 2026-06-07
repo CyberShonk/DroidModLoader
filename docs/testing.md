@@ -94,7 +94,7 @@ Risk order:
 - Portrait layout works.
 - Landscape layout works.
 - Long mod names do not destroy the layout.
-- Dashboard cards do not clip important text.
+- Main screens remain readable in portrait and landscape.
 - Developer Tools are hidden unless developer mode is unlocked.
 - Recovery Tools are visible when needed.
 

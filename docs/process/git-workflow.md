@@ -11,7 +11,7 @@ A commit should represent one clear change.
 Good examples:
 
 - Add versioning documentation
-- Fix dashboard text overflow
+- Show real app version in diagnostics
 - Hide developer tools behind dev mode
 - Add unfinished deployment warning
 - Fix mod display name Nexus suffix cleanup

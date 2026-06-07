@@ -182,7 +182,7 @@ Result:
 The UI should prioritize the basic path: select game, import mods, manage plugins, review warnings, deploy, diagnose problems.
 
 Related:
-REQ-UI-001, REQ-UI-002, REQ-UI-003.
+REQ-UI-001, REQ-UI-002.
 
 ## 2026-06-06 - Project Work Must Use Tasks
 
