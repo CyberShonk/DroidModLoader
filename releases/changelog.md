@@ -45,10 +45,12 @@ Use this format for each release:
 - Development loop documentation.
 - Pull request checklist template.
 - Expanded decision log rules and core accepted decisions.
+- Source map documentation for major app files and engine areas.
 
 ### Changed
 
 - README now links to project documentation.
+- Expanded architecture documentation maintenance rules.
 
 ### Fixed
 

@@ -16,6 +16,8 @@ This folder contains the project documentation for Droid Mod Loader.
 | [Changelog](../releases/changelog.md)           | Tracks release history                                                          |
 | [Development Loop](process/development-loop.md) | Defines the task to code to test to commit process                              |
 | [Roadmap vs Tasks](process/roadmap-vs-tasks.md) | Explains how roadmap items, backlog items, priorities, and issues are separated |
+| [Source Map](architecture/source-map.md)        | Maps source folders/files to responsibilities                                   |
+
 ## Development Rule
 
 Before adding a new feature:

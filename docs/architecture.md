@@ -2,6 +2,10 @@
 
 Droid Mod Loader is an Android/Kotlin app using Jetpack Compose for the UI and a custom engine layer for mod management.
 
+## Related Architecture Docs
+
+- [Source Map](architecture/source-map.md)
+
 ## Source Root
 
 app/src/main/java/com/shonkware/droidmodloader/
@@ -108,6 +112,23 @@ That means the app must track:
 7. Recovery tools should remain reachable by normal users.
 8. Major decisions should be recorded in docs/decisions.md.
 
+## Architecture Maintenance Rule
+
+When code structure changes, update architecture docs in the same task.
+
+Update architecture docs when:
+
+- a new major engine package is added
+- responsibilities move between files
+- deployment flow changes
+- profile state ownership changes
+- plugin handling changes
+- recovery/journal behavior changes
+- UI navigation model changes
+- a large file is split into smaller services
+
+Do not let architecture docs become fictional. If the code changes, update the docs.
+
 ## Known Cleanup Targets
 
 - MainActivity.kt is too large and should be reduced over time.
@@ -115,3 +136,4 @@ That means the app must track:
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
 - Dashboard text overflow still needs focused testing.
 - Release APKs should not be committed.
+
