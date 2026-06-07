@@ -44,6 +44,7 @@ Use this format for each release:
 - Release checklist.
 - Development loop documentation.
 - Pull request checklist template.
+- Expanded decision log rules and core accepted decisions.
 
 ### Changed
 
