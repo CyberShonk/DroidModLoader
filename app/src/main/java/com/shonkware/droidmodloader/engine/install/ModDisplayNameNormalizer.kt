@@ -20,6 +20,8 @@ object ModDisplayNameNormalizer {
         var name = source.trim()
 
         name = removeArchiveExtension(name)
+        name = name.replace(Regex("""-\d+(?:-\d+){1,}-\d{8,}$"""), "")
+        name = name.replace(Regex("""-\d+(?:-\d+)+$"""), "")
         name = removeLeadingTimestampPrefix(name)
         name = name.replace('_', ' ')
         name = name.replace(Regex("""\s+"""), " ").trim()
