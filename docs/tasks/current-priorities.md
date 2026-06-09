@@ -25,47 +25,46 @@ Before coding:
 
 ### 1. Hide Developer Tools behind dev mode
 
-Requirement IDs:
+~~Requirement IDs:~~
 
-- REQ-UI-002
+- ~~REQ-UI-002~~
 
-Reason:
+~~Reason:
 
-Developer tools should not be visible to normal users.
+~~Developer tools should not be visible to normal users.~~
 
-Expected result:
+~~Expected result:~~
 
-Developer Tools only appear after developer mode is unlocked.
+~~Developer Tools only appear after developer mode is unlocked.~~
 
 ### 2. Keep Recovery Tools visible
 
-Requirement IDs:
+~~Requirement IDs:~~
 
-- REQ-RECOVERY-003
-- REQ-UI-002
+- ~~REQ-RECOVERY-003~~
+- ~~REQ-UI-002~~
 
-Reason:
+~~Reason:~~
+~~Recovery tools are user-facing safety tools, not developer-only tools.~~
 
-Recovery tools are user-facing safety tools, not developer-only tools.
+~~Expected result:~~
 
-Expected result:
-
-Recovery Tools remain reachable even when Developer Tools are hidden.
+~~Recovery Tools remain reachable even when Developer Tools are hidden.~~
 
 ### 3. Show real version in diagnostics
 
-Requirement IDs:
+~~Requirement IDs:~~
 
-- REQ-DIAG-001
-- REQ-RELEASE-001
+- ~~REQ-DIAG-001~~
+- ~~REQ-RELEASE-001~~
 
-Reason:
+~~Reason:~~
 
-Diagnostics should report the actual app version.
+~~Diagnostics should report the actual app version.~~
 
-Expected result:
+~~Expected result:~~
 
-Diagnostics use `versionName` from the build config/package info instead of hardcoded text.
+~~Diagnostics use `versionName` from the build config/package info instead of hardcoded text.~~
 
 ### 4. Add unfinished deploy warning
 

@@ -58,6 +58,8 @@ Use this format for each release:
 - Documentation structure check script.
 - Release notes preparation script.
 - GitHub Actions CI for unit tests, debug builds, and documentation checks.
+- Added unit coverage for archive metadata tracking, Nexus URL parsing, and archive metadata summaries.
+- Added a Developer Tools action to print the saved archive library metadata summary without changing files.
 
 ### Changed
 
