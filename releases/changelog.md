@@ -61,6 +61,7 @@ Use this format for each release:
 - Added unit coverage for archive metadata tracking, Nexus URL parsing, and archive metadata summaries.
 - Added a Developer Tools action to print the saved archive library metadata summary without changing files.
 - Added a pre-push documentation gate so project docs stay current before GitHub pushes.
+- Continued release-readiness cleanup for the archive import/download metadata path.
 
 ### Changed
 
