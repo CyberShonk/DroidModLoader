@@ -28,7 +28,7 @@ Use this format for each release:
 
 - Anything users should do before or after updating.
 
-## v0.5.4-beta - Current
+## v0.5.5-beta - Current
 
 ### Added
 
