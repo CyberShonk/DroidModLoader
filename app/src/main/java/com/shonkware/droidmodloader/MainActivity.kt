@@ -38,6 +38,8 @@ import com.shonkware.droidmodloader.ui.workflow.OperationLogFormatter
 import com.shonkware.droidmodloader.ui.workflow.OperationStatusController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
+import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
+import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
 
 class MainActivity : ComponentActivity() {
 
@@ -1722,7 +1724,6 @@ class MainActivity : ComponentActivity() {
 
         appendLog("Loaded config into Compose state: $config")
     }
-
     private fun saveSelectedGameConfigFromUi() {
         val engine = createModEngineForWorkflows() ?: return
 
@@ -1881,31 +1882,16 @@ class MainActivity : ComponentActivity() {
             profileOptions = profiles
 
             if (resolvedState.setupComplete && activeProfile != null) {
-                activeProfileName = activeProfile.profileName
-                selectedGameId = activeProfile.gameId
-
-                targetPathText = activeProfile.targetDataPath
-                selectedTreeUriText = activeProfile.targetTreeUri ?: "No folder selected"
-
-                rootTargetPathText = activeProfile.targetRootPath
-                selectedRootTreeUriText = activeProfile.targetRootTreeUri ?: "No root folder selected"
-
-                realDeployEnabledState = activeProfile.realDeployEnabled
-
+                applyProfileConfigUiState(
+                    ProfileConfigUiMapper.fromProfile(activeProfile)
+                )
                 visibleMods = emptyList()
                 visiblePlugins = emptyList()
                 visibleModContentIndexes = emptyMap()
             } else {
-                activeProfileName = "No profile"
-                selectedGameId = "No Game Selected"
-
-                targetPathText = ""
-                selectedTreeUriText = "No folder selected"
-
-                rootTargetPathText = ""
-                selectedRootTreeUriText = "No root folder selected"
-
-                realDeployEnabledState = false
+                applyProfileConfigUiState(
+                    ProfileConfigUiMapper.emptyState()
+                )
 
                 visibleMods = emptyList()
                 visiblePlugins = emptyList()
@@ -1963,10 +1949,9 @@ class MainActivity : ComponentActivity() {
             activeProfileName = profile.profileName
             profileOptions = existingProfiles
 
-            selectedGameId = profile.gameId
-            rootTargetPathText = profile.targetRootPath
-            selectedRootTreeUriText = profile.targetRootTreeUri ?: "No root folder selected"
-            realDeployEnabledState = profile.realDeployEnabled
+            applyProfileConfigUiState(
+                ProfileConfigUiMapper.fromProfile(profile)
+            )
         }
 
         saveSelectedGameConfigFromUi()
@@ -1975,7 +1960,6 @@ class MainActivity : ComponentActivity() {
         updateLastOperationStatus("Setup complete.")
         refreshDashboard()
     }
-
     private fun createAdditionalProfile() {
         val repo = createProfileRepository() ?: return
 
@@ -1993,7 +1977,7 @@ class MainActivity : ComponentActivity() {
             targetDataPath = "",
             targetRootPath = "",
             targetRootTreeUri = null,
-            targetTreeUri = if (newProfileTreeUriText == "No folder selected") null else newProfileTreeUriText,
+            targetTreeUri = ProfileConfigUiMapper.dataTreeUriFromText(newProfileTreeUriText),
             realDeployEnabled = newProfileRealDeployEnabled,
             iniPresetId = null
         )
@@ -2012,22 +1996,15 @@ class MainActivity : ComponentActivity() {
             profileOptions = profiles
             activeProfileId = profile.profileId
             activeProfileName = profile.profileName
-            selectedGameId = profile.gameId
-
-
-            targetPathText = profile.targetDataPath
-            selectedTreeUriText = profile.targetTreeUri ?: "No folder selected"
-
-            rootTargetPathText = profile.targetRootPath
-            selectedRootTreeUriText = profile.targetRootTreeUri ?: "No root folder selected"
-
-            realDeployEnabledState = profile.realDeployEnabled
+            applyProfileConfigUiState(
+                ProfileConfigUiMapper.fromProfile(profile)
+            )
             visibleMods = emptyList()
             visiblePlugins = emptyList()
             visibleModContentIndexes = emptyMap()
 
             newProfileNameText = ""
-            newProfileTreeUriText = "No folder selected"
+            newProfileTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED
             newProfileRealDeployEnabled = false
             showProfileDialog = false
         }
@@ -2044,7 +2021,6 @@ class MainActivity : ComponentActivity() {
         appendLog("Created and switched to profile: $profile")
         updateLastOperationStatus("Profile created and selected: ${profile.profileName}")
     }
-
     private fun switchActiveProfile(profileId: String) {
         val repo = createProfileRepository() ?: return
         val profiles = repo.loadProfiles()
@@ -2067,16 +2043,9 @@ class MainActivity : ComponentActivity() {
         runOnUiThreadBlocking {
             activeProfileId = profile.profileId
             activeProfileName = profile.profileName
-            selectedGameId = profile.gameId
-
-
-            targetPathText = profile.targetDataPath
-            selectedTreeUriText = profile.targetTreeUri ?: "No folder selected"
-
-            rootTargetPathText = profile.targetRootPath
-            selectedRootTreeUriText = profile.targetRootTreeUri ?: "No root folder selected"
-
-            realDeployEnabledState = profile.realDeployEnabled
+            applyProfileConfigUiState(
+                ProfileConfigUiMapper.fromProfile(profile)
+            )
             visibleMods = emptyList()
             visiblePlugins = emptyList()
             visibleModContentIndexes = emptyMap()
@@ -2094,7 +2063,6 @@ class MainActivity : ComponentActivity() {
         appendLog("Switched active profile: $profile")
         updateLastOperationStatus("Switched profile: ${profile.profileName}")
     }
-
     private fun saveActiveProfileFromDashboard() {
         val repo = createProfileRepository() ?: return
         val currentProfileId = activeProfileId
@@ -2113,13 +2081,13 @@ class MainActivity : ComponentActivity() {
         }
 
         val oldProfile = profiles[index]
-        val updatedProfile = oldProfile.copy(
-            gameId = oldProfile.gameId,
-            gameDisplayName = getGameDisplayName(oldProfile.gameId),
-            targetDataPath = targetPathText.trim(),
-            targetTreeUri = if (selectedTreeUriText == "No folder selected") null else selectedTreeUriText,
-            targetRootPath = rootTargetPathText.trim(),
-            targetRootTreeUri = if (selectedRootTreeUriText == "No root folder selected") null else selectedRootTreeUriText,
+        val updatedProfile = ProfileConfigUiMapper.updatedProfileFromDashboard(
+            profile = oldProfile,
+            displayName = getGameDisplayName(oldProfile.gameId),
+            targetPathText = targetPathText,
+            selectedTreeUriText = selectedTreeUriText,
+            rootTargetPathText = rootTargetPathText,
+            selectedRootTreeUriText = selectedRootTreeUriText,
             realDeployEnabled = realDeployEnabledState
         )
 
@@ -2133,7 +2101,6 @@ class MainActivity : ComponentActivity() {
 
         appendLog("Saved active profile: $updatedProfile")
     }
-
     private fun deleteProfile(profileId: String) {
         val repo = createProfileRepository() ?: return
 
@@ -2169,20 +2136,13 @@ class MainActivity : ComponentActivity() {
 
 
             if (newActiveProfile != null) {
-                selectedGameId = newActiveProfile.gameId
-                targetPathText = newActiveProfile.targetDataPath
-                selectedTreeUriText = newActiveProfile.targetTreeUri ?: "No folder selected"
-                rootTargetPathText = newActiveProfile.targetRootPath
-                selectedRootTreeUriText = newActiveProfile.targetRootTreeUri ?: "No root folder selected"
-                realDeployEnabledState = newActiveProfile.realDeployEnabled
+                applyProfileConfigUiState(
+                    ProfileConfigUiMapper.fromProfile(newActiveProfile)
+                )
             } else {
-                selectedGameId = "No Game Selected"
-                targetPathText = ""
-                selectedTreeUriText = "No folder selected"
-                rootTargetPathText = ""
-                selectedRootTreeUriText = "No root folder selected"
-                realDeployEnabledState = false
-                showProfileDialog = false
+                applyProfileConfigUiState(
+                    ProfileConfigUiMapper.emptyState()
+                )
                 visiblePlugins = emptyList()
             }
         }
@@ -2835,6 +2795,15 @@ class MainActivity : ComponentActivity() {
         selectedTreeUriText = state.targetTreeUriText
         rootTargetPathText = state.targetRootPath
         selectedRootTreeUriText = state.targetRootTreeUriText
+    }
+
+    private fun applyProfileConfigUiState(state: ProfileConfigUiState) {
+        selectedGameId = state.selectedGameId
+        targetPathText = state.targetDataPath
+        selectedTreeUriText = state.targetTreeUriText
+        rootTargetPathText = state.targetRootPath
+        selectedRootTreeUriText = state.targetRootTreeUriText
+        realDeployEnabledState = state.realDeployEnabled
     }
 
 }
