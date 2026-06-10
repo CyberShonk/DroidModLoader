@@ -36,6 +36,7 @@ import com.shonkware.droidmodloader.engine.install.InstallerGroupType
 import com.shonkware.droidmodloader.engine.repair.V050ArtifactRepairTool
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 import com.shonkware.droidmodloader.ui.workflow.OperationLogFormatter
+import com.shonkware.droidmodloader.ui.workflow.OperationStatusController
 
 class MainActivity : ComponentActivity() {
 
@@ -164,7 +165,7 @@ class MainActivity : ComponentActivity() {
             appendError("Failed to persist folder permission: ${e.message}", e)
         }
     }
-    private var activeOperationStartedAtMillis: Long = 0L
+    private val operationStatusController = OperationStatusController()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -569,46 +570,40 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun beginOperation(text: String) {
-        activeOperationStartedAtMillis = System.currentTimeMillis()
+        val status = operationStatusController.begin(text)
 
         runOnUiThread {
             operationInProgress = true
-            activeOperationText = text
-            updateLastOperationStatus(text)
+            activeOperationText = status.activeText
+            updateLastOperationStatus(status.statusText)
         }
 
-        showToast(text)
-        appendLog("OPERATION START: $text")
+        showToast(status.toastText)
+        appendLog(status.logText)
     }
     private fun finishOperation(successText: String) {
-        val durationText = OperationLogFormatter.formatOperationDuration(activeOperationStartedAtMillis)
-        activeOperationStartedAtMillis = 0L
-
-        val completedText = "$successText ($durationText)"
+        val status = operationStatusController.finish(successText)
 
         runOnUiThread {
             operationInProgress = false
             activeOperationText = ""
-            updateLastOperationStatus(completedText)
+            updateLastOperationStatus(status.statusText)
         }
 
-        showToast(successText)
-        appendLog("OPERATION END: $completedText")
+        showToast(status.toastText)
+        appendLog(status.logText)
     }
     private fun failOperation(message: String, throwable: Throwable? = null) {
-        val durationText = OperationLogFormatter.formatOperationDuration(activeOperationStartedAtMillis)
-        activeOperationStartedAtMillis = 0L
-
-        val failedText = "$message ($durationText)"
+        val status = operationStatusController.fail(message)
 
         runOnUiThread {
             operationInProgress = false
             activeOperationText = ""
-            updateLastOperationStatus(failedText)
+            updateLastOperationStatus(status.statusText)
         }
 
-        showToast(message)
-        appendError("OPERATION FAILED: $failedText", throwable)
+        showToast(status.toastText)
+        appendError(status.logText, throwable)
     }
 
     private fun createModEngineForWorkflows(): ModEngine? {
