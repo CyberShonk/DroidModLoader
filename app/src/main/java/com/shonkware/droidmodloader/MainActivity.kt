@@ -37,6 +37,8 @@ import com.shonkware.droidmodloader.engine.repair.V050ArtifactRepairTool
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 import com.shonkware.droidmodloader.ui.workflow.OperationLogFormatter
 import com.shonkware.droidmodloader.ui.workflow.OperationStatusController
+import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
+import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
 
 class MainActivity : ComponentActivity() {
 
@@ -1680,15 +1682,7 @@ class MainActivity : ComponentActivity() {
             val fallbackProfile = activeProfile?.takeIf { it.gameId == selectedGameId }
 
             if (fallbackProfile != null) {
-                val recoveredConfig = GameDeploymentConfig(
-                    gameId = fallbackProfile.gameId,
-                    displayName = fallbackProfile.gameDisplayName,
-                    targetDataPath = fallbackProfile.targetDataPath,
-                    realDeployEnabled = fallbackProfile.realDeployEnabled,
-                    targetTreeUri = fallbackProfile.targetTreeUri,
-                    targetRootPath = fallbackProfile.targetRootPath,
-                    targetRootTreeUri = fallbackProfile.targetRootTreeUri
-                )
+                val recoveredConfig = DeploymentConfigUiMapper.configFromProfile(fallbackProfile)
 
                 val configs = engine.loadGameDeploymentConfigs().toMutableList()
                 val index = configs.indexOfFirst { it.gameId == recoveredConfig.gameId }
@@ -1702,11 +1696,9 @@ class MainActivity : ComponentActivity() {
                 engine.saveGameDeploymentConfigs(configs)
 
                 runOnUiThread {
-                    targetPathText = recoveredConfig.targetDataPath
-                    realDeployEnabledState = recoveredConfig.realDeployEnabled
-                    selectedTreeUriText = recoveredConfig.targetTreeUri ?: "No folder selected"
-                    rootTargetPathText = recoveredConfig.targetRootPath
-                    selectedRootTreeUriText = recoveredConfig.targetRootTreeUri ?: "No root folder selected"
+                    applyDeploymentConfigUiState(
+                        DeploymentConfigUiMapper.fromConfig(recoveredConfig)
+                    )
                 }
 
                 appendLog("Recovered missing config from active profile: $recoveredConfig")
@@ -1714,11 +1706,9 @@ class MainActivity : ComponentActivity() {
             }
 
             runOnUiThread {
-                targetPathText = ""
-                realDeployEnabledState = false
-                selectedTreeUriText = "No folder selected"
-                rootTargetPathText = ""
-                selectedRootTreeUriText = "No root folder selected"
+                applyDeploymentConfigUiState(
+                    DeploymentConfigUiMapper.emptyState()
+                )
             }
 
             appendLog("No config found for gameId=$selectedGameId")
@@ -1726,11 +1716,9 @@ class MainActivity : ComponentActivity() {
         }
 
         runOnUiThread {
-            targetPathText = config.targetDataPath
-            realDeployEnabledState = config.realDeployEnabled
-            selectedTreeUriText = config.targetTreeUri ?: "No folder selected"
-            rootTargetPathText = config.targetRootPath
-            selectedRootTreeUriText = config.targetRootTreeUri ?: "No root folder selected"
+            applyDeploymentConfigUiState(
+                DeploymentConfigUiMapper.fromConfig(config)
+            )
         }
 
         appendLog("Loaded config into Compose state: $config")
@@ -1741,21 +1729,14 @@ class MainActivity : ComponentActivity() {
 
         val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
 
-        val selectedTreeUri = selectedTreeUriText
-            .trim()
-            .takeIf { it.isNotBlank() && it != "No folder selected" }
-        val selectedRootTreeUri = selectedRootTreeUriText
-            .trim()
-            .takeIf { it.isNotBlank() && it != "No root folder selected" }
-
-        val updatedConfig = GameDeploymentConfig(
-            gameId = selectedGameId,
+        val updatedConfig = DeploymentConfigUiMapper.configFromUi(
+            selectedGameId = selectedGameId,
             displayName = getGameDisplayName(selectedGameId),
-            targetDataPath = targetPathText.trim(),
+            targetPathText = targetPathText,
             realDeployEnabled = realDeployEnabledState,
-            targetTreeUri = selectedTreeUri,
-            targetRootPath = rootTargetPathText.trim(),
-            targetRootTreeUri = selectedRootTreeUri
+            selectedTreeUriText = selectedTreeUriText,
+            rootTargetPathText = rootTargetPathText,
+            selectedRootTreeUriText = selectedRootTreeUriText
         )
 
         val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
@@ -2847,6 +2828,14 @@ class MainActivity : ComponentActivity() {
         }
 
         refreshDashboard()
+    }
+
+    private fun applyDeploymentConfigUiState(state: DeploymentConfigUiState) {
+        targetPathText = state.targetDataPath
+        realDeployEnabledState = state.realDeployEnabled
+        selectedTreeUriText = state.targetTreeUriText
+        rootTargetPathText = state.targetRootPath
+        selectedRootTreeUriText = state.targetRootTreeUriText
     }
 
 }

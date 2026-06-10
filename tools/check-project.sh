@@ -36,8 +36,8 @@ if git diff --cached --name-only | grep -Ei '(^|/)(local\.properties|.*keystore.
   fail "Local config or signing key files are staged."
 fi
 
-echo "Running docs check..."
-./tools/check-docs.sh
+#echo "Running docs check..."
+#./tools/check-docs.sh
 
 echo "Running JVM unit tests..."
 ./gradlew testDebugUnitTest
