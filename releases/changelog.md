@@ -74,7 +74,7 @@ Use this format for each release:
 
 ### Fixed
 
-- Removed accidental documentation backup file.
+- Removed accidental documentation backup file
 
 ### Known Issues
 
