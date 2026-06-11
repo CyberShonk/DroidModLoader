@@ -51,6 +51,7 @@ import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeveloperToolsWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.OverwriteActionWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -251,6 +252,17 @@ class MainActivity : ComponentActivity() {
             },
             showArchiveLibrarySummary = {
                 archiveImportWorkflowController.requestArchiveLibrarySummary()
+            }
+        )
+    }
+    private val overwriteActionWorkflowController by lazy {
+        OverwriteActionWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            openOverwriteFolderPanel = {
+                openOverwriteFolderPanel()
+            },
+            closeOverwriteFolderPanel = {
+                showOverwriteDialog = false
             }
         )
     }
@@ -493,10 +505,10 @@ class MainActivity : ComponentActivity() {
                 pluginActionWorkflowController.applyPluginOrder(orderedPluginPaths)
             },
             onOpenOverwriteFolder = {
-                runInBackground { openOverwriteFolderPanel() }
+                overwriteActionWorkflowController.openOverwriteFolder()
             },
             onCloseOverwriteFolder = {
-                showOverwriteDialog = false
+                overwriteActionWorkflowController.closeOverwriteFolder()
             },
             onRepairV050Artifacts = {
                 developerToolsWorkflowController.repairV050Artifacts()
@@ -2815,8 +2827,4 @@ class MainActivity : ComponentActivity() {
         selectedRootTreeUriText = state.targetRootTreeUriText
         realDeployEnabledState = state.realDeployEnabled
     }
-
-
-
-
 }
