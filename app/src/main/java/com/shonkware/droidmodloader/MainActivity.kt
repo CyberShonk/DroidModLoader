@@ -50,6 +50,7 @@ import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DeveloperToolsWorkflowController
 
 class MainActivity : ComponentActivity() {
 
@@ -236,6 +237,20 @@ class MainActivity : ComponentActivity() {
             },
             markDeployRecoveryReviewed = {
                 markLastDeployJournalReviewed()
+            }
+        )
+    }
+    private val developerToolsWorkflowController by lazy {
+        DeveloperToolsWorkflowController(
+            runInBackground = { task -> runInBackground(task) },
+            repairV050Artifacts = {
+                runV050ArtifactRepairTool()
+            },
+            buildResolvedDataGraph = {
+                runResolvedDataGraphDebugSummary()
+            },
+            showArchiveLibrarySummary = {
+                archiveImportWorkflowController.requestArchiveLibrarySummary()
             }
         )
     }
@@ -484,16 +499,16 @@ class MainActivity : ComponentActivity() {
                 showOverwriteDialog = false
             },
             onRepairV050Artifacts = {
-                runInBackground { runV050ArtifactRepairTool() }
+                developerToolsWorkflowController.repairV050Artifacts()
             },
             onBuildResolvedDataGraph = {
-                runInBackground { runResolvedDataGraphDebugSummary() }
+                developerToolsWorkflowController.buildResolvedDataGraph()
             },
             onBuildDeploymentPlan = {
                 deploymentActionWorkflowController.buildDeployPlan()
             },
             onShowArchiveLibrarySummary = {
-                archiveImportWorkflowController.requestArchiveLibrarySummary()
+                developerToolsWorkflowController.showArchiveLibrarySummary()
             },
             onBuildFullRedeployPlan = {
                 deploymentActionWorkflowController.buildFullRedeployPlan()
