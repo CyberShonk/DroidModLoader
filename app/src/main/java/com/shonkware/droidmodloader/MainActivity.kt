@@ -52,6 +52,8 @@ import com.shonkware.droidmodloader.ui.workflow.FirstSetupInput
 import com.shonkware.droidmodloader.ui.workflow.AdditionalProfileInput
 import com.shonkware.droidmodloader.ui.workflow.DashboardProfileInput
 import com.shonkware.droidmodloader.ui.workflow.ModActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.ModManagementEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.ModManagementWorkflow
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportExecutionWorkflow
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
@@ -310,15 +312,34 @@ class MainActivity : ComponentActivity() {
             updateLastOperationStatus = { status -> updateLastOperationStatus(status) }
         )
     }
+    private val modManagementWorkflow by lazy {
+        ModManagementWorkflow(
+            withEngine = { action ->
+                val engine = createModEngineForWorkflows()
+                if (engine != null) {
+                    action(
+                        ModManagementEngineAdapter(
+                            engine = engine,
+                            syncPlugins = { syncPluginsFromCurrentState(engine) }
+                        )
+                    )
+                }
+            },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) },
+            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            refreshDashboard = { refreshDashboard() }
+        )
+    }
     private val modActionWorkflowController by lazy {
         ModActionWorkflowController(
             runInBackground = { task -> runInBackground(task) },
-            onToggleModEnabled = { modId -> toggleModEnabled(modId) },
-            onMoveModUp = { modId -> moveModUp(modId) },
-            onMoveModDown = { modId -> moveModDown(modId) },
+            onToggleModEnabled = { modId -> modManagementWorkflow.toggleModEnabled(modId) },
+            onMoveModUp = { modId -> modManagementWorkflow.moveModUp(modId) },
+            onMoveModDown = { modId -> modManagementWorkflow.moveModDown(modId) },
             onRequestDeleteMod = { mod -> showDeleteConfirmDialog(mod) },
             onViewModFiles = { modId -> openModFilePreview(modId) },
-            onApplyModOrder = { orderedModIds -> applyModOrder(orderedModIds) }
+            onApplyModOrder = { orderedModIds -> modManagementWorkflow.applyModOrder(orderedModIds) }
         )
     }
     private val importZipLauncher = registerForActivityResult(
@@ -971,101 +992,6 @@ class MainActivity : ComponentActivity() {
             downloadedArchiveListFile = downloadedArchiveListFile
         )
     }
-    private fun normalizePriorities(mods: List<Mod>): List<Mod> {
-        return mods.mapIndexed { index, mod ->
-            mod.copy(priority = index + 1)
-        }
-    }
-    private fun toggleModEnabled(modId: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val mods = engine.getCurrentMods().sortedBy { it.priority }.toMutableList()
-
-        val index = mods.indexOfFirst { it.id == modId }
-        if (index == -1) {
-            appendError("Could not find mod: $modId")
-            return
-        }
-
-        mods[index] = mods[index].copy(enabled = !mods[index].enabled)
-        engine.saveCurrentMods(normalizePriorities(mods))
-        appendLog("Toggled enabled state for $modId")
-        syncPluginsFromCurrentState(engine)
-        refreshDashboard()
-    }
-    private fun moveModUp(modId: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val mods = engine.getCurrentMods().sortedBy { it.priority }.toMutableList()
-
-        val index = mods.indexOfFirst { it.id == modId }
-        if (index <= 0) {
-            appendLog("Cannot move up: $modId")
-            return
-        }
-
-        val temp = mods[index - 1]
-        mods[index - 1] = mods[index]
-        mods[index] = temp
-
-        engine.saveCurrentMods(normalizePriorities(mods))
-
-        appendLog("Moved up: $modId")
-        syncPluginsFromCurrentState(engine)
-        refreshDashboard()
-    }
-    private fun moveModDown(modId: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val mods = engine.getCurrentMods().sortedBy { it.priority }.toMutableList()
-
-        val index = mods.indexOfFirst { it.id == modId }
-        if (index == -1 || index >= mods.lastIndex) {
-            appendLog("Cannot move down: $modId")
-            return
-        }
-
-        val temp = mods[index + 1]
-        mods[index + 1] = mods[index]
-        mods[index] = temp
-
-        engine.saveCurrentMods(normalizePriorities(mods))
-
-        appendLog("Moved down: $modId")
-        syncPluginsFromCurrentState(engine)
-        refreshDashboard()
-    }
-    private fun deleteInstalledMod(modId: String) {
-        appendLog("----- Delete Installed Mod Workflow Start -----")
-        appendLog("Requested delete for mod: $modId")
-
-        val engine = createModEngineForWorkflows() ?: return
-
-        try {
-            val result = engine.uninstallModAndApplyDiff(modId)
-
-            if (!result.removed) {
-                appendError("Could not remove mod: $modId")
-                appendLog("RESULT: FAIL")
-                updateLastOperationStatus("Delete mod failed: could not remove $modId.")
-                appendLog("----- Delete Installed Mod Workflow End -----")
-                return
-            }
-
-            appendLog("Deleted mod: ${result.removedModId}")
-            appendLog("Deleted installed mod files: ${result.deletedFileCount}")
-            appendLog("Deploy again to remove this mod's files from the selected game Data folder.")
-
-            syncPluginsFromCurrentState(engine)
-
-            appendLog("RESULT: PASS")
-            updateLastOperationStatus("Delete mod succeeded: ${result.removedModId}")
-            refreshDashboard()
-        } catch (e: Exception) {
-            appendError("Delete installed mod workflow failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            updateLastOperationStatus("Delete mod failed: ${e.message}")
-        }
-
-        appendLog("----- Delete Installed Mod Workflow End -----")
-    }
     private fun refreshDashboard() {
         val engine = createModEngineForWorkflows() ?: return
 
@@ -1134,7 +1060,7 @@ class MainActivity : ComponentActivity() {
                             "Run Deploy afterward to remove its deployed files from the selected game Data folder."
                 )
                 .setPositiveButton("Delete") { _, _ ->
-                    runInBackground { deleteInstalledMod(mod.id) }
+                    runInBackground { modManagementWorkflow.deleteInstalledMod(mod.id) }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
@@ -2019,19 +1945,6 @@ class MainActivity : ComponentActivity() {
             appendLog("Second screen plugin display disabled.")
             updateLastOperationStatus("Second screen plugin display disabled.")
             showToast("Second screen plugin display disabled.")
-        }
-    }
-
-    private fun applyModOrder(orderedModIds: List<String>) {
-        val engine = createModEngineForWorkflows() ?: return
-
-        try {
-            engine.applyModPriorityOrder(orderedModIds)
-            syncPluginsFromCurrentState(engine)
-            appendLog("Applied dragged mod order.")
-            refreshDashboard()
-        } catch (e: Exception) {
-            appendError("Could not apply dragged mod order: ${e.message}", e)
         }
     }
 
