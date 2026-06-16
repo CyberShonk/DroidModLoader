@@ -41,6 +41,8 @@ import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.PluginSyncWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.PluginManagementEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.PluginManagementWorkflow
 import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
@@ -149,14 +151,43 @@ class MainActivity : ComponentActivity() {
         syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
         refreshDashboard = { refreshDashboard() }
     )
+    private val pluginManagementWorkflow by lazy {
+        PluginManagementWorkflow(
+            createEngine = {
+                createModEngineForWorkflows()?.let { engine ->
+                    PluginManagementEngineAdapter(
+                        engine = engine,
+                        syncPlugins = { syncPluginsFromCurrentState(engine) }
+                    )
+                }
+            },
+            isOperationInProgress = { operationInProgress },
+            beginOperation = { text -> beginOperation(text) },
+            finishOperation = { text -> finishOperation(text) },
+            failOperation = { message, throwable -> failOperation(message, throwable) },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) },
+            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            refreshDashboard = { refreshDashboard() }
+        )
+    }
+
     private val pluginActionWorkflowController by lazy {
         PluginActionWorkflowController(
             runInBackground = { task -> runInBackground(task) },
-            writeLoadOrderFiles = { runWriteLoadOrderFilesWorkflow() },
-            togglePluginEnabled = { normalizedPath -> togglePluginEnabled(normalizedPath) },
-            movePluginUp = { normalizedPath -> movePluginUp(normalizedPath) },
-            movePluginDown = { normalizedPath -> movePluginDown(normalizedPath) },
-            applyPluginOrder = { orderedPluginPaths -> applyPluginOrder(orderedPluginPaths) }
+            writeLoadOrderFiles = { pluginManagementWorkflow.writeLoadOrderFiles() },
+            togglePluginEnabled = { normalizedPath ->
+                pluginManagementWorkflow.togglePluginEnabled(normalizedPath)
+            },
+            movePluginUp = { normalizedPath ->
+                pluginManagementWorkflow.movePluginUp(normalizedPath)
+            },
+            movePluginDown = { normalizedPath ->
+                pluginManagementWorkflow.movePluginDown(normalizedPath)
+            },
+            applyPluginOrder = { orderedPluginPaths ->
+                pluginManagementWorkflow.applyPluginOrder(orderedPluginPaths)
+            }
         )
     }
     private val installerWorkflowController by lazy {
@@ -1092,68 +1123,6 @@ class MainActivity : ComponentActivity() {
 
         appendLog("Saved picked game root folder URI for $selectedGameId")
     }
-    private fun togglePluginEnabled(normalizedPath: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
-
-        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
-        if (index == -1) {
-            appendError("Could not find plugin: $normalizedPath")
-            return
-        }
-
-        val updated = plugins[index].copy(enabled = !plugins[index].enabled)
-        plugins[index] = updated
-
-        val normalized = engine.normalizePluginPriorities(plugins)
-        engine.saveCurrentPlugins(normalized)
-
-        appendLog("Toggled plugin enabled state for ${updated.pluginName}")
-        updateLastOperationStatus("Plugin updated: ${updated.pluginName}")
-        refreshDashboard()
-    }
-    private fun movePluginUp(normalizedPath: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
-
-        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
-        if (index <= 0) {
-            appendLog("Cannot move plugin up: $normalizedPath")
-            return
-        }
-
-        val temp = plugins[index - 1]
-        plugins[index - 1] = plugins[index]
-        plugins[index] = temp
-
-        val normalized = engine.normalizePluginPriorities(plugins)
-        engine.saveCurrentPlugins(normalized)
-
-        appendLog("Moved plugin up: ${plugins[index - 1].pluginName}")
-        updateLastOperationStatus("Plugin moved up.")
-        refreshDashboard()
-    }
-    private fun movePluginDown(normalizedPath: String) {
-        val engine = createModEngineForWorkflows() ?: return
-        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }.toMutableList()
-
-        val index = plugins.indexOfFirst { it.normalizedPath == normalizedPath }
-        if (index == -1 || index >= plugins.lastIndex) {
-            appendLog("Cannot move plugin down: $normalizedPath")
-            return
-        }
-
-        val temp = plugins[index + 1]
-        plugins[index + 1] = plugins[index]
-        plugins[index] = temp
-
-        val normalized = engine.normalizePluginPriorities(plugins)
-        engine.saveCurrentPlugins(normalized)
-
-        appendLog("Moved plugin down: ${plugins[index + 1].pluginName}")
-        updateLastOperationStatus("Plugin moved down.")
-        refreshDashboard()
-    }
     private fun buildDiagnosticSummary(): String {
         val engine = createModEngineForWorkflows()
 
@@ -1630,62 +1599,6 @@ class MainActivity : ComponentActivity() {
         appendLog("Saved updated config from Compose state: $updatedConfig")
     }
 
-    private fun runWriteLoadOrderFilesWorkflow() {
-        if (operationInProgress) {
-            appendLog("Ignoring plugin file write request: operation already in progress.")
-            return
-        }
-
-        beginOperation("Writing plugin files...")
-
-        val engine = createModEngineForWorkflows()
-        if (engine == null) {
-            failOperation("Writing plugin files failed: engine could not be created.")
-            return
-        }
-
-        try {
-            val savedPlugins = engine.loadPlugins().sortedBy { it.priority }
-
-            if (savedPlugins.isEmpty()) {
-                appendLog("No saved plugin list found. Refreshing plugin list once before writing files.")
-                syncPluginsFromCurrentState(engine)
-            }
-
-            val pluginsAfterFallback = engine.loadPlugins().sortedBy { it.priority }
-
-            if (pluginsAfterFallback.isEmpty()) {
-                appendLog("No plugins available to write.")
-                appendLog("RESULT: FAIL")
-                failOperation("Writing plugin files failed: no plugins available.")
-                return
-            }
-
-            val (pluginsTxt, loadorderTxt) = engine.exportSavedPluginOutputs()
-            val (pluginsTxtPath, loadorderTxtPath) = engine.getPluginOutputFilePaths()
-
-            val enabledPluginCount = pluginsAfterFallback.count { it.enabled }
-
-            appendLog("Plugin files written from saved plugin list.")
-            appendLog("Plugin count: ${pluginsAfterFallback.size}")
-            appendLog("Enabled plugin count: $enabledPluginCount")
-            appendLog("plugins.txt path: $pluginsTxtPath")
-            appendLog("loadorder.txt path: $loadorderTxtPath")
-            appendLog("plugins.txt line count: ${pluginsTxt.lines().filter { it.isNotBlank() }.size}")
-            appendLog("loadorder.txt line count: ${loadorderTxt.lines().filter { it.isNotBlank() }.size}")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Plugin files written successfully.")
-        } catch (e: Exception) {
-            appendError("Write plugin files workflow failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Writing plugin files failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-        appendLog("----- Write Plugin Files Workflow End -----")
-    }
-
     private fun migratePrioritySpacingIfNeeded() {
         val engine = createModEngineForWorkflows() ?: return
 
@@ -1945,18 +1858,6 @@ class MainActivity : ComponentActivity() {
             appendLog("Second screen plugin display disabled.")
             updateLastOperationStatus("Second screen plugin display disabled.")
             showToast("Second screen plugin display disabled.")
-        }
-    }
-
-    private fun applyPluginOrder(orderedPluginPaths: List<String>) {
-        val engine = createModEngineForWorkflows() ?: return
-
-        try {
-            engine.applyPluginPriorityOrder(orderedPluginPaths)
-            appendLog("Applied dragged plugin order.")
-            refreshDashboard()
-        } catch (e: Exception) {
-            appendError("Could not apply dragged plugin order: ${e.message}", e)
         }
     }
 
