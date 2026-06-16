@@ -44,7 +44,9 @@ import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginManagementEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.PluginManagementWorkflow
 import com.shonkware.droidmodloader.ui.workflow.InstallerWorkflowController
-import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
+import com.shonkware.droidmodloader.ui.workflow.PendingInstallerEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.PendingInstallerSession
+import com.shonkware.droidmodloader.ui.workflow.PendingInstallerWorkflow
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
 import com.shonkware.droidmodloader.engine.io.LegacyProfileStorageMigrator
@@ -190,12 +192,62 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
+    private val pendingInstallerWorkflow by lazy {
+        PendingInstallerWorkflow(
+            pendingSessionProvider = {
+                pendingArchiveInstall?.let { prepared ->
+                    PendingInstallerSession(
+                        prepared = prepared,
+                        archiveRecordId = pendingInstallerArchiveRecordId,
+                        selectedOptionIds = pendingInstallerSelectedOptionIds
+                    )
+                }
+            },
+            isOperationInProgress = { operationInProgress },
+            createEngine = {
+                createModEngineForWorkflows()?.let { engine ->
+                    PendingInstallerEngineAdapter(
+                        engine = engine,
+                        syncPlugins = { syncPluginsFromCurrentState(engine) },
+                        appendRoutingSummary = { mod ->
+                            appendInstalledModRoutingSummary(engine, mod)
+                        }
+                    )
+                }
+            },
+            beginOperation = { message -> beginOperation(message) },
+            finishOperation = { message -> finishOperation(message) },
+            failOperation = { message, throwable -> failOperation(message, throwable) },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) },
+            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            updateSelectedOptionIds = { selectedOptionIds ->
+                pendingInstallerSelectedOptionIds = selectedOptionIds
+            },
+            clearPendingInstallerState = {
+                runOnUiThread {
+                    pendingArchiveInstall = null
+                    pendingInstallerArchiveRecordId = null
+                    pendingInstallerSelectedOptionIds = emptySet()
+                    showInstallerDialog = false
+                    installerDialogFullscreen = false
+                }
+            },
+            refreshDashboard = { refreshDashboard() }
+        )
+    }
     private val installerWorkflowController by lazy {
         InstallerWorkflowController(
             runInBackground = { task -> runInBackground(task) },
-            finalizeInstallerInstall = { finalizePendingInstallerInstall() },
-            cancelInstallerInstall = { cancelPendingInstallerInstall() },
-            toggleInstallerOption = { optionId -> toggleInstallerOption(optionId) }
+            finalizeInstallerInstall = {
+                pendingInstallerWorkflow.finalizePendingInstall()
+            },
+            cancelInstallerInstall = {
+                pendingInstallerWorkflow.cancelPendingInstall()
+            },
+            toggleInstallerOption = { optionId ->
+                pendingInstallerWorkflow.toggleOption(optionId)
+            }
         )
     }
     private val profileWorkflowController by lazy {
@@ -1711,115 +1763,6 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
-    private fun finalizePendingInstallerInstall() {
-        if (operationInProgress) {
-            appendLog("Ignoring installer finalize request: operation already in progress.")
-            return
-        }
-
-        val prepared = pendingArchiveInstall
-        if (prepared == null) {
-            appendError("No pending installer session found.")
-            return
-        }
-
-        val installerArchiveRecordId = pendingInstallerArchiveRecordId
-
-        beginOperation("Installing selected options...")
-
-        val engine = createModEngineForWorkflows()
-        if (engine == null) {
-            failOperation("Install failed: could not create engine.")
-            return
-        }
-
-        try {
-            val existingMods = engine.getCurrentMods()
-            val nextPriority = if (existingMods.isEmpty()) {
-                1
-            } else {
-                existingMods.maxOf { it.priority } + 1
-            }
-
-            val installedMod = engine.finalizePreparedArchiveInstall(
-                prepared = prepared,
-                selectedOptionIds = pendingInstallerSelectedOptionIds,
-                priority = nextPriority,
-                sourceType = "imported_archive"
-            )
-
-            val currentMods = engine.getCurrentMods()
-                .filterNot { it.id == installedMod.id }
-                .sortedBy { it.priority }
-
-            val updatedMods = currentMods + installedMod.copy(priority = currentMods.size + 1)
-            engine.saveCurrentMods(updatedMods)
-
-            if (!installerArchiveRecordId.isNullOrBlank()) {
-                engine.markDownloadedArchiveInstalled(
-                    archiveId = installerArchiveRecordId,
-                    installedModId = installedMod.id
-                )
-
-                appendLog("Archive record marked installed: $installerArchiveRecordId")
-            } else {
-                appendLog("No archive record ID was attached to this installer session.")
-            }
-
-            syncPluginsFromCurrentState(engine)
-
-            runOnUiThread {
-                clearPendingInstallerState()
-            }
-
-            appendLog("Installed selected options for: ${prepared.archiveName}")
-            appendLog("Installed mod: $installedMod")
-            appendInstalledModRoutingSummary(engine, installedMod)
-            appendLog("RESULT: PASS")
-
-            finishOperation("Archive imported successfully.")
-            refreshDashboard()
-        } catch (t: Throwable) {
-            appendLog("CRASH TYPE: ${t::class.java.name}")
-            appendLog("RESULT: FAIL")
-            failOperation("Installer finalize failed: ${t.message}", t)
-        }
-    }
-    private fun toggleInstallerOption(optionId: String) {
-        val prepared = pendingArchiveInstall ?: return
-
-        pendingInstallerSelectedOptionIds =
-            InstallerOptionSelectionHelper.toggleOption(
-                groups = prepared.plan.groups,
-                selectedOptionIds = pendingInstallerSelectedOptionIds,
-                optionId = optionId
-            )
-    }
-    private fun cancelPendingInstallerInstall() {
-        val prepared = pendingArchiveInstall ?: return
-        val engine = createModEngineForWorkflows() ?: return
-
-        try {
-            engine.cancelPreparedArchiveInstall(prepared)
-            appendLog("Cancelled installer session for: ${prepared.archiveName}")
-        } catch (e: Exception) {
-            appendError("Failed to clean installer session: ${e.message}", e)
-        }
-
-        runOnUiThread {
-            clearPendingInstallerState()
-        }
-
-        updateLastOperationStatus("Installer cancelled.")
-    }
-    private fun clearPendingInstallerState() {
-        pendingArchiveInstall = null
-        pendingInstallerArchiveRecordId = null
-        pendingInstallerSelectedOptionIds = emptySet()
-        showInstallerDialog = false
-        installerDialogFullscreen = false
-    }
-
     private fun openModFilePreview(modId: String) {
         val engine = createModEngineForWorkflows() ?: return
 
