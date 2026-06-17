@@ -769,7 +769,7 @@ class MainActivity : ComponentActivity() {
     private fun buildUiState(): DashboardUiState {
         return DashboardUiState(
             appName = "Droid Mod Loader",
-            versionLabel = "Version 0.5.5 Beta",
+            versionLabel = "Version 0.5.0 Beta",
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
             summaryText = summaryText,
