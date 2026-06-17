@@ -138,11 +138,12 @@ archives in a searchable install list.
 Done when:
 
 - first use explains why the folder is needed
-- the selected folder persists across app restarts
+- each profile remembers its own selected folder across app restarts
 - ZIP, 7Z, and RAR files directly inside the folder are listed
 - the list can be refreshed without continuously monitoring storage
 - installed and previously installed archives are identified for the active profile
 - selecting Install routes through the existing archive import pipeline
+- switching profiles loads that profile's archive folder without changing another profile's selection
 - changing folders does not delete or modify the original archive files
 - lost folder access produces a clear recovery message
 

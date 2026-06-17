@@ -37,14 +37,17 @@ Do not select random storage folders as deploy targets.
 Tap **Install Mod** to open the Archive Library.
 
 The first time, DML asks you to choose the folder where you keep downloaded mod
-archives. DML remembers this folder and scans files directly inside it for:
+archives. DML remembers this folder for the active profile and scans files directly
+inside it for:
 
 - ZIP
 - 7Z
 - RAR where supported
 
-DML only reads this selected folder. Choosing a different folder does not delete
-or move the original archives.
+Each profile can remember a different archive folder. Switching profiles loads
+that profile's folder without changing the folders saved for other profiles. DML
+only reads the selected folder. Choosing a different folder does not delete or move
+the original archives.
 
 The Archive Library provides:
 

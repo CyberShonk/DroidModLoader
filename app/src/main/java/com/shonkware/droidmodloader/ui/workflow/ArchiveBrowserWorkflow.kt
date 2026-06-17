@@ -16,6 +16,7 @@ internal data class ArchiveBrowserHistory(
 
 internal class ArchiveBrowserWorkflow(
     private val preferences: ArchiveFolderSelectionStore,
+    private val activeProfileIdProvider: () -> String?,
     private val runInBackground: (() -> Unit) -> Unit,
     private val isOperationInProgress: () -> Boolean,
     private val isBrowserOpen: () -> Boolean,
@@ -38,7 +39,8 @@ internal class ArchiveBrowserWorkflow(
     private var currentState = ArchiveBrowserUiState()
 
     fun openBrowser() {
-        val folderUri = preferences.getSelectedFolderUri()
+        val profileId = activeProfileIdOrNull() ?: return
+        val folderUri = preferences.getSelectedFolderUri(profileId)
         if (folderUri == null) {
             showFolderSetup()
             return
@@ -49,7 +51,8 @@ internal class ArchiveBrowserWorkflow(
     }
 
     fun selectFolder(treeUri: String) {
-        preferences.saveSelectedFolderUri(treeUri)
+        val profileId = activeProfileIdOrNull() ?: return
+        preferences.saveSelectedFolderUri(profileId, treeUri)
         currentState = ArchiveBrowserUiState(
             folderUri = treeUri,
             isLoading = true
@@ -65,7 +68,8 @@ internal class ArchiveBrowserWorkflow(
             return
         }
 
-        val folderUri = preferences.getSelectedFolderUri()
+        val profileId = activeProfileIdOrNull() ?: return
+        val folderUri = preferences.getSelectedFolderUri(profileId)
         if (folderUri == null) {
             showFolderSetup()
             return
@@ -88,7 +92,7 @@ internal class ArchiveBrowserWorkflow(
             try {
                 val scanResult = scanFolder(folderUri)
                 val history = loadHistory()
-                if (preferences.getSelectedFolderUri() == folderUri) {
+                if (isCurrentSelection(profileId, folderUri)) {
                     currentState = ArchiveBrowserUiState(
                         folderUri = folderUri,
                         folderName = scanResult.folderName,
@@ -104,7 +108,7 @@ internal class ArchiveBrowserWorkflow(
                     updateState(currentState)
                 }
             } catch (t: Throwable) {
-                if (preferences.getSelectedFolderUri() == folderUri) {
+                if (isCurrentSelection(profileId, folderUri)) {
                     currentState = currentState.copy(
                         folderUri = folderUri,
                         isLoading = false,
@@ -130,6 +134,15 @@ internal class ArchiveBrowserWorkflow(
         }
     }
 
+    fun onProfileChanged() {
+        currentState = ArchiveBrowserUiState()
+        updateState(currentState)
+
+        if (isBrowserOpen()) {
+            openBrowser()
+        }
+    }
+
     fun installArchive(stableId: String) {
         if (isOperationInProgress()) {
             appendLog("Ignoring archive install request: operation already in progress.")
@@ -143,6 +156,19 @@ internal class ArchiveBrowserWorkflow(
         }
 
         installArchiveUri(item.documentUri)
+    }
+
+    private fun activeProfileIdOrNull(): String? {
+        val profileId = activeProfileIdProvider()?.takeIf { it.isNotBlank() }
+        if (profileId == null) {
+            appendLog("Archive browser is unavailable because no profile is active.")
+        }
+        return profileId
+    }
+
+    private fun isCurrentSelection(profileId: String, folderUri: String): Boolean {
+        return activeProfileIdProvider() == profileId &&
+            preferences.getSelectedFolderUri(profileId) == folderUri
     }
 }
 

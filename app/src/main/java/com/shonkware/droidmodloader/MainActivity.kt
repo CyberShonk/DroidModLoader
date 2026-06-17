@@ -334,6 +334,7 @@ class MainActivity : ComponentActivity() {
                     applyProfileConfigUiState(
                         ProfileConfigUiMapper.fromProfile(profile)
                     )
+                    archiveBrowserWorkflow.onProfileChanged()
                 }
             },
             applyCreatedProfileUiState = { profiles, profile ->
@@ -352,6 +353,7 @@ class MainActivity : ComponentActivity() {
                     newProfileTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED
                     newProfileRealDeployEnabled = false
                     showProfileDialog = false
+                    archiveBrowserWorkflow.onProfileChanged()
                 }
             },
             applySwitchedProfileUiState = { profile ->
@@ -364,6 +366,7 @@ class MainActivity : ComponentActivity() {
                     visibleMods = emptyList()
                     visiblePlugins = emptyList()
                     visibleModContentIndexes = emptyMap()
+                    archiveBrowserWorkflow.onProfileChanged()
                 }
             },
             applySavedProfileUiState = { profiles, updatedProfile ->
@@ -389,6 +392,7 @@ class MainActivity : ComponentActivity() {
                         )
                         visiblePlugins = emptyList()
                     }
+                    archiveBrowserWorkflow.onProfileChanged()
                 }
             },
             applyDeletedProfileUiStateBlocking = { profiles, newActiveProfile ->
@@ -409,6 +413,7 @@ class MainActivity : ComponentActivity() {
                         showProfileDialog = false
                     }
 
+                    archiveBrowserWorkflow.onProfileChanged()
                     visibleMods = emptyList()
                     visiblePlugins = emptyList()
                     visibleModContentIndexes = emptyMap()
@@ -665,6 +670,7 @@ class MainActivity : ComponentActivity() {
     private val archiveBrowserWorkflow: ArchiveBrowserWorkflow by lazy {
         ArchiveBrowserWorkflow(
             preferences = archiveFolderPreferences,
+            activeProfileIdProvider = { activeProfileId },
             runInBackground = { task -> runInBackground(task) },
             isOperationInProgress = { operationInProgress },
             isBrowserOpen = { fullscreenPanel == FullscreenPanel.ARCHIVES },

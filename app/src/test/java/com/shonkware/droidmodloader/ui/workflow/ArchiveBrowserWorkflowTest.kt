@@ -52,11 +52,42 @@ class ArchiveBrowserWorkflowTest {
 
         workflow.selectFolder("content://folder")
 
-        assertEquals("content://folder", store.folderUri)
+        assertEquals("content://folder", store.folderUris["profile-a"])
         assertEquals(1, browserCount)
         assertEquals("Downloads", states.last().folderName)
         assertEquals(listOf("One.zip"), states.last().items.map { it.fileName })
         assertFalse(states.last().isLoading)
+    }
+
+
+    @Test
+    fun profilesKeepSeparateSelectedFolders() {
+        val store = FakeFolderStore()
+        var activeProfileId = "profile-a"
+        val scannedFolders = mutableListOf<String>()
+        var setupCount = 0
+
+        val workflow = workflow(
+            store = store,
+            activeProfileIdProvider = { activeProfileId },
+            scanFolder = { folderUri ->
+                scannedFolders += folderUri
+                ArchiveFolderScanResult("Downloads", emptyList())
+            },
+            showFolderSetup = { setupCount++ }
+        )
+
+        workflow.selectFolder("content://profile-a")
+        activeProfileId = "profile-b"
+        workflow.onProfileChanged()
+        workflow.selectFolder("content://profile-b")
+        activeProfileId = "profile-a"
+        workflow.onProfileChanged()
+
+        assertEquals("content://profile-a", store.folderUris["profile-a"])
+        assertEquals("content://profile-b", store.folderUris["profile-b"])
+        assertEquals(1, setupCount)
+        assertEquals("content://profile-a", scannedFolders.last())
     }
 
     @Test
@@ -172,6 +203,7 @@ class ArchiveBrowserWorkflowTest {
 
     private fun workflow(
         store: FakeFolderStore,
+        activeProfileIdProvider: () -> String? = { "profile-a" },
         isOperationInProgress: () -> Boolean = { false },
         scanFolder: (String) -> ArchiveFolderScanResult = {
             ArchiveFolderScanResult("Downloads", emptyList())
@@ -183,6 +215,7 @@ class ArchiveBrowserWorkflowTest {
     ): ArchiveBrowserWorkflow {
         return ArchiveBrowserWorkflow(
             preferences = store,
+            activeProfileIdProvider = activeProfileIdProvider,
             runInBackground = { task -> task() },
             isOperationInProgress = isOperationInProgress,
             isBrowserOpen = { true },
@@ -246,16 +279,22 @@ class ArchiveBrowserWorkflowTest {
     }
 
     private class FakeFolderStore(
-        var folderUri: String? = null
+        initialFolderUri: String? = null
     ) : ArchiveFolderSelectionStore {
-        override fun getSelectedFolderUri(): String? = folderUri
-
-        override fun saveSelectedFolderUri(treeUri: String) {
-            folderUri = treeUri
+        val folderUris = mutableMapOf<String, String>().apply {
+            if (initialFolderUri != null) {
+                put("profile-a", initialFolderUri)
+            }
         }
 
-        override fun clearSelectedFolderUri() {
-            folderUri = null
+        override fun getSelectedFolderUri(profileId: String): String? = folderUris[profileId]
+
+        override fun saveSelectedFolderUri(profileId: String, treeUri: String) {
+            folderUris[profileId] = treeUri
+        }
+
+        override fun clearSelectedFolderUri(profileId: String) {
+            folderUris.remove(profileId)
         }
     }
 }

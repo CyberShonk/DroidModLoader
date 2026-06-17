@@ -75,6 +75,8 @@ Risk order:
 - Mod state is profile-aware.
 - Plugin state is profile-aware.
 - Profile state survives app restart.
+- Each profile remembers its own archive folder.
+- Switching profiles does not overwrite another profile's archive folder selection.
 
 ### Deployment Plan
 

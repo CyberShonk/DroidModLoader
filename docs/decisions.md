@@ -221,3 +221,11 @@ available for future enrichment.
 Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,
 `engine/download/ArchiveFolderScanner.kt`,
 `ui/workflow/ArchiveBrowserWorkflow.kt`.
+
+## 2026-06-16 - Archive Folder Selection Is Profile-Specific
+
+Decision: Each DML profile remembers its own read-only archive folder selection.
+
+Reason: Profiles can represent different games or mod setups. A single app-wide archive folder can mix unrelated archives and makes profile isolation less predictable.
+
+Result: Archive folder preferences are keyed by profile ID. The previous app-wide selection is migrated once to the first active profile that opens the Archive Library. Archive installation history and installed status continue to use the active profile's managed state.
