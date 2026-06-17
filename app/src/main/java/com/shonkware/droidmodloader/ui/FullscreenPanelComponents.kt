@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,7 +43,8 @@ fun ModsPanelDialog(
     onViewModFiles: (String) -> Unit,
     onApplyModOrder: (List<String>) -> Unit,
     onOpenOverwriteFolder: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    listState: LazyListState
 ) {
     var orderedMods by remember(mods) {
         mutableStateOf(mods.sortedBy { it.priority })
@@ -111,6 +113,7 @@ fun ModsPanelDialog(
                 )
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -157,7 +160,8 @@ fun PluginsPanelDialog(
     onMovePluginUp: (String) -> Unit,
     onMovePluginDown: (String) -> Unit,
     onApplyPluginOrder: (List<String>) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    listState: LazyListState
 ) {
     var orderedPlugins by remember(plugins) {
         mutableStateOf(plugins.sortedBy { it.priority })
@@ -226,6 +230,7 @@ fun PluginsPanelDialog(
                 )
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {

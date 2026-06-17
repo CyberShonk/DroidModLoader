@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +14,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
@@ -21,6 +28,7 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
+import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.theme.DmlMatteBackground
 
 data class DashboardUiState(
@@ -68,12 +76,19 @@ data class DashboardUiState(
     val overwriteMessage: String,
     val deployRecoveryWarningText: String = "",
     val showDeployRecoveryDialog: Boolean = false,
-    val showForceFullRedeployConfirmDialog: Boolean = false
+    val showForceFullRedeployConfirmDialog: Boolean = false,
+    val showArchiveFolderSetupDialog: Boolean = false,
+    val archiveBrowserState: ArchiveBrowserUiState = ArchiveBrowserUiState()
 )
 
 data class DashboardActions(
     val onVersionTap: () -> Unit,
-    val onImportArchive: () -> Unit,
+    val onInstallMod: () -> Unit,
+    val onChooseArchiveFolder: () -> Unit,
+    val onDismissArchiveFolderSetup: () -> Unit,
+    val onRefreshArchiveFolder: () -> Unit,
+    val onChangeArchiveFolder: () -> Unit,
+    val onInstallArchiveFromFolder: (String) -> Unit,
     val onDeployMods: () -> Unit,
     val onWriteLoadOrderFiles: () -> Unit,
     val onToggleMod: (String) -> Unit,
@@ -149,7 +164,8 @@ data class DashboardActions(
 @Composable
 private fun MainDashboardScreen(
     state: DashboardUiState,
-    actions: DashboardActions
+    actions: DashboardActions,
+    scrollState: ScrollState
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -160,7 +176,7 @@ private fun MainDashboardScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 HeaderCard(
@@ -190,7 +206,7 @@ private fun MainDashboardScreen(
 
                 MainActionsCard(
                     operationInProgress = state.operationInProgress,
-                    onImportArchive = actions.onImportArchive,
+                    onInstallMod = actions.onInstallMod,
                     onDeployMods = actions.onDeployMods,
                     onWriteLoadOrderFiles = actions.onWriteLoadOrderFiles
                 )
@@ -277,6 +293,26 @@ fun DroidModLoaderScreen(
     state: DashboardUiState,
     actions: DashboardActions
 ) {
+    val dashboardScrollState = rememberScrollState()
+    val modsListState = rememberLazyListState()
+    val pluginsListState = rememberLazyListState()
+    val archiveListState = rememberLazyListState()
+    var archiveSearchText by rememberSaveable { mutableStateOf("") }
+    var lastArchiveFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(state.archiveBrowserState.folderUri) {
+        val folderUri = state.archiveBrowserState.folderUri
+        if (folderUri != lastArchiveFolderUri) {
+            archiveSearchText = ""
+            archiveListState.scrollToItem(0)
+            lastArchiveFolderUri = folderUri
+        }
+    }
+
+    LaunchedEffect(archiveSearchText) {
+        archiveListState.scrollToItem(0)
+    }
+
     if (!state.setupComplete) {
         SetupScreen(
             state = state,
@@ -297,7 +333,8 @@ fun DroidModLoaderScreen(
                 onViewModFiles = actions.onViewModFiles,
                 onApplyModOrder = actions.onApplyModOrder,
                 onOpenOverwriteFolder = actions.onOpenOverwriteFolder,
-                onClose = actions.onCloseFullscreenPanel
+                onClose = actions.onCloseFullscreenPanel,
+                listState = modsListState
             )
         }
 
@@ -308,6 +345,21 @@ fun DroidModLoaderScreen(
                 onMovePluginUp = actions.onMovePluginUp,
                 onMovePluginDown = actions.onMovePluginDown,
                 onApplyPluginOrder = actions.onApplyPluginOrder,
+                onClose = actions.onCloseFullscreenPanel,
+                listState = pluginsListState
+            )
+        }
+
+        FullscreenPanel.ARCHIVES -> {
+            ArchiveLibraryPanelDialog(
+                state = state.archiveBrowserState,
+                operationInProgress = state.operationInProgress,
+                searchText = archiveSearchText,
+                listState = archiveListState,
+                onSearchTextChanged = { archiveSearchText = it },
+                onRefresh = actions.onRefreshArchiveFolder,
+                onChangeFolder = actions.onChangeArchiveFolder,
+                onInstallArchive = actions.onInstallArchiveFromFolder,
                 onClose = actions.onCloseFullscreenPanel
             )
         }
@@ -315,9 +367,17 @@ fun DroidModLoaderScreen(
         FullscreenPanel.NONE -> {
             MainDashboardScreen(
                 state = state,
-                actions = actions
+                actions = actions,
+                scrollState = dashboardScrollState
             )
         }
+    }
+
+    if (state.showArchiveFolderSetupDialog) {
+        ArchiveFolderSetupDialog(
+            onChooseFolder = actions.onChooseArchiveFolder,
+            onDismiss = actions.onDismissArchiveFolderSetup
+        )
     }
 
     if (state.showProfileDialog) {

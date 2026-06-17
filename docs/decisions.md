@@ -200,3 +200,24 @@ Future work should define the problem, desired behavior, requirement IDs, files 
 
 Related:
 docs/tasks/task-template.md, docs/tasks/current-priorities.md, docs/process/development-loop.md.
+
+## 2026-06-16 - Use a Remembered Read-Only Folder for Manual Archive Installs
+
+Status: Accepted.
+
+Decision: The primary manual mod-install flow uses one app-wide folder selected
+through Android's Storage Access Framework. DML scans only files directly inside
+that folder and retains its own managed copy when an archive is installed.
+
+Reason: A remembered folder provides a fast, familiar mod-manager-style list
+without cluttering the dashboard or requiring users to choose one file for every
+install. Read-only access protects the user's original downloads.
+
+Result: The UI opens a searchable fullscreen Archive Library, provides Refresh
+and Change Folder actions, and sends selected document URIs through the existing
+archive import pipeline. The design keeps structured source and Nexus metadata
+available for future enrichment.
+
+Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,
+`engine/download/ArchiveFolderScanner.kt`,
+`ui/workflow/ArchiveBrowserWorkflow.kt`.

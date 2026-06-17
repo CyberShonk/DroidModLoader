@@ -159,7 +159,7 @@ fun QuickStartCard() {
 
             Text("1. Pick the game Data folder.")
             Text("2. Pick Game Root too if the mod uses SKSE, NVSE, ENB, DLLs, or root EXE files.")
-            Text("3. Import a mod archive.")
+            Text("3. Install a mod archive.")
             Text("4. Check the mod list and plugin list.")
             Text("5. Deploy.")
             Text("6. Write plugin files if needed.")
@@ -171,7 +171,7 @@ fun QuickStartCard() {
 @Composable
 fun MainActionsCard(
     operationInProgress: Boolean,
-    onImportArchive: () -> Unit,
+    onInstallMod: () -> Unit,
     onDeployMods: () -> Unit,
     onWriteLoadOrderFiles: () -> Unit
 ) {
@@ -187,9 +187,9 @@ fun MainActionsCard(
             Text("Main Actions", fontWeight = FontWeight.Bold)
 
             DmlButtons.Primary(
-                text = "Import Mod Archive",
+                text = "Install Mod",
                 enabled = !operationInProgress,
-                onClick = onImportArchive,
+                onClick = onInstallMod,
                 modifier = Modifier.fillMaxWidth()
             )
 

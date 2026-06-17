@@ -42,6 +42,24 @@ Risk order:
 - Mod can be enabled and disabled.
 - Bad archive fails with a useful message.
 
+### Archive Folder Browser
+
+- First use explains why an archive folder is required.
+- Selecting a folder persists after app restart.
+- Cancelling folder selection leaves the previous folder unchanged.
+- Only top-level ZIP, 7Z, and RAR files appear.
+- Unsupported files and subfolders are ignored.
+- Refresh detects files added or removed outside DML.
+- Lost folder permission shows a clear Change Folder recovery path.
+- Search filters without losing the selected folder.
+- Never-installed and previously installed archives appear before installed archives.
+- Installable archives sort by file last-modified time, newest first.
+- Installed archives sort by installation time, newest first.
+- Installing a folder archive uses the existing archive import and installer path.
+- Original archive files remain unchanged.
+- Dashboard, Mods, Plugins, and Archive Library scroll positions survive opening and closing panels.
+- Portrait and landscape layouts keep Refresh, Folder, and Close reachable.
+
 ### Plugin Handling
 
 - .esm files are discovered.

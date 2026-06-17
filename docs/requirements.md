@@ -127,6 +127,25 @@ Done when:
 - priority affects conflict winners
 - priority is normalized consistently
 
+### REQ-MOD-005: Browse a Remembered Archive Folder
+
+Status: In Progress
+
+Droid Mod Loader must let the user select one read-only Android folder that
+contains downloaded mod archives, remember that folder, and present supported
+archives in a searchable install list.
+
+Done when:
+
+- first use explains why the folder is needed
+- the selected folder persists across app restarts
+- ZIP, 7Z, and RAR files directly inside the folder are listed
+- the list can be refreshed without continuously monitoring storage
+- installed and previously installed archives are identified for the active profile
+- selecting Install routes through the existing archive import pipeline
+- changing folders does not delete or modify the original archive files
+- lost folder access produces a clear recovery message
+
 ## 3. File Index and Resolver Requirements
 
 ### REQ-RESOLVE-001: Index Mod Files

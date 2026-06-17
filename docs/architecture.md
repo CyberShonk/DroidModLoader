@@ -136,3 +136,28 @@ Do not let architecture docs become fictional. If the code changes, update the d
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
 - Release APKs should not be committed.
 
+## Archive Folder Browser
+
+The primary manual install source is one app-wide, user-selected Android Storage
+Access Framework folder.
+
+Responsibilities are separated as follows:
+
+- `engine/download/ArchiveFolderPreferences.kt` persists the selected tree URI.
+- `engine/download/ArchiveFolderScanner.kt` performs a read-only, top-level scan
+  for ZIP, 7Z, and RAR documents.
+- `ui/workflow/ArchiveBrowserWorkflow.kt` combines scanned files with profile
+  archive history, sorting, status, refresh, and install routing.
+- `ui/archive/ArchiveBrowserUiItem.kt` contains structured presentation data,
+  including optional Nexus metadata fields.
+- `ui/ArchiveLibraryComponents.kt` renders the folder setup dialog and searchable
+  fullscreen list.
+- `ArchiveImportExecutionWorkflow` remains the single archive import/install
+  pipeline for folder files, document-picker sources, and future Nexus downloads.
+
+The browser must not duplicate archive extraction or installation logic. It sends
+selected document URIs into the existing import workflow, which copies archives
+into DML-managed storage before installation.
+
+The selected folder is app-wide. Installed and previously installed status is
+calculated against the active profile.

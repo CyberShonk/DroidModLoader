@@ -32,17 +32,33 @@ The app should warn if the selected target looks wrong.
 
 Do not select random storage folders as deploy targets.
 
-## 2. Import Mods
+## 2. Install Mods
 
-Use the import option to add mod archives.
+Tap **Install Mod** to open the Archive Library.
 
-Supported archive types depend on the current app build, but the intended supported formats are:
+The first time, DML asks you to choose the folder where you keep downloaded mod
+archives. DML remembers this folder and scans files directly inside it for:
 
 - ZIP
-- 7z
+- 7Z
 - RAR where supported
 
-Imported mods are stored as managed mods. This keeps them separate from each other.
+DML only reads this selected folder. Choosing a different folder does not delete
+or move the original archives.
+
+The Archive Library provides:
+
+- search by archive or mod name
+- manual Refresh
+- a Folder button for choosing a different archive folder
+- Installed and Previously installed history for the active profile
+- installable archives first, with currently installed archives at the bottom
+
+When you install an archive, DML copies it into managed app storage and sends it
+through the normal archive analysis and installer flow. The original downloaded
+file remains in the selected folder.
+
+If Android removes access to the folder, use **Folder** to select it again.
 
 ## 3. Enable or Disable Mods
 

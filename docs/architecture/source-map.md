@@ -19,7 +19,10 @@ Use this when planning changes so work does not get shoved into the wrong file.
 | File/Folder                            | Responsibility                                                     |
 |----------------------------------------|--------------------------------------------------------------------|
 | `ui/MainScreen.kt`                     | Main app screen and primary user path                              |
-| `ui/DashboardComponents.kt`            | Dashboard cards, buttons, status panels, and reusable dashboard UI |
+| `ui/*Components.kt`                    | Focused dashboard cards, dialogs, and fullscreen panels            |
+| `ui/ArchiveLibraryComponents.kt`       | Archive-folder setup and searchable archive browser UI             |
+| `ui/archive/ArchiveBrowserUiItem.kt`   | Structured archive browser presentation state                      |
+| `ui/workflow/ArchiveBrowserWorkflow.kt` | Archive refresh, status mapping, sorting, and install routing      |
 | `ui/FullscreenPanel.kt`                | Fullscreen panel container                                         |
 | `ui/SecondScreenController.kt`         | Second-screen support                                              |
 | `ui/SecondScreenPluginPresentation.kt` | Second-screen plugin display                                       |
@@ -47,7 +50,7 @@ UI rules:
 | `engine/deploy/journal/` | Deployment journal and interrupted deploy state                 |
 | `engine/baseline/`       | Baseline target file tracking                                   |
 | `engine/overwrite/`      | Existing/manual/overwrite file scanning                         |
-| `engine/download/`       | Archive/download metadata and source tracking                   |
+| `engine/download/`       | Archive metadata, selected-folder persistence, and read-only scanning |
 | `engine/rules/`          | File classification and deployment rules                        |
 | `engine/util/`           | Path helpers, logging helpers, shared utilities                 |
 | `engine/model/`          | Shared data models                                              |
@@ -83,7 +86,7 @@ Use these rules when deciding where code belongs:
 
 | Change                    | Preferred Location                                     |
 |---------------------------|--------------------------------------------------------|
-| Dashboard layout          | `ui/DashboardComponents.kt` or `ui/MainScreen.kt`      |
+| Dashboard layout          | Focused `ui/*Components.kt` files or `ui/MainScreen.kt` |
 | Theme color/shape changes | `ui/theme/DmlTheme.kt`                                 |
 | Mod import behavior       | `engine/install/`                                      |
 | File indexing             | `engine/index/`                                        |
