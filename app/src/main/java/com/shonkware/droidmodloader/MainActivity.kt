@@ -733,7 +733,7 @@ class MainActivity : ComponentActivity() {
         return DashboardActions(
             onVersionTap = {
                 developerTapCount++
-                if (!developerModeEnabled && developerTapCount >= 7) {
+                if (!developerModeEnabled && developerTapCount >= 5) {
                     developerModeEnabled = true
                     appendLog("Developer tools unlocked.")
                 }
