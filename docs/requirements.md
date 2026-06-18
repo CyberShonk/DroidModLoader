@@ -217,7 +217,8 @@ The user must be able to enable and disable plugins.
 Done when:
 
 - enabled state is saved
-- disabled plugins are excluded from output files
+- disabled plugins are excluded from the active plugin set but may remain in a
+  complete-order file when the selected game or tool expects one
 - plugin state survives app restart
 
 ### REQ-PLUGIN-003: Export Plugin Files
@@ -233,9 +234,10 @@ Output files may include:
 
 Done when:
 
-- files are generated in the expected format
-- enabled plugins are included
-- disabled plugins are excluded
+- files are generated in the selected game's expected format
+- the active plugin set is represented correctly
+- complete-order files include or exclude inactive plugins according to the
+  selected game's rules
 - output location is clear to the user
 
 ### REQ-PLUGIN-004: Detect Basic Plugin Problems
@@ -258,6 +260,26 @@ Done when:
 - warnings appear in diagnostics
 - warnings are understandable
 - warnings include likely fix steps
+
+### REQ-PLUGIN-005: Apply Game-Specific Plugin Order
+
+Status: Planned
+
+Droid Mod Loader must apply plugin order using the mechanism required by the
+selected game instead of assuming that every supported game reads the same text
+files.
+
+Done when:
+
+- Skyrim LE output preserves the correct text-file order
+- every supported game definition that declares timestamp-based ordering applies
+  the selected order to plugin modification times
+- the timestamp-ordering component can be reused by future game definitions
+  without duplicating game-independent ordering logic
+- enabled and disabled state remains correct after ordering
+- ordering is isolated by profile
+- failures leave the previous valid state intact where practical
+- diagnostics explain which ordering mechanism was applied
 
 ## 5. Deployment Requirements
 

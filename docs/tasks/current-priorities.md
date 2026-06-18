@@ -15,34 +15,30 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Complete the archive-folder browser
+### 1. Correct game-aware plugin output and legacy timestamp ordering
 
 Requirement IDs:
 
-- REQ-MOD-001
-- REQ-MOD-005
-- REQ-UI-001
+- REQ-PLUGIN-002
+- REQ-PLUGIN-003
+- REQ-PLUGIN-005
+- REQ-PROFILE-002
 
 Expected result:
 
-- DML remembers a user-selected archive folder.
-- The fullscreen Archive Library scans, searches, refreshes, and installs files
-  through the existing archive import pipeline.
-- Installed and previously installed status is profile-aware.
-- Required docs and manual tests are current.
+- Confirm the activation and ordering rules for every currently selectable game
+  definition before implementation.
+- Keep Skyrim LE text-file ordering separate from timestamp-based ordering.
+- Apply timestamp-based plugin order to currently selectable games that require
+  it, beginning with Fallout: New Vegas.
+- Implement the timestamp-ordering component so dedicated TTW, Fallout 3, and
+  Oblivion game definitions can reuse it without duplicating the logic.
+- Preserve profile-specific enabled state and order.
+- Add automated tests and manual runtime checks before release.
+- Do not mix this task with new game-profile definitions, LOOT integration,
+  `DML_output`, or INI presets.
 
-### 2. Preserve fullscreen list state consistently
-
-Requirement IDs:
-
-- REQ-UI-001
-
-Expected result:
-
-Dashboard, Mods, Plugins, and Archive Library scroll positions remain stable
-while opening dialogs, pickers, and fullscreen panels during the current session.
-
-### 3. Continue MainActivity responsibility extraction
+### 2. Continue MainActivity responsibility extraction
 
 Reason:
 
@@ -54,7 +50,7 @@ Expected result:
 Continue cohesive, behavior-preserving extractions without mixing in the later
 `ModEngine` service-extraction phase.
 
-### 4. Improve archive extraction robustness
+### 3. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -64,3 +60,18 @@ Expected result:
 
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
 variants that remain unsupported.
+
+### 4. Define the stable 1.0 acceptance boundary
+
+Reason:
+
+The roadmap currently mixes core safety requirements with larger desktop-style
+features, which makes the stable release boundary unclear.
+
+Expected result:
+
+- Identify the capabilities that must block stable 1.0.
+- Classify larger Nexus, LOOT, xEdit, guide, collection, storage, and preset work
+  as core, staged pre-1.0, or post-1.0.
+- Record the accepted scope in the roadmap and decision log before expanding the
+  active implementation list.

@@ -203,9 +203,9 @@ docs/tasks/task-template.md, docs/tasks/current-priorities.md, docs/process/deve
 
 ## 2026-06-16 - Use a Remembered Read-Only Folder for Manual Archive Installs
 
-Status: Accepted.
+Status: Revised.
 
-Decision: The primary manual mod-install flow uses one app-wide folder selected
+Decision: The primary manual mod-install flow uses a remembered folder selected
 through Android's Storage Access Framework. DML scans only files directly inside
 that folder and retains its own managed copy when an archive is installed.
 
@@ -216,7 +216,8 @@ install. Read-only access protects the user's original downloads.
 Result: The UI opens a searchable fullscreen Archive Library, provides Refresh
 and Change Folder actions, and sends selected document URIs through the existing
 archive import pipeline. The design keeps structured source and Nexus metadata
-available for future enrichment.
+available for future enrichment. The original app-wide scope was revised by the
+profile-specific decision below.
 
 Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,
 `engine/download/ArchiveFolderScanner.kt`,
@@ -224,8 +225,56 @@ Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,
 
 ## 2026-06-16 - Archive Folder Selection Is Profile-Specific
 
+Status: Accepted.
+
 Decision: Each DML profile remembers its own read-only archive folder selection.
 
 Reason: Profiles can represent different games or mod setups. A single app-wide archive folder can mix unrelated archives and makes profile isolation less predictable.
 
 Result: Archive folder preferences are keyed by profile ID. The previous app-wide selection is migrated once to the first active profile that opens the Archive Library. Archive installation history and installed status continue to use the active profile's managed state.
+
+Related: REQ-MOD-005, REQ-PROFILE-002,
+`engine/download/ArchiveFolderPreferences.kt`,
+`ui/workflow/ArchiveBrowserWorkflow.kt`.
+
+## 2026-06-17 - Plugin Activation and Ordering Are Game-Specific
+
+Status: Accepted.
+
+Decision: Droid Mod Loader will not apply one universal `plugins.txt`,
+`loadorder.txt`, or plugin-ordering rule to every supported Bethesda game.
+Plugin activation files and the mechanism that establishes load order must be
+selected by the active game definition.
+
+Reason: Skyrim LE uses text-file ordering behavior that differs from Fallout:
+New Vegas, Tale of Two Wastelands, Fallout 3, and Oblivion, where plugin file
+timestamps are required to apply the intended order. A correct-looking exported
+text file is not enough if the game loads a different order.
+
+Result: The next plugin-correctness task must define game-specific output rules,
+preserve profile-specific state, and apply timestamp ordering for the legacy
+games before DML claims that their load order has been written successfully.
+
+Related: REQ-PLUGIN-002, REQ-PLUGIN-003, REQ-PLUGIN-005,
+ROADMAP.md, docs/tasks/current-priorities.md.
+
+## 2026-06-17 - DML Output Mirrors the Active Profile
+
+Status: Accepted.
+
+Decision: DML's internal storage remains the authoritative state for every
+profile. A future external `DML_output` folder will expose only the currently
+active profile's generated GameNative handoff rather than storing a growing copy
+of every profile.
+
+Reason: Users need a clear bundle that matches the profile they are currently
+managing. Mixing several profile exports inside one external folder makes stale
+or incorrect files easier to copy into GameNative.
+
+Result: The next plugin-correctness task must define game-specific output rules,
+preserve profile-specific state, and implement timestamp ordering for currently
+supported game definitions that require it. The ordering component must remain
+reusable by later TTW, Fallout 3, and Oblivion definitions.
+
+Related: REQ-PROFILE-002, REQ-GAME-001, REQ-PLUGIN-003,
+ROADMAP.md, docs/tasks/backlog.md.
