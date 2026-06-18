@@ -40,6 +40,8 @@ Droid Mod Loader already has early support for:
 * profiles
 * managed mod folders
 * archive import
+* a profile-specific remembered Archive Library with search, refresh, folder
+  switching, and installation through the existing import pipeline
 * ZIP, 7z, and RAR archive handling basics
 * basic BAIN and FOMOD installer detection
 * mod enable and disable
@@ -110,6 +112,8 @@ Planned work includes:
 * separate Data and Game Root targets
 * better warnings when a target folder is missing
 * game folder checks for Skyrim, Fallout: New Vegas, Fallout 3, and Oblivion
+* a dedicated Tale of Two Wastelands game/profile definition that reuses the
+  Fallout: New Vegas engine family
 * profile reports for troubleshooting
 
 The goal is for one setup to stay separate from another.
@@ -150,9 +154,11 @@ Droid Mod Loader needs better archive and metadata handling.
 
 Planned work includes:
 
-* downloads panel
-* archive list
-* install from saved archive list
+* extend the released profile-specific Archive Library without replacing its
+  read-only folder workflow
+* improve archive compatibility and unsupported-variant diagnostics
+* add a separate downloads or metadata view only when its responsibility is
+  clearly distinct from the Archive Library
 * source link tracking
 * Nexus metadata where possible
 * mod version tracking where possible
@@ -197,6 +203,10 @@ Planned work includes:
 * BSA and plugin pairing warnings
 * clearer plugin diagnostics
 * plugin warnings in support reports
+* game-specific activation-file formatting
+* timestamp-based plugin ordering for Fallout: New Vegas, Tale of Two
+  Wastelands, Fallout 3, and Oblivion
+* text-file ordering behavior for Skyrim LE
 
 The goal is to help users understand what is wrong before they launch the game and crash.
 
@@ -289,11 +299,13 @@ GameNative is the main test environment for Droid Mod Loader.
 
 Planned work includes:
 
-* clearer Data folder setup
-* optional Game Root setup
+* guided Game Folder setup with clear Game Root and Data Folder language
+* automatic Data detection where the selected installation can be validated
+* an advanced Data Folder override for unusual layouts
 * GameNative environment notes
-* config export folder
-* plugin and load order export
+* a profile-aware `DML_output` handoff for the active profile only
+* game-aware plugin activation and load-order export
+* reviewed game configuration presets later, after the output handoff is safe
 * GameNative setup reports
 * helper tools later
 

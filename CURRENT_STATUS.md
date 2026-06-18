@@ -2,18 +2,20 @@
 
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
-* **Branch / baseline:** `main` at `191397a` (`fix: scope archive folder selection to profiles`)
-* **Repository state:** Local `main` matched `origin/main` with a clean working tree on 2026-06-17.
+* **Reconciliation baseline:** `e8c27ee` (`docs: refresh current project status`)
+* **Repository state:** Local `main` matched `origin/main` with a clean working tree when this reconciliation began.
 
 ## Current objective
 
-Restore accurate repository-controlled project state after the release, then resume only roadmap-aligned work.
+Finish the documentation-only priority reconciliation, then begin one scoped
+plugin-correctness task without mixing in later setup, output, or preset work.
 
 Before beginning another code change:
 
-1. Review process documents and task lists for stale `v0.6.0-beta` release-preparation language.
-2. Clearly separate released `v0.6.0-beta` behavior from unreleased `v0.7.0` and `v0.8.0` plans.
-3. Select one bounded next DML task that follows the accepted roadmap.
+1. Review and commit the proposed priority, backlog, roadmap, requirement, and
+   decision updates.
+2. Create a scoped task or GitHub Issue for game-specific plugin ordering.
+3. Do not begin implementation until requirements, tests, and done criteria are recorded.
 
 ## Completed most recently
 
@@ -27,6 +29,7 @@ The release includes the archive-folder browser workflow for:
 * changing archive-folder locations;
 * installing archives through the existing import and installer pipeline; and
 * keeping archive settings and history isolated by profile.
+* Verified current-session fullscreen list-state retention for Dashboard, Mods, Plugins, and Archive Library. Dedicated regression coverage remains future test work.
 
 ## Last recorded validation
 
@@ -44,11 +47,14 @@ The repository itself was confirmed clean and synchronized with `origin/main` on
 
 ## Next safe action
 
-Audit DML’s process documentation, task lists, and roadmap references for stale release-preparation state.
+Scope the game-aware plugin output and legacy timestamp-ordering task.
 
-Correct documentation only where it is outdated. Do not begin a new refactor or feature during that audit.
-
-Afterward, record one concrete next implementation task here.
+The task must first confirm the currently selectable game definitions. It must
+fix timestamp ordering for affected current profiles, keep Skyrim LE behavior
+separate, and leave a reusable strategy for later TTW, Fallout 3, and Oblivion
+definitions. It must define automated tests, manual
+runtime verification, failure handling, and profile isolation before code is
+changed.
 
 ## Current constraints
 
@@ -64,18 +70,21 @@ Afterward, record one concrete next implementation task here.
 
 ## Known open work
 
+* Correct game-aware plugin activation output and legacy timestamp ordering.
 * Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
 * Treat `ModEngine.kt` service extraction as a separate later project.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
 * Continue improving beginner-facing Game Root and Data Folder wording.
-* Reconcile planned TTW, game-folder validation, configuration-recipe, plugin-ordering, and deployment-output work with the version roadmap before implementation.
+* Keep TTW setup, game-folder validation, `DML_output`, configuration recipes,
+  and INI presets staged in the backlog until each is converted into a bounded
+  task.
 * Keep guide documentation accurate for the currently released DML version.
 
 ## Blockers
 
 No repository blocker is currently recorded.
 
-The next implementation task should not be selected until stale process and roadmap state has been checked.
+The selected next implementation task is plugin-order correctness. It is not yet scoped for coding.
 
 ## Private and public boundary
 

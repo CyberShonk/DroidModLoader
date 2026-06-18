@@ -12,6 +12,54 @@ Use GitHub Issues for active tasks. Use this backlog for rough ideas, deferred w
 - Dangerous file behavior needs test steps before implementation.
 - UI work must include portrait and landscape checks.
 
+## Game Setup and Profile Output
+
+- Add a dedicated Tale of Two Wastelands game/profile definition that reuses the
+  Fallout: New Vegas engine family without pretending TTW is a generic FNV
+  profile.
+- Make Game Folder selection the normal setup path and keep a separate Data
+  Folder picker as an advanced override.
+- Validate Game Root and Data using the expected executable plus a small,
+  distribution-aware set of official masters and archives.
+- Reuse normalized directory snapshots where practical without making the Data
+  baseline responsible for installation validation.
+- Create a visible, profile-aware `DML_output` status and recovery flow.
+- Keep DML's internal profile state authoritative and expose only the active
+  profile's current handoff through `DML_output`.
+- Improve GameNative handoff instructions without depending on private
+  GameNative internals.
+
+## Game Configuration Presets
+
+- Define versioned, reviewed Bethesda INI presets from independently verified
+  community research.
+- Add Pocket Mojave and Pocket Wastelands presets after the output workflow is
+  implemented.
+- Add a cached `ConfigRecipeDetector` service that consumes indexed plugin and
+  file-path data instead of rescanning archives or arbitrary readmes.
+- Keep game INI generation separate from mod-owned script-extender plugin INIs.
+- Detect custom-INI prerequisites such as JIP LN NVSE or Command Extender before
+  generating files that depend on them.
+- Record preset sources, changed keys, prerequisites, and deterministic override
+  order.
+
+## Archive Invalidation
+
+- Research and implement game-specific archive invalidation separately from INI
+  preset generation.
+- Cover Fallout 3, Fallout: New Vegas, TTW, Oblivion, Skyrim LE, and SkyBSA-aware
+  Oblivion behavior.
+- Verify the result with an actual loose-file override test before claiming that
+  invalidation is active.
+
+## Game-Specific Validation and Diagnostics
+
+- Add Oblivion-specific Game Root, Data, plugin-order, xOBSE, and SkyBSA checks.
+- Expand support reports with active profile, target identity, plugin ordering,
+  output status, archive details, and unfinished deployment state.
+- Consider a shared actionable-finding model before building a full notification
+  center.
+
 ## Immediate Cleanup Candidates
 
 These are known candidates from the current roadmap and docs.
@@ -23,6 +71,7 @@ These are known candidates from the current roadmap and docs.
 - Improve beginner wording on main actions.
 - Keep advanced actions visually quieter.
 - Confirm portrait and landscape layouts.
+- Add regression coverage for fullscreen list-state retention across dialogs, folder pickers, and fullscreen panel transitions where practical.
 
 ### Diagnostics
 
