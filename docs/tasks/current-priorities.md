@@ -15,7 +15,33 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Correct game-aware plugin output and legacy timestamp ordering
+### 1. Migrate all shared-storage workflows to direct filesystem paths
+
+Requirement IDs:
+
+- REQ-STORAGE-001
+- REQ-STORAGE-002
+- REQ-GAME-001
+- REQ-GAME-003
+- REQ-MOD-001
+- REQ-MOD-005
+- REQ-DEPLOY-002
+- REQ-PLUGIN-005
+- REQ-PROFILE-002
+
+Expected result:
+
+- Request and verify all-files access on Android 11 and newer.
+- Use a DML-owned direct folder browser for Data, Game Root, and Archive Library.
+- Store canonical paths rather than tree URIs.
+- Preserve existing profiles through explicit safe reselection.
+- Convert deployment, scanning, archive import, repair, and timestamp ordering to direct paths.
+- Remove production SAF code only after every call site is migrated.
+- Add migration, validation, isolation, and performance coverage.
+
+Task definition: `docs/tasks/direct-storage-migration.md`.
+
+### 2. Validate game-aware plugin output and legacy timestamp ordering
 
 Requirement IDs:
 
@@ -26,19 +52,12 @@ Requirement IDs:
 
 Expected result:
 
-- Confirm the activation and ordering rules for every currently selectable game
-  definition before implementation.
-- Keep Skyrim LE text-file ordering separate from timestamp-based ordering.
-- Apply timestamp-based plugin order to currently selectable games that require
-  it, beginning with Fallout: New Vegas.
-- Implement the timestamp-ordering component so dedicated TTW, Fallout 3, and
-  Oblivion game definitions can reuse it without duplicating the logic.
+- Preserve the implemented per-game activation and ordering rules.
+- Complete runtime checks after the direct-storage migration supplies writable real paths.
+- Verify Skyrim LE text ordering and timestamp ordering for Oblivion, Fallout 3, and Fallout: New Vegas.
 - Preserve profile-specific enabled state and order.
-- Add automated tests and manual runtime checks before release.
-- Do not mix this task with new game-profile definitions, LOOT integration,
-  `DML_output`, or INI presets.
 
-### 2. Continue MainActivity responsibility extraction
+### 3. Continue MainActivity responsibility extraction
 
 Reason:
 
@@ -50,7 +69,7 @@ Expected result:
 Continue cohesive, behavior-preserving extractions without mixing in the later
 `ModEngine` service-extraction phase.
 
-### 3. Improve archive extraction robustness
+### 4. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -61,7 +80,7 @@ Expected result:
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
 variants that remain unsupported.
 
-### 4. Define the stable 1.0 acceptance boundary
+### 5. Define the stable 1.0 acceptance boundary
 
 Reason:
 

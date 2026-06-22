@@ -7,17 +7,14 @@
 
 ## Current objective
 
-Review and validate the scoped game-aware plugin activation and ordering
-implementation without mixing in setup redesign, external `DML_output`, INI
-presets, or broad `ModEngine` extraction.
+Migrate production shared-storage workflows from mixed SAF/tree-URI and local
+path handling to one all-files direct-path backend. This migration must preserve
+profiles and existing managed state, require explicit reselection for legacy
+URI-only folders, and retain deployment safety behavior.
 
-Before accepting the code changes:
-
-1. Review the implementation as small coherent commit groups.
-2. Run the full JVM suite and debug build in the local development environment.
-3. Complete safe-folder manual checks for Skyrim LE text ordering and the three
-   timestamp-based selectable games.
-4. Record any real-container limitations before marking REQ-PLUGIN-005 working.
+The bounded task is `docs/tasks/direct-storage-migration.md`. It intentionally
+excludes the accepted 1.0 UI redesign, new game definitions, `DML_output`, LOOT,
+xEdit, INI recipes, and broad `ModEngine` extraction.
 
 ## Completed most recently
 
@@ -49,10 +46,10 @@ The repository itself was confirmed clean and synchronized with `origin/main` on
 
 ## Next safe action
 
-Run local Gradle validation and review the proposed game-aware plugin-ordering
-diff. Then use disposable Data folders to verify Skyrim LE text output,
-Oblivion/Fallout 3/Fallout: New Vegas timestamps, failure rollback, and profile
-isolation before committing the integration.
+Implement the direct-storage task in small reviewable commits, beginning with
+the permission boundary and direct folder browser. Run automated checks after
+each coherent change. After migration, complete disposable-folder runtime
+verification for deployment, archive import, profile isolation, and plugin order.
 
 ## Current constraints
 
