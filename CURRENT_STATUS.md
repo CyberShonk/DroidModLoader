@@ -2,54 +2,74 @@
 
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
-* **Reconciliation baseline:** `508bca2` (merged post-`v0.6.0` documentation reconciliation)
-* **Repository state:** Local `main` matched `origin/main` with a clean working tree when this reconciliation began.
+* **Implementation baseline:** `3480a14` (`fix: apply plugin configuration by game`)
+* **Storage direction:** one all-files direct-filesystem backend for production shared-storage work.
 
 ## Current objective
 
-Migrate production shared-storage workflows from mixed SAF/tree-URI and local
-path handling to one all-files direct-path backend. This migration must preserve
-profiles and existing managed state, require explicit reselection for legacy
-URI-only folders, and retain deployment safety behavior.
+Complete host and Android validation of the direct-storage migration, then finish
+runtime verification of game-aware plugin activation and legacy timestamp order.
+The accepted 1.0 UI redesign remains outside this work.
 
-The bounded task is `docs/tasks/direct-storage-migration.md`. It intentionally
-excludes the accepted 1.0 UI redesign, new game definitions, `DML_output`, LOOT,
-xEdit, INI recipes, and broad `ModEngine` extraction.
+The bounded storage task is `docs/tasks/direct-storage-migration.md`. It excludes
+new game definitions, `DML_output`, LOOT, xEdit, INI recipes, and broad
+`ModEngine` extraction.
 
 ## Completed most recently
 
-Published `v0.6.0-beta` and pushed commit `191397a`, which scopes archive-folder selection, persisted folder access, archive history, and related settings to individual profiles.
+The current source migration:
 
-The release includes the archive-folder browser workflow for:
+* requests and checks Android all-files special access;
+* supplies a DML-owned direct filesystem folder browser;
+* stores canonical profile-specific paths for Data, Game Root, and Archive Library;
+* treats legacy URI-only selections as reselection state without guessing paths;
+* uses direct files for archive scanning/import, deployment, plugin scanning,
+  overwrite scanning, baseline work, repair, and plugin timestamp ordering;
+* removes the production tree-URI deployment manager and `DocumentFile` dependency;
+* adds permission, path-validation, migration, profile-isolation, archive, and
+  deployment-focused JVM tests; and
+* adds deterministic benchmark fixtures and a same-device comparison protocol.
 
-* selecting and retaining an archive folder;
-* discovering top-level ZIP, 7Z, and RAR archives;
-* searching and refreshing the archive list;
-* changing archive-folder locations;
-* installing archives through the existing import and installer pipeline; and
-* keeping archive settings and history isolated by profile.
-* Verified current-session fullscreen list-state retention for Dashboard, Mods, Plugins, and Archive Library. Dedicated regression coverage remains future test work.
+Game-aware plugin activation and ordering is also implemented in source:
 
-## Last recorded validation
+* Skyrim Legendary Edition uses `plugins.txt` plus complete-order `loadorder.txt`;
+* Oblivion, Fallout 3, and Fallout: New Vegas use enabled-only `plugins.txt` plus
+  modification-time ordering of the complete selected plugin list; and
+* timestamp application includes preflight, transactional output replacement,
+  and rollback where practical.
 
-The earlier archive-folder browser implementation recorded successful results for:
+## Current validation record
 
-```bash
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
-git diff --check
+Verified while preparing the migration:
+
+```text
+git diff --check — passed
+./tools/check-docs.sh — passed
+focused Kotlin compilation and direct-storage smoke checks — passed
+benchmark fixture and summarizer smoke checks — passed
 ```
 
-The exact final release validation result was not preserved in this file. Do not infer unrecorded test results.
-
-The repository itself was confirmed clean and synchronized with `origin/main` on 2026-06-17.
+`./tools/check-project.sh` reached the Gradle test step but could not download
+Gradle 9.5 because `services.gradle.org` could not be resolved in the validation
+environment. The JVM suite did not start, so this is not recorded as a test pass
+or failure.
 
 ## Next safe action
 
-Implement the direct-storage task in small reviewable commits, beginning with
-the permission boundary and direct folder browser. Run automated checks after
-each coherent change. After migration, complete disposable-folder runtime
-verification for deployment, archive import, profile isolation, and plugin order.
+Run the authoritative host checks against the reviewed migration:
+
+```bash
+git diff --check
+./tools/check-docs.sh
+./tools/check-project.sh
+./gradlew testDebugUnitTest
+./gradlew assembleDebug
+```
+
+Then perform disposable-folder Android checks for permission flow, direct folder
+selection, legacy-profile reselection, archive import, deployment, rollback,
+profile isolation, and plugin ordering. Finally, collect the same-device benchmark
+results described in `docs/benchmarks/direct-storage.md`.
 
 ## Current constraints
 
@@ -57,28 +77,29 @@ verification for deployment, archive import, profile isolation, and plugin order
 * Keep each commit focused on one coherent responsibility.
 * Explain code-changing commits before acceptance.
 * Provide a reviewable diff for every code change.
-* Run appropriate tests and builds before committing code.
+* Record actual validation results; do not infer them.
 * Keep current released behavior separate from future plans.
 * Update documentation and changelogs when documented behavior changes.
 * Update the Nexus Mods page whenever the public app version changes.
-* Do not automatically commit, push, merge, tag, publish, release, or make destructive changes.
+* Do not automatically commit, push, merge, tag, publish, or release.
 
 ## Known open work
 
-* Finish host and manual validation of game-aware plugin activation and legacy timestamp ordering.
+* Finish host and manual validation of the direct-storage migration.
+* Capture SAF-baseline versus direct-build deployment benchmark results.
+* Finish manual game checks for game-aware plugin activation and timestamp order.
 * Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
-* Treat `ModEngine.kt` service extraction as a separate later project.
+* Treat broad `ModEngine.kt` service extraction as a separate later project.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
 * Continue improving beginner-facing Game Root and Data Folder wording.
 * Keep TTW setup, game-folder validation, `DML_output`, configuration recipes,
-  and INI presets staged in the backlog until each is converted into a bounded
-  task.
-* Keep guide documentation accurate for the currently released DML version.
+  and INI presets staged until each has its own bounded task.
 
 ## Blockers
 
-The scoped plugin-order implementation still requires full host Gradle validation
-and manual safe-folder/runtime verification before acceptance.
+Acceptance is blocked on the host Gradle suite, debug APK assembly, disposable
+Android runtime checks, and device benchmark capture. No public version change is
+part of this migration.
 
 ## Private and public boundary
 

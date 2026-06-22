@@ -205,18 +205,20 @@ docs/tasks/task-template.md, docs/tasks/current-priorities.md, docs/process/deve
 
 Status: Superseded by the 2026-06-22 direct-filesystem decision.
 
-Historical decision: The primary manual mod-install flow used a remembered folder selected
-through Android's Storage Access Framework. DML scans only files directly inside
-that folder and retains its own managed copy when an archive is installed.
+Historical decision: The primary manual mod-install flow used a remembered
+folder selected through Android's Storage Access Framework. DML scanned only
+files directly inside that folder and retained its own managed copy when an
+archive was installed.
 
 Reason: A remembered folder provides a fast, familiar mod-manager-style list
 without cluttering the dashboard or requiring users to choose one file for every
 install. Read-only access protects the user's original downloads.
 
-Result: The UI opens a searchable fullscreen Archive Library, provides Refresh
-and Change Folder actions, and sends selected document URIs through the existing
-archive import pipeline. The design keeps structured source and Nexus metadata
-available for future enrichment. The original app-wide scope was revised by the
+Historical result: The UI opened a searchable fullscreen Archive Library,
+provided Refresh and Change Folder actions, and sent selected document URIs
+through the archive import pipeline. The later direct-filesystem decision keeps
+the same user flow but replaces URI persistence and provider I/O. The design keeps structured source and Nexus metadata available for future
+enrichment. The original app-wide scope was revised by the
 profile-specific decision below.
 
 Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,

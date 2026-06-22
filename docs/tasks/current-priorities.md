@@ -15,7 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Migrate all shared-storage workflows to direct filesystem paths
+### 1. Validate the direct-filesystem storage migration
 
 Requirement IDs:
 
@@ -31,15 +31,16 @@ Requirement IDs:
 
 Expected result:
 
-- Request and verify all-files access on Android 11 and newer.
-- Use a DML-owned direct folder browser for Data, Game Root, and Archive Library.
-- Store canonical paths rather than tree URIs.
-- Preserve existing profiles through explicit safe reselection.
-- Convert deployment, scanning, archive import, repair, and timestamp ordering to direct paths.
-- Remove production SAF code only after every call site is migrated.
-- Add migration, validation, isolation, and performance coverage.
+- Run the complete host JVM suite and assemble the debug APK.
+- Verify all-files permission onboarding and return-from-settings behavior.
+- Verify direct Data, Game Root, and Archive Library selection on Android.
+- Verify URI-only upgrades require reselection without losing unrelated profile state.
+- Verify archive import, deployment, rollback, scanning, repair, and timestamps use direct paths.
+- Confirm profile isolation with at least two profiles.
+- Capture same-device SAF-baseline and direct-build benchmark results.
 
 Task definition: `docs/tasks/direct-storage-migration.md`.
+Benchmark protocol: `docs/benchmarks/direct-storage.md`.
 
 ### 2. Validate game-aware plugin output and legacy timestamp ordering
 
@@ -53,9 +54,12 @@ Requirement IDs:
 Expected result:
 
 - Preserve the implemented per-game activation and ordering rules.
-- Complete runtime checks after the direct-storage migration supplies writable real paths.
-- Verify Skyrim LE text ordering and timestamp ordering for Oblivion, Fallout 3, and Fallout: New Vegas.
+- Verify Skyrim LE text ordering.
+- Verify timestamp ordering for Oblivion, Fallout 3, and Fallout: New Vegas.
+- Exercise missing-file and invalid-target failures without partial output.
 - Preserve profile-specific enabled state and order.
+
+Task definition: `docs/tasks/game-aware-plugin-ordering.md`.
 
 ### 3. Continue MainActivity responsibility extraction
 

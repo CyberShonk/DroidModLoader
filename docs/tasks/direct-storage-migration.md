@@ -4,6 +4,13 @@
 
 Feature, refactor, safety, test, and documentation.
 
+## Implementation Status
+
+The direct-storage code migration, focused JVM tests, deterministic fixtures, and
+benchmark protocol are implemented. Full host Gradle validation, debug APK
+assembly, Android runtime checks, and same-device benchmark measurements remain
+required before the task is complete.
+
 ## Requirement IDs
 
 - REQ-STORAGE-001
@@ -18,9 +25,9 @@ Feature, refactor, safety, test, and documentation.
 
 ## Problem
 
-DML currently mixes Android Storage Access Framework tree URIs with ordinary
-filesystem paths. That split blocks reliable plugin timestamp ordering and
-requires parallel implementations for folder selection, scanning, deployment,
+Before this migration, DML mixed Android Storage Access Framework tree URIs with
+ordinary filesystem paths. That split blocked reliable plugin timestamp ordering
+and required parallel implementations for folder selection, scanning, deployment,
 archive browsing, and recovery.
 
 The app's core responsibility is direct management of game and mod files in
@@ -184,16 +191,17 @@ and write access.
 
 ## Done When
 
-- [ ] Direct paths are the only production shared-storage backend.
-- [ ] All-files permission is requested and checked.
-- [ ] Data, Game Root, and Archive Library selections use the direct browser.
-- [ ] Existing URI-only profiles require safe reselection.
-- [ ] Deployment and archive workflows no longer use SAF.
-- [ ] Production `DocumentFile`/tree-URI code and dependency are removed.
+- [x] Direct paths are the only production shared-storage backend.
+- [x] All-files permission is requested and checked.
+- [x] Data, Game Root, and Archive Library selections use the direct browser.
+- [x] Existing URI-only profiles require safe reselection.
+- [x] Deployment and archive workflows no longer use SAF.
+- [x] Production `DocumentFile`/tree-URI code and dependency are removed.
 - [ ] Required automated tests pass.
 - [ ] Debug APK assembles.
 - [ ] Manual Android checks pass.
-- [ ] Benchmark procedure is recorded and device results are captured.
+- [x] Benchmark procedure and deterministic fixtures are recorded.
+- [ ] Same-device SAF-baseline and direct-build results are captured.
 
 ## Suggested Commit Sequence
 
@@ -202,6 +210,6 @@ and write access.
 3. `feat: add direct filesystem folder browser`
 4. `refactor: migrate profiles and targets to direct paths`
 5. `refactor: migrate archive library to direct paths`
-6. `refactor: remove SAF deployment and scanning paths`
-7. `test: cover direct storage migration and isolation`
-8. `docs: record direct storage validation and benchmark protocol`
+6. `refactor: remove SAF deployment backend`
+7. `test: add direct deployment benchmark tooling`
+8. `docs: reconcile direct storage behavior and validation`

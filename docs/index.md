@@ -11,6 +11,7 @@ This folder contains the project documentation for Droid Mod Loader.
 | [Architecture](architecture.md)                                           | Explains the current project structure                                          |
 | [Decision Log](decisions.md)                                              | Records major technical and product decisions                                   |
 | [Testing](testing.md)                                                     | Tracks what needs to be tested                                                  |
+| [Direct Storage Benchmark](benchmarks/direct-storage.md)                   | Defines the repeatable SAF-baseline versus direct-path deployment benchmark     |
 | [Release Checklist](release-checklist.md)                                 | Lists checks before publishing builds                                           |
 | [Brand Assets](assets/brand-assets.md)                                    | Tracks icon and branding asset rules                                            |
 | [Changelog](../releases/changelog.md)                                     | Tracks release history                                                          |

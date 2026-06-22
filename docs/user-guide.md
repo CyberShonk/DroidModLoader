@@ -18,7 +18,12 @@ The normal user path is:
 6. Deploy.
 7. Use diagnostics if something looks wrong.
 
-## 1. Select a Game Target
+## 1. Grant Storage Access and Select a Game Target
+
+On Android 11 and newer, DML requires its all-files special access before it can
+browse or modify shared game and mod folders. When prompted, open the Android
+settings page for DML, enable **Allow access to manage all files**, then return
+to the app.
 
 The game target is the folder Droid Mod Loader deploys files into.
 
@@ -36,8 +41,9 @@ Do not select random storage folders as deploy targets.
 
 Tap **Install Mod** to open the Archive Library.
 
-The first time, DML asks you to choose the folder where you keep downloaded mod
-archives. DML remembers this folder for the active profile and scans files directly
+The first time, DML opens its direct folder browser and asks you to choose the
+folder where you keep downloaded mod archives. DML remembers its canonical path
+for the active profile and scans files directly
 inside it for:
 
 - ZIP
@@ -61,7 +67,8 @@ When you install an archive, DML copies it into managed app storage and sends it
 through the normal archive analysis and installer flow. The original downloaded
 file remains in the selected folder.
 
-If Android removes access to the folder, use **Folder** to select it again.
+If a saved profile came from an older URI-based build, DML preserves the profile
+but requires you to select its Data, Game Root, or Archive Library folder again.
 
 ## 3. Enable or Disable Mods
 
@@ -87,10 +94,9 @@ Plugin activation and order are applied according to the active profile's game:
   timestamps for load order. DML applies the complete selected order to those
   timestamps and does not present `loadorder.txt` as authoritative.
 
-Timestamp ordering requires a writable local Data folder path. Android Storage
-Access Framework tree URIs do not provide a safe standard operation for setting
-arbitrary file modification times, so DML refuses that operation before changing
-plugin output.
+Timestamp ordering requires the active profile to have a valid writable direct
+Data-folder path. DML preflights the complete plugin set before changing output
+or file timestamps.
 
 ## 5. Review Warnings
 
