@@ -6,6 +6,7 @@ internal class FolderPickerWorkflowController(
     private val savePickedDataFolderToSelectedGameConfig: (String) -> Unit,
     private val savePickedRootFolderToSelectedGameConfig: (String) -> Unit,
     private val setNewProfileDataPathText: (String) -> Unit,
+    private val saveArchiveLibraryPath: (String) -> Unit,
     private val appendLog: (String) -> Unit
 ) {
 
@@ -31,6 +32,11 @@ internal class FolderPickerWorkflowController(
                 FolderPickMode.NewProfileDataFolder -> {
                     setNewProfileDataPathText(path)
                     appendLog("Selected Data folder for new profile.")
+                }
+
+                FolderPickMode.ArchiveLibraryFolder -> {
+                    saveArchiveLibraryPath(path)
+                    appendLog("Selected Archive Library folder.")
                 }
             }
         }

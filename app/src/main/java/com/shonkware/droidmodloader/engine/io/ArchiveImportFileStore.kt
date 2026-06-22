@@ -1,41 +1,25 @@
 package com.shonkware.droidmodloader.engine.io
 
-import android.content.ContentResolver
-import android.net.Uri
 import java.io.File
 
 internal class ArchiveImportFileStore(
-    private val contentResolver: ContentResolver,
     private val externalFilesDirProvider: () -> File?,
-    private val profileInternalDirProvider: () -> File,
-    private val appendError: (String) -> Unit,
-    private val currentTimeMillis: () -> Long = { System.currentTimeMillis() }
+    private val appendError: (String) -> Unit
 ) {
-
-    fun copyUriToTemporaryArchiveFile(
-        uri: Uri,
-        sanitizedName: String
-    ): File {
-        cleanOldTemporaryImportSources()
-
-        val tempSourceDir = File(profileInternalDirProvider(), "temp/import_sources")
-        tempSourceDir.mkdirs()
-
-        val tempArchive = File(
-            tempSourceDir,
-            "${currentTimeMillis()}_$sanitizedName"
-        )
-
-        return copyUriToFile(uri, tempArchive)
-    }
-
-    fun copyUriToArchiveLibraryFile(
-        uri: Uri,
+    fun copyFileToArchiveLibraryFile(
+        sourceFile: File,
         displayName: String
     ): File {
+        val canonicalSource = sourceFile.canonicalFile
+        require(canonicalSource.exists() && canonicalSource.isFile) {
+            "Selected archive does not exist: ${canonicalSource.path}"
+        }
+        require(canonicalSource.canRead()) {
+            "Selected archive is not readable: ${canonicalSource.path}"
+        }
+
         val archiveLibraryDir = getArchiveLibraryDir()
             ?: throw IllegalStateException("Archive library directory is unavailable.")
-
         archiveLibraryDir.mkdirs()
 
         val destinationFile = uniqueFile(
@@ -43,34 +27,7 @@ internal class ArchiveImportFileStore(
             preferredName = displayName
         )
 
-        return copyUriToFile(uri, destinationFile)
-    }
-
-    fun cleanOldTemporaryImportSources(
-        maxAgeMillis: Long = 24L * 60L * 60L * 1000L
-    ) {
-        val tempSourceDir = File(profileInternalDirProvider(), "temp/import_sources")
-        if (!tempSourceDir.exists()) return
-
-        val now = currentTimeMillis()
-
-        tempSourceDir.listFiles()
-            ?.filter { it.isFile }
-            ?.filter { now - it.lastModified() > maxAgeMillis }
-            ?.forEach { it.delete() }
-    }
-
-    private fun copyUriToFile(
-        uri: Uri,
-        destinationFile: File
-    ): File {
-        destinationFile.parentFile?.mkdirs()
-
-        contentResolver.openInputStream(uri).use { input ->
-            if (input == null) {
-                throw IllegalStateException("Could not open input stream for selected file.")
-            }
-
+        canonicalSource.inputStream().use { input ->
             destinationFile.outputStream().use { output ->
                 input.copyTo(output)
             }

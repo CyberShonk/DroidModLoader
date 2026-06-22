@@ -9,7 +9,7 @@ data class DownloadedArchiveRecord(
     val sizeBytes: Long,
     val modifiedAtMillis: Long,
     val fingerprint: String,
-    val sourceUri: String? = null,
+    val sourcePath: String? = null,
     val sourceUrl: String? = null,
     val nexusGameDomain: String? = null,
     val nexusModId: Long? = null,

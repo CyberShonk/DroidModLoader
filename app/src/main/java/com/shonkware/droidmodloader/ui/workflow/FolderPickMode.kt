@@ -4,5 +4,6 @@ internal enum class FolderPickMode {
     FirstSetupDataFolder,
     ActiveDataFolder,
     ActiveGameRootFolder,
-    NewProfileDataFolder
+    NewProfileDataFolder,
+    ArchiveLibraryFolder
 }

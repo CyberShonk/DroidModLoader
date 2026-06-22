@@ -312,12 +312,12 @@ fun DroidModLoaderScreen(
     var archiveSearchText by rememberSaveable { mutableStateOf("") }
     var lastArchiveFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(state.archiveBrowserState.folderUri) {
-        val folderUri = state.archiveBrowserState.folderUri
-        if (folderUri != lastArchiveFolderPath) {
+    LaunchedEffect(state.archiveBrowserState.folderPath) {
+        val folderPath = state.archiveBrowserState.folderPath
+        if (folderPath != lastArchiveFolderPath) {
             archiveSearchText = ""
             archiveListState.scrollToItem(0)
-            lastArchiveFolderPath = folderUri
+            lastArchiveFolderPath = folderPath
         }
     }
 

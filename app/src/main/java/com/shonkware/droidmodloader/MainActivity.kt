@@ -2,7 +2,6 @@ package com.shonkware.droidmodloader
 
 import android.app.AlertDialog
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.content.ActivityNotFoundException
 import android.util.Log
@@ -139,7 +138,6 @@ class MainActivity : ComponentActivity() {
     private var fullscreenPanel by mutableStateOf(FullscreenPanel.NONE)
     private var showArchiveFolderSetupDialog by mutableStateOf(false)
     private var archiveBrowserState by mutableStateOf(ArchiveBrowserUiState())
-    private var archiveFolderPickerActive = false
     private var overwriteEntries by mutableStateOf<List<OverwriteEntry>>(emptyList())
     private var showOverwriteDialog by mutableStateOf(false)
     private var overwriteBaselineExists by mutableStateOf(false)
@@ -163,27 +161,6 @@ class MainActivity : ComponentActivity() {
     ) {
         refreshAllFilesAccessState()
     }
-    private val pickArchiveFolderLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        archiveFolderPickerActive = false
-        if (uri == null) {
-            appendLog("No archive folder selected.")
-            archiveBrowserWorkflow.refreshIfOpen()
-            return@registerForActivityResult
-        }
-
-        try {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-            archiveBrowserWorkflow.selectFolder(uri.toString())
-        } catch (e: Exception) {
-            appendError("Failed to remember archive folder access: ${e.message}", e)
-        }
-    }
-
     private val operationStatusController = OperationStatusController()
     private val pluginSyncWorkflowController = PluginSyncWorkflowController(
         createEngine = { createModEngineForWorkflows() },
@@ -503,6 +480,9 @@ class MainActivity : ComponentActivity() {
                     newProfileDataPathText = path
                 }
             },
+            saveArchiveLibraryPath = { path ->
+                archiveBrowserWorkflow.selectFolder(path)
+            },
             appendLog = { message -> appendLog(message) }
         )
     }
@@ -635,9 +615,7 @@ class MainActivity : ComponentActivity() {
 
     private val archiveImportFileStore by lazy {
         ArchiveImportFileStore(
-            contentResolver = contentResolver,
             externalFilesDirProvider = { getExternalFilesDir(null) },
-            profileInternalDirProvider = { profileStoragePaths.getProfileInternalDir() },
             appendError = { message -> appendError(message) }
         )
     }
@@ -647,7 +625,6 @@ class MainActivity : ComponentActivity() {
             operationInProgressProvider = { operationInProgress },
             beginOperation = { message -> beginOperation(message) },
             createEngine = { createModEngineForWorkflows() },
-            queryDisplayName = { uri -> queryDisplayName(uri) },
             archiveImportFileStore = archiveImportFileStore,
             showInstallerChoices = { prepared, archiveRecordId ->
                 runOnUiThread {
@@ -682,7 +659,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val archiveFolderScanner by lazy {
-        ArchiveFolderScanner(this)
+        ArchiveFolderScanner()
     }
 
     private val archiveBrowserWorkflow: ArchiveBrowserWorkflow by lazy {
@@ -692,7 +669,7 @@ class MainActivity : ComponentActivity() {
             runInBackground = { task -> runInBackground(task) },
             isOperationInProgress = { operationInProgress },
             isBrowserOpen = { fullscreenPanel == FullscreenPanel.ARCHIVES },
-            scanFolder = { treeUri -> archiveFolderScanner.scan(treeUri) },
+            scanFolder = { folderPath -> archiveFolderScanner.scan(folderPath) },
             loadHistory = {
                 val engine = createModEngineForWorkflows()
                     ?: throw IllegalStateException("Archive browser is unavailable.")
@@ -701,8 +678,8 @@ class MainActivity : ComponentActivity() {
                     currentMods = engine.getCurrentMods()
                 )
             },
-            canonicalIdentityForSourceUri = { sourceUri ->
-                archiveFolderScanner.canonicalIdentityForUri(sourceUri)
+            canonicalIdentityForSourcePath = { sourcePath ->
+                archiveFolderScanner.canonicalIdentityForPath(sourcePath)
             },
             showFolderSetup = {
                 runOnUiThread {
@@ -720,10 +697,8 @@ class MainActivity : ComponentActivity() {
                     archiveBrowserState = state
                 }
             },
-            installArchiveUri = { documentUri ->
-                archiveImportWorkflowController.handleArchivePickerResult(
-                    Uri.parse(documentUri)
-                )
+            installArchivePath = { sourcePath ->
+                archiveImportWorkflowController.handleArchivePath(sourcePath)
             },
             appendLog = { message -> appendLog(message) }
         )
@@ -773,9 +748,7 @@ class MainActivity : ComponentActivity() {
             updateSecondScreen()
         }
 
-        if (!archiveFolderPickerActive) {
-            archiveBrowserWorkflow.refreshIfOpen()
-        }
+        archiveBrowserWorkflow.refreshIfOpen()
     }
 
     override fun onPause() {
@@ -866,8 +839,7 @@ class MainActivity : ComponentActivity() {
             },
             onChooseArchiveFolder = {
                 showArchiveFolderSetupDialog = false
-                archiveFolderPickerActive = true
-                pickArchiveFolderLauncher.launch(null)
+                openDirectFolderBrowser(FolderPickMode.ArchiveLibraryFolder)
             },
             onDismissArchiveFolderSetup = {
                 showArchiveFolderSetupDialog = false
@@ -876,8 +848,7 @@ class MainActivity : ComponentActivity() {
                 archiveBrowserWorkflow.refresh()
             },
             onChangeArchiveFolder = {
-                archiveFolderPickerActive = true
-                pickArchiveFolderLauncher.launch(null)
+                openDirectFolderBrowser(FolderPickMode.ArchiveLibraryFolder)
             },
             onInstallArchiveFromFolder = { stableId ->
                 archiveBrowserWorkflow.installArchive(stableId)
@@ -1418,18 +1389,7 @@ class MainActivity : ComponentActivity() {
     private fun updateLastOperationStatus(status: String) {
         lastOperationStatus = status
     }
-    private fun queryDisplayName(uri: Uri): String? {
-        val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
 
-        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (nameIndex >= 0 && cursor.moveToFirst()) {
-                return cursor.getString(nameIndex)
-            }
-        }
-
-        return null
-    }
     private fun appendLogToFile(message: String) {
         try {
             val externalBaseDir = getExternalFilesDir(null) ?: return
@@ -2179,12 +2139,13 @@ class MainActivity : ComponentActivity() {
         }
 
         folderPickMode = mode
-        directFolderBrowserRequiresWritable = true
+        directFolderBrowserRequiresWritable = mode != FolderPickMode.ArchiveLibraryFolder
         directFolderBrowserTitle = when (mode) {
             FolderPickMode.FirstSetupDataFolder,
             FolderPickMode.ActiveDataFolder,
             FolderPickMode.NewProfileDataFolder -> "Choose Data Folder"
             FolderPickMode.ActiveGameRootFolder -> "Choose Game Root Folder"
+            FolderPickMode.ArchiveLibraryFolder -> "Choose Archive Library Folder"
         }
 
         val currentPath = when (mode) {
@@ -2193,6 +2154,9 @@ class MainActivity : ComponentActivity() {
             FolderPickMode.ActiveGameRootFolder -> rootTargetPathText
             FolderPickMode.NewProfileDataFolder -> newProfileDataPathText
                 .takeUnless { it == DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED }
+                .orEmpty()
+            FolderPickMode.ArchiveLibraryFolder -> activeProfileId
+                ?.let(archiveFolderPreferences::getSelectedFolderPath)
                 .orEmpty()
         }
 

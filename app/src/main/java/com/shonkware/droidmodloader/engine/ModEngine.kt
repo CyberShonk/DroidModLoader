@@ -1921,13 +1921,13 @@ class ModEngine(
     fun registerDownloadedArchive(
         archiveFile: File,
         originalDisplayName: String,
-        sourceUri: String? = null,
+        sourcePath: String? = null,
         sourceUrl: String? = null
     ): DownloadedArchiveRecord {
         return downloadedArchiveRepository.registerArchive(
             archiveFile = archiveFile,
             originalDisplayName = originalDisplayName,
-            sourceUri = sourceUri,
+            sourcePath = sourcePath,
             sourceUrl = sourceUrl
         )
     }
