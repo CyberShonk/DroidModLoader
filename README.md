@@ -22,7 +22,7 @@ Droid Mod Loader helps with things like:
 * Keeping separate profiles for different setups
 * Scanning mod files so the app knows what each mod contains
 * Showing plugin files like `.esp`, `.esm`, and `.esl`
-* Writing plugin files such as `plugins.txt` and `loadorder.txt`
+* Applying game-aware plugin activation and load order through text files or plugin timestamps
 * Preparing files for a shared game folder
 * Helping users understand conflicts and overwrites
 * Creating useful reports when something goes wrong

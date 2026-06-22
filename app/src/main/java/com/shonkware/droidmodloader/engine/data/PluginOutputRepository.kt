@@ -20,14 +20,6 @@ class PluginOutputRepository(
     private val pluginsTxtFile: File,
     private val loadorderTxtFile: File
 ) {
-    fun savePluginsTxt(content: String) {
-        replaceTextFile(pluginsTxtFile, content)
-    }
-
-    fun saveLoadorderTxt(content: String) {
-        replaceTextFile(loadorderTxtFile, content)
-    }
-
     fun replaceOutputs(content: PluginOutputContent): PluginOutputPaths {
         val pluginsSnapshot = FileSnapshot.capture(pluginsTxtFile)
         val loadorderSnapshot = FileSnapshot.capture(loadorderTxtFile)

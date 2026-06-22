@@ -263,7 +263,7 @@ Done when:
 
 ### REQ-PLUGIN-005: Apply Game-Specific Plugin Order
 
-Status: Planned
+Status: In Progress
 
 Droid Mod Loader must apply plugin order using the mechanism required by the
 selected game instead of assuming that every supported game reads the same text

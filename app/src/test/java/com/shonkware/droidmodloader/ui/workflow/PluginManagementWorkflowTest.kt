@@ -1,6 +1,8 @@
 package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.model.PluginEntry
+import com.shonkware.droidmodloader.engine.plugins.PluginApplicationResult
+import com.shonkware.droidmodloader.engine.plugins.PluginLoadOrderMechanism
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -90,23 +92,49 @@ class PluginManagementWorkflowTest {
     }
 
     @Test
-    fun writeLoadOrderFilesRefreshesEmptyListOnceThenWrites() {
+    fun writeLoadOrderFilesRefreshesEmptyListOnceThenAppliesSkyrimOutput() {
         val engine = FakePluginManagementEngine(emptyList()).apply {
             pluginsAfterSync = listOf(plugin("first.esm", 1), plugin("second.esp", 2, enabled = false))
-            exportedOutputs = "*first.esm\n" to "first.esm\nsecond.esp\n"
-            outputPaths = "/target/plugins.txt" to "/target/loadorder.txt"
+            applicationResult = skyrimResult()
         }
         val harness = WorkflowHarness(engine)
 
         harness.workflow.writeLoadOrderFiles()
 
         assertEquals(1, engine.syncCount)
-        assertEquals(listOf("Writing plugin files..."), harness.startedOperations)
-        assertEquals(listOf("Plugin files written successfully."), harness.finishedOperations)
+        assertEquals(listOf("Applying plugin configuration..."), harness.startedOperations)
+        assertEquals(listOf("Plugin configuration applied successfully."), harness.finishedOperations)
+        assertEquals(listOf("skyrim_le"), engine.appliedGameIds)
+        assertTrue(harness.logs.contains("Selected game: skyrim_le"))
+        assertTrue(harness.logs.contains("Plugin order mechanism: text files"))
         assertTrue(harness.logs.contains("Plugin count: 2"))
         assertTrue(harness.logs.contains("Enabled plugin count: 1"))
+        assertTrue(harness.logs.contains("loadorder.txt line count: 2"))
         assertTrue(harness.logs.contains("RESULT: PASS"))
         assertEquals(1, harness.refreshCount)
+    }
+
+    @Test
+    fun timestampApplicationLogsSelectedGameAndMechanism() {
+        val engine = FakePluginManagementEngine(
+            listOf(plugin("FalloutNV.esm", 1), plugin("Disabled.esp", 2, enabled = false))
+        ).apply {
+            applicationResult = timestampResult()
+        }
+        val harness = WorkflowHarness(engine, selectedGameId = "fallout_nv")
+
+        harness.workflow.writeLoadOrderFiles()
+
+        assertEquals(listOf("fallout_nv"), engine.appliedGameIds)
+        assertTrue(harness.logs.contains("Selected game: fallout_nv"))
+        assertTrue(harness.logs.contains("Plugin order mechanism: file timestamps"))
+        assertTrue(
+            harness.logs.contains(
+                "loadorder.txt not written; plugin timestamps are authoritative."
+            )
+        )
+        assertTrue(harness.logs.contains("Timestamped plugin count: 2"))
+        assertTrue(harness.logs.contains("Timestamp Data folder: /target/Data"))
     }
 
     @Test
@@ -118,7 +146,7 @@ class PluginManagementWorkflowTest {
 
         assertEquals(1, engine.syncCount)
         assertEquals(
-            listOf("Writing plugin files failed: no plugins available."),
+            listOf("Applying plugin configuration failed: no plugins available."),
             harness.failedOperations.map { it.first }
         )
         assertTrue(harness.logs.contains("RESULT: FAIL"))
@@ -133,16 +161,17 @@ class PluginManagementWorkflowTest {
         harness.workflow.writeLoadOrderFiles()
 
         assertTrue(harness.startedOperations.isEmpty())
-        assertTrue(engine.exportRequests == 0)
+        assertTrue(engine.appliedGameIds.isEmpty())
         assertEquals(
-            listOf("Ignoring plugin file write request: operation already in progress."),
+            listOf("Ignoring plugin configuration request: operation already in progress."),
             harness.logs
         )
     }
 
     private class WorkflowHarness(
         engine: FakePluginManagementEngine?,
-        operationInProgress: Boolean = false
+        operationInProgress: Boolean = false,
+        selectedGameId: String = "skyrim_le"
     ) {
         val logs = mutableListOf<String>()
         val errors = mutableListOf<Pair<String, Throwable?>>()
@@ -161,6 +190,7 @@ class PluginManagementWorkflowTest {
             appendLog = { message -> logs.add(message) },
             appendError = { message, throwable -> errors.add(message to throwable) },
             updateLastOperationStatus = { status -> statuses.add(status) },
+            selectedGameIdProvider = { selectedGameId },
             refreshDashboard = { refreshCount++ }
         )
     }
@@ -172,10 +202,9 @@ class PluginManagementWorkflowTest {
         var pluginsAfterSync: List<PluginEntry> = initialPlugins
         var savedPlugins: List<PluginEntry> = emptyList()
         var appliedOrder: List<String> = emptyList()
-        var exportedOutputs: Pair<String, String> = "" to ""
-        var outputPaths: Pair<String, String> = "plugins.txt" to "loadorder.txt"
+        var applicationResult: PluginApplicationResult = skyrimResult()
+        val appliedGameIds = mutableListOf<String>()
         var syncCount = 0
-        var exportRequests = 0
 
         override fun getCurrentPlugins(): List<PluginEntry> = currentPlugins
 
@@ -194,16 +223,46 @@ class PluginManagementWorkflowTest {
             appliedOrder = orderedPluginPaths
         }
 
-        override fun exportSavedPluginOutputs(): Pair<String, String> {
-            exportRequests++
-            return exportedOutputs
+        override fun applySavedPluginConfiguration(gameId: String): PluginApplicationResult {
+            appliedGameIds.add(gameId)
+            return applicationResult
         }
-
-        override fun getPluginOutputFilePaths(): Pair<String, String> = outputPaths
 
         override fun syncPlugins() {
             syncCount++
             currentPlugins = pluginsAfterSync
+        }
+    }
+
+    companion object {
+        private fun skyrimResult(): PluginApplicationResult {
+            return PluginApplicationResult(
+                gameId = "skyrim_le",
+                mechanism = PluginLoadOrderMechanism.TEXT_FILES,
+                pluginCount = 2,
+                enabledPluginCount = 1,
+                pluginsTxtContent = "first.esm",
+                pluginsTxtPath = "/target/plugins.txt",
+                loadorderTxtContent = "first.esm\nsecond.esp",
+                loadorderTxtPath = "/target/loadorder.txt",
+                timestampedPluginCount = 0,
+                timestampDataFolderPath = null
+            )
+        }
+
+        private fun timestampResult(): PluginApplicationResult {
+            return PluginApplicationResult(
+                gameId = "fallout_nv",
+                mechanism = PluginLoadOrderMechanism.FILE_TIMESTAMPS,
+                pluginCount = 2,
+                enabledPluginCount = 1,
+                pluginsTxtContent = "FalloutNV.esm",
+                pluginsTxtPath = "/target/plugins.txt",
+                loadorderTxtContent = null,
+                loadorderTxtPath = null,
+                timestampedPluginCount = 2,
+                timestampDataFolderPath = "/target/Data"
+            )
         }
     }
 

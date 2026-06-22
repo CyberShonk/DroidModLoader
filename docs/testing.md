@@ -62,11 +62,20 @@ Risk order:
 
 ### Plugin Handling
 
-- .esm files are discovered.
-- .esp files are discovered.
-- Plugin enabled state is saved.
-- Disabled plugins are excluded from exported output.
-- Plugin order survives app restart.
+- `.esm`, `.esp`, and relevant `.esl` files are discovered.
+- Plugin enabled state and selected priority survive app restart.
+- `plugins.txt` contains enabled plugins in selected order.
+- Skyrim LE writes a complete-order `loadorder.txt` without changing plugin
+  timestamps.
+- Oblivion, Fallout 3, and Fallout: New Vegas apply strictly increasing plugin
+  timestamps in selected order and remove stale internal `loadorder.txt` output.
+- Timestamp ordering includes disabled plugins without enabling them.
+- Missing or duplicate plugin files fail before timestamp mutation.
+- A partial timestamp failure restores changed timestamps where practical.
+- Timestamp games reject Storage Access Framework tree-URI targets before
+  output changes.
+- Switching profiles does not read or rewrite another profile's plugin state or
+  output files.
 
 ### Profiles
 
@@ -144,7 +153,8 @@ Current coverage includes:
 
 - path normalization and deployment-scope classification;
 - profile storage paths and legacy-state migration;
-- plugin discovery;
+- plugin discovery, game-aware activation output, transactional plugin-output
+  replacement, and rollback-safe legacy timestamp ordering;
 - archive-folder scanning, archive metadata, downloaded-archive records, and
   Nexus URL parsing;
 - installer option selection and display-name normalization; and

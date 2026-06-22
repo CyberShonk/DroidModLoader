@@ -77,12 +77,20 @@ Droid Mod Loader can discover Bethesda plugin files such as:
 - `.esp`
 - `.esl` where relevant
 
-Plugin output files may include:
+Plugin activation and order are applied according to the active profile's game:
 
-- `plugins.txt`
-- `loadorder.txt`
+- `plugins.txt` contains enabled plugins in the selected order.
+- Skyrim Legendary Edition also receives `loadorder.txt`, which keeps the
+  complete selected order. Disabled plugins may remain there so their saved
+  positions are not lost.
+- Oblivion, Fallout 3, and Fallout: New Vegas use plugin-file modification
+  timestamps for load order. DML applies the complete selected order to those
+  timestamps and does not present `loadorder.txt` as authoritative.
 
-Disabled plugins should be excluded from exported plugin files.
+Timestamp ordering requires a writable local Data folder path. Android Storage
+Access Framework tree URIs do not provide a safe standard operation for setting
+arbitrary file modification times, so DML refuses that operation before changing
+plugin output.
 
 ## 5. Review Warnings
 

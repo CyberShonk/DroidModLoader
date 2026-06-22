@@ -34,6 +34,13 @@ import com.shonkware.droidmodloader.engine.index.ModFilePreviewEntry
 import com.shonkware.droidmodloader.engine.index.ModFilePreviewStatus
 import com.shonkware.droidmodloader.engine.plugins.DataFolderPluginScanner
 import com.shonkware.droidmodloader.engine.plugins.GamePluginRules
+import com.shonkware.droidmodloader.engine.plugins.GamePluginLoadOrderRules
+import com.shonkware.droidmodloader.engine.plugins.PluginApplicationResult
+import com.shonkware.droidmodloader.engine.plugins.PluginConfigurationApplier
+import com.shonkware.droidmodloader.engine.plugins.PluginConfigurationApplyException
+import com.shonkware.droidmodloader.engine.plugins.PluginLoadOrderMechanism
+import com.shonkware.droidmodloader.engine.plugins.PluginOutputBuilder
+import com.shonkware.droidmodloader.engine.plugins.PluginTimestampOrderer
 import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanner
@@ -113,6 +120,12 @@ class ModEngine(
     private val pluginOutputRepository = PluginOutputRepository(
         pluginsTxtFile = pluginsTxtFile,
         loadorderTxtFile = loadorderTxtFile
+    )
+    private val gamePluginLoadOrderRules = GamePluginLoadOrderRules()
+    private val pluginConfigurationApplier = PluginConfigurationApplier(
+        outputBuilder = PluginOutputBuilder(),
+        outputRepository = pluginOutputRepository,
+        timestampOrderer = PluginTimestampOrderer()
     )
     private val dataFolderPluginScanner = DataFolderPluginScanner(appContext)
     private val gamePluginRules = GamePluginRules()
@@ -953,48 +966,45 @@ class ModEngine(
         }
     }
 
-    fun buildPluginsTxt(plugins: List<PluginEntry>): String {
-        return plugins
-            .sortedBy { it.priority }
-            .filter { it.enabled }
-            .joinToString(separator = "\n") { it.pluginName }
-    }
-
-    fun buildLoadorderTxt(plugins: List<PluginEntry>): String {
-        return plugins
-            .sortedBy { it.priority }
-            .joinToString(separator = "\n") { it.pluginName }
-    }
-
-    fun exportCurrentPluginOutputs(): Pair<String, String> {
-        val plugins = getCurrentPlugins().sortedBy { it.priority }
-
-        val pluginsTxt = buildPluginsTxt(plugins)
-        val loadorderTxt = buildLoadorderTxt(plugins)
-
-        pluginOutputRepository.savePluginsTxt(pluginsTxt)
-        pluginOutputRepository.saveLoadorderTxt(loadorderTxt)
-
-        return Pair(pluginsTxt, loadorderTxt)
-    }
-
-    fun exportSavedPluginOutputs(): Pair<String, String> {
+    fun applySavedPluginConfiguration(gameId: String): PluginApplicationResult {
+        val rule = gamePluginLoadOrderRules.require(gameId)
         val plugins = loadPlugins().sortedBy { it.priority }
+        val timestampDataFolder = when (rule.mechanism) {
+            PluginLoadOrderMechanism.TEXT_FILES -> null
+            PluginLoadOrderMechanism.FILE_TIMESTAMPS -> {
+                resolvePluginTimestampDataFolder(gameId)
+            }
+        }
 
-        val pluginsTxt = buildPluginsTxt(plugins)
-        val loadorderTxt = buildLoadorderTxt(plugins)
-
-        pluginOutputRepository.savePluginsTxt(pluginsTxt)
-        pluginOutputRepository.saveLoadorderTxt(loadorderTxt)
-
-        return Pair(pluginsTxt, loadorderTxt)
+        return pluginConfigurationApplier.apply(
+            rule = rule,
+            plugins = plugins,
+            timestampDataFolder = timestampDataFolder
+        )
     }
 
-    fun getPluginOutputFilePaths(): Pair<String, String> {
-        return Pair(
-            pluginsTxtFile.absolutePath,
-            loadorderTxtFile.absolutePath
-        )
+    private fun resolvePluginTimestampDataFolder(gameId: String): File {
+        val config = getGameDeploymentConfig(gameId)
+
+        if (config?.realDeployEnabled == true) {
+            if (!config.targetTreeUri.isNullOrBlank()) {
+                throw PluginConfigurationApplyException(
+                    "Timestamp-based plugin ordering cannot write modification times through " +
+                        "a Storage Access Framework tree URI. Select a writable local Data " +
+                        "folder path or use simulated deployment."
+                )
+            }
+
+            if (!validateTargetDataPath(config.targetDataPath)) {
+                throw PluginConfigurationApplyException(
+                    "The configured local Data folder is invalid: ${config.targetDataPath}"
+                )
+            }
+
+            return File(config.targetDataPath)
+        }
+
+        return deployRootDir
     }
 
     fun readExportedPluginsTxt(): String {

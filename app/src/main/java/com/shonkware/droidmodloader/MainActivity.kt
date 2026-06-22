@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
             appendLog = { message -> appendLog(message) },
             appendError = { message, throwable -> appendError(message, throwable) },
             updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            selectedGameIdProvider = { selectedGameId },
             refreshDashboard = { refreshDashboard() }
         )
     }

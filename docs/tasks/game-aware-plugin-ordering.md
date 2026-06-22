@@ -6,8 +6,9 @@ Bug, Safety, Test.
 
 ## Implementation Status
 
-The task is scoped and ready for implementation. No production-code changes
-are included in this task-definition commit.
+Implementation and JVM regression tests are drafted. Full local Gradle
+validation and manual safe-folder/runtime verification remain required before
+this task is complete.
 
 ## Requirement IDs
 
@@ -18,11 +19,11 @@ are included in this task-definition commit.
 
 ## Problem
 
-DML currently writes one universal pair of `plugins.txt` and `loadorder.txt`
-files. It does not select output behavior by game and does not apply the
-file-timestamp ordering required by the currently selectable legacy games.
-A successful text export can therefore claim an order that Fallout: New Vegas,
-Fallout 3, or Oblivion will not actually load.
+Before this task, DML wrote one universal pair of `plugins.txt` and
+`loadorder.txt` files. It did not select output behavior by game or apply the
+file-timestamp ordering required by the currently selectable legacy games. A
+successful text export could therefore claim an order that Fallout: New Vegas,
+Fallout 3, or Oblivion would not actually load.
 
 ## Verified Current Game Matrix
 

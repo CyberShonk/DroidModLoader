@@ -68,7 +68,7 @@ It should handle:
 |-------------------------------------|--------------------------------------------------------|
 | engine/install/                     | Archive reading, install layout analysis, FOMOD basics |
 | engine/index/                       | Mod file indexing and file summaries                   |
-| engine/plugins/                     | Plugin discovery and plugin rules                      |
+| engine/plugins/                     | Plugin discovery, game rules, output building, and timestamp ordering |
 | engine/profile/                     | Profile persistence                                    |
 | engine/resolve/                     | Resolved data graph foundation                         |
 | engine/deploy/                      | Deployment target and deployment execution             |
@@ -76,6 +76,33 @@ It should handle:
 | engine/deploy/journal/              | Deployment journal and recovery state                  |
 | engine/diagnostics or related logic | Human-readable app diagnostics                         |
 | engine/util/                        | Path and logging helpers                               |
+
+## Plugin Activation and Ordering Flow
+
+Plugin state remains profile-scoped. `MainActivity.createModEngineForWorkflows()`
+constructs each engine with the active profile's `plugins.json`, `plugins.txt`,
+and `loadorder.txt` paths.
+
+Responsibilities are separated as follows:
+
+- `GamePluginLoadOrderRules.kt` declares whether a selectable game uses text
+  files or plugin modification timestamps for order.
+- `PluginOutputBuilder.kt` formats enabled-only activation output and any
+  complete-order text output required by the game.
+- `PluginTimestampOrderer.kt` preflights and applies strictly increasing
+  timestamps, with rollback after partial failure.
+- `PluginOutputRepository.kt` transactionally replaces profile-scoped output
+  files and removes stale `loadorder.txt` output for timestamp-based games.
+- `PluginConfigurationApplier.kt` coordinates timestamp application and output
+  replacement, restoring timestamps if output replacement fails.
+- `ModEngine.kt` resolves the active game's local or simulated Data target and
+  refuses unsupported tree-URI timestamp mutation before output changes.
+- `PluginManagementWorkflow.kt` preserves the existing one-time refresh fallback
+  and reports the selected game and applied ordering mechanism.
+
+Skyrim Legendary Edition uses enabled-only `plugins.txt` plus complete-order
+`loadorder.txt`. Oblivion, Fallout 3, and Fallout: New Vegas use enabled-only
+`plugins.txt` plus full selected-order plugin timestamps.
 
 ## Intended Data Flow
 

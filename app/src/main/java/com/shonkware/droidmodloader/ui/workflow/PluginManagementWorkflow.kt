@@ -2,6 +2,8 @@ package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.model.PluginEntry
+import com.shonkware.droidmodloader.engine.plugins.PluginApplicationResult
+import com.shonkware.droidmodloader.engine.plugins.PluginLoadOrderMechanism
 
 internal interface PluginManagementEngine {
     fun getCurrentPlugins(): List<PluginEntry>
@@ -9,8 +11,7 @@ internal interface PluginManagementEngine {
     fun normalizePluginPriorities(plugins: List<PluginEntry>): List<PluginEntry>
     fun saveCurrentPlugins(plugins: List<PluginEntry>)
     fun applyPluginPriorityOrder(orderedPluginPaths: List<String>)
-    fun exportSavedPluginOutputs(): Pair<String, String>
-    fun getPluginOutputFilePaths(): Pair<String, String>
+    fun applySavedPluginConfiguration(gameId: String): PluginApplicationResult
     fun syncPlugins()
 }
 
@@ -34,12 +35,8 @@ internal class PluginManagementEngineAdapter(
         engine.applyPluginPriorityOrder(orderedPluginPaths)
     }
 
-    override fun exportSavedPluginOutputs(): Pair<String, String> {
-        return engine.exportSavedPluginOutputs()
-    }
-
-    override fun getPluginOutputFilePaths(): Pair<String, String> {
-        return engine.getPluginOutputFilePaths()
+    override fun applySavedPluginConfiguration(gameId: String): PluginApplicationResult {
+        return engine.applySavedPluginConfiguration(gameId)
     }
 
     override fun syncPlugins() {
@@ -56,6 +53,7 @@ internal class PluginManagementWorkflow(
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
     private val updateLastOperationStatus: (String) -> Unit,
+    private val selectedGameIdProvider: () -> String,
     private val refreshDashboard: () -> Unit
 ) {
     fun togglePluginEnabled(normalizedPath: String) {
@@ -137,15 +135,15 @@ internal class PluginManagementWorkflow(
 
     fun writeLoadOrderFiles() {
         if (isOperationInProgress()) {
-            appendLog("Ignoring plugin file write request: operation already in progress.")
+            appendLog("Ignoring plugin configuration request: operation already in progress.")
             return
         }
 
-        beginOperation("Writing plugin files...")
+        beginOperation("Applying plugin configuration...")
 
         val engine = createEngine()
         if (engine == null) {
-            failOperation("Writing plugin files failed: engine could not be created.", null)
+            failOperation("Applying plugin configuration failed: engine could not be created.", null)
             return
         }
 
@@ -153,41 +151,67 @@ internal class PluginManagementWorkflow(
             val savedPlugins = engine.loadPlugins().sortedBy { it.priority }
 
             if (savedPlugins.isEmpty()) {
-                appendLog("No saved plugin list found. Refreshing plugin list once before writing files.")
+                appendLog(
+                    "No saved plugin list found. Refreshing plugin list once before applying configuration."
+                )
                 engine.syncPlugins()
             }
 
             val pluginsAfterFallback = engine.loadPlugins().sortedBy { it.priority }
 
             if (pluginsAfterFallback.isEmpty()) {
-                appendLog("No plugins available to write.")
+                appendLog("No plugins available to apply.")
                 appendLog("RESULT: FAIL")
-                failOperation("Writing plugin files failed: no plugins available.", null)
+                failOperation("Applying plugin configuration failed: no plugins available.", null)
                 return
             }
 
-            val (pluginsTxt, loadorderTxt) = engine.exportSavedPluginOutputs()
-            val (pluginsTxtPath, loadorderTxtPath) = engine.getPluginOutputFilePaths()
+            val selectedGameId = selectedGameIdProvider()
+            val result = engine.applySavedPluginConfiguration(selectedGameId)
 
-            val enabledPluginCount = pluginsAfterFallback.count { it.enabled }
+            appendLog("Plugin configuration applied from saved plugin list.")
+            appendLog("Selected game: ${result.gameId}")
+            appendLog("Plugin order mechanism: ${result.mechanism.logLabel()}")
+            appendLog("Plugin count: ${result.pluginCount}")
+            appendLog("Enabled plugin count: ${result.enabledPluginCount}")
+            appendLog("plugins.txt path: ${result.pluginsTxtPath}")
+            appendLog(
+                "plugins.txt line count: " +
+                    result.pluginsTxtContent.lines().count { it.isNotBlank() }
+            )
 
-            appendLog("Plugin files written from saved plugin list.")
-            appendLog("Plugin count: ${pluginsAfterFallback.size}")
-            appendLog("Enabled plugin count: $enabledPluginCount")
-            appendLog("plugins.txt path: $pluginsTxtPath")
-            appendLog("loadorder.txt path: $loadorderTxtPath")
-            appendLog("plugins.txt line count: ${pluginsTxt.lines().count { it.isNotBlank() }}")
-            appendLog("loadorder.txt line count: ${loadorderTxt.lines().count { it.isNotBlank() }}")
+            if (result.loadorderTxtPath != null && result.loadorderTxtContent != null) {
+                appendLog("loadorder.txt path: ${result.loadorderTxtPath}")
+                appendLog(
+                    "loadorder.txt line count: " +
+                        result.loadorderTxtContent.lines().count { it.isNotBlank() }
+                )
+            } else {
+                appendLog("loadorder.txt not written; plugin timestamps are authoritative.")
+            }
+
+            if (result.mechanism == PluginLoadOrderMechanism.FILE_TIMESTAMPS) {
+                appendLog("Timestamped plugin count: ${result.timestampedPluginCount}")
+                appendLog("Timestamp Data folder: ${result.timestampDataFolderPath.orEmpty()}")
+            }
+
             appendLog("RESULT: PASS")
-
-            finishOperation("Plugin files written successfully.")
+            finishOperation("Plugin configuration applied successfully.")
         } catch (e: Exception) {
-            appendError("Write plugin files workflow failed: ${e.message}", e)
+            appendError("Apply plugin configuration workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            failOperation("Writing plugin files failed: ${e.message}", e)
+            failOperation("Applying plugin configuration failed: ${e.message}", e)
         }
 
         refreshDashboard()
-        appendLog("----- Write Plugin Files Workflow End -----")
+        appendLog("----- Apply Plugin Configuration Workflow End -----")
     }
+
+    private fun PluginLoadOrderMechanism.logLabel(): String {
+        return when (this) {
+            PluginLoadOrderMechanism.TEXT_FILES -> "text files"
+            PluginLoadOrderMechanism.FILE_TIMESTAMPS -> "file timestamps"
+        }
+    }
+
 }

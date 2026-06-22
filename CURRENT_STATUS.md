@@ -2,20 +2,22 @@
 
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
-* **Reconciliation baseline:** `e8c27ee` (`docs: refresh current project status`)
+* **Reconciliation baseline:** `508bca2` (merged post-`v0.6.0` documentation reconciliation)
 * **Repository state:** Local `main` matched `origin/main` with a clean working tree when this reconciliation began.
 
 ## Current objective
 
-Finish the documentation-only priority reconciliation, then begin one scoped
-plugin-correctness task without mixing in later setup, output, or preset work.
+Review and validate the scoped game-aware plugin activation and ordering
+implementation without mixing in setup redesign, external `DML_output`, INI
+presets, or broad `ModEngine` extraction.
 
-Before beginning another code change:
+Before accepting the code changes:
 
-1. Review and commit the proposed priority, backlog, roadmap, requirement, and
-   decision updates.
-2. Create a scoped task or GitHub Issue for game-specific plugin ordering.
-3. Do not begin implementation until requirements, tests, and done criteria are recorded.
+1. Review the implementation as small coherent commit groups.
+2. Run the full JVM suite and debug build in the local development environment.
+3. Complete safe-folder manual checks for Skyrim LE text ordering and the three
+   timestamp-based selectable games.
+4. Record any real-container limitations before marking REQ-PLUGIN-005 working.
 
 ## Completed most recently
 
@@ -47,14 +49,10 @@ The repository itself was confirmed clean and synchronized with `origin/main` on
 
 ## Next safe action
 
-Scope the game-aware plugin output and legacy timestamp-ordering task.
-
-The task must first confirm the currently selectable game definitions. It must
-fix timestamp ordering for affected current profiles, keep Skyrim LE behavior
-separate, and leave a reusable strategy for later TTW, Fallout 3, and Oblivion
-definitions. It must define automated tests, manual
-runtime verification, failure handling, and profile isolation before code is
-changed.
+Run local Gradle validation and review the proposed game-aware plugin-ordering
+diff. Then use disposable Data folders to verify Skyrim LE text output,
+Oblivion/Fallout 3/Fallout: New Vegas timestamps, failure rollback, and profile
+isolation before committing the integration.
 
 ## Current constraints
 
@@ -70,7 +68,7 @@ changed.
 
 ## Known open work
 
-* Correct game-aware plugin activation output and legacy timestamp ordering.
+* Finish host and manual validation of game-aware plugin activation and legacy timestamp ordering.
 * Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
 * Treat `ModEngine.kt` service extraction as a separate later project.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
@@ -82,9 +80,8 @@ changed.
 
 ## Blockers
 
-No repository blocker is currently recorded.
-
-The selected next implementation task is plugin-order correctness. It is not yet scoped for coding.
+The scoped plugin-order implementation still requires full host Gradle validation
+and manual safe-folder/runtime verification before acceptance.
 
 ## Private and public boundary
 
@@ -102,4 +99,4 @@ Private experiments, unpublished research, credentials, signing material, and pr
 
 ## Last updated
 
-2026-06-17
+2026-06-22

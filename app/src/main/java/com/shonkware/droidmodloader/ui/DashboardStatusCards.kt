@@ -201,7 +201,7 @@ fun MainActionsCard(
             )
 
             DmlButtons.Primary(
-                text = "Write Plugin Files",
+                text = "Apply Plugin Changes",
                 enabled = !operationInProgress,
                 onClick = onWriteLoadOrderFiles,
                 modifier = Modifier.fillMaxWidth()
