@@ -78,7 +78,9 @@ data class DashboardUiState(
     val showDeployRecoveryDialog: Boolean = false,
     val showForceFullRedeployConfirmDialog: Boolean = false,
     val showArchiveFolderSetupDialog: Boolean = false,
-    val archiveBrowserState: ArchiveBrowserUiState = ArchiveBrowserUiState()
+    val archiveBrowserState: ArchiveBrowserUiState = ArchiveBrowserUiState(),
+    val allFilesAccessRequired: Boolean = false,
+    val allFilesAccessGranted: Boolean = true
 )
 
 data class DashboardActions(
@@ -158,7 +160,8 @@ data class DashboardActions(
 
     val onRequestForceFullRedeploy: () -> Unit = {},
     val onConfirmForceFullRedeploy: () -> Unit = {},
-    val onCancelForceFullRedeploy: () -> Unit = {}
+    val onCancelForceFullRedeploy: () -> Unit = {},
+    val onRequestAllFilesAccess: () -> Unit = {}
 )
 
 @Composable
@@ -311,6 +314,13 @@ fun DroidModLoaderScreen(
 
     LaunchedEffect(archiveSearchText) {
         archiveListState.scrollToItem(0)
+    }
+
+    if (state.allFilesAccessRequired && !state.allFilesAccessGranted) {
+        AllFilesAccessDialog(
+            onOpenSettings = actions.onRequestAllFilesAccess
+        )
+        return
     }
 
     if (!state.setupComplete) {

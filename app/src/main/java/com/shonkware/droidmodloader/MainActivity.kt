@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.content.ActivityNotFoundException
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -74,6 +75,8 @@ import com.shonkware.droidmodloader.ui.workflow.DeveloperToolsWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.OverwriteActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.FullscreenPanelActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowController
+import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
+import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
 
 class MainActivity : ComponentActivity() {
 
@@ -134,6 +137,15 @@ class MainActivity : ComponentActivity() {
     private var deployRecoveryWarningText by mutableStateOf("")
     private var showDeployRecoveryDialog by mutableStateOf(false)
     private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
+    private var allFilesAccessGranted by mutableStateOf(true)
+    private val allFilesAccessManager by lazy {
+        AllFilesAccessManager(applicationContext)
+    }
+    private val allFilesAccessSettingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        refreshAllFilesAccessState()
+    }
     private val pickTargetFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -730,6 +742,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        refreshAllFilesAccessState()
 
         setContent {
             DmlTheme {
@@ -748,6 +761,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshAllFilesAccessState()
 
         if (secondScreenEnabled) {
             secondScreenController?.start()
@@ -823,7 +837,9 @@ class MainActivity : ComponentActivity() {
 
             showForceFullRedeployConfirmDialog = showForceFullRedeployConfirmDialog,
             showArchiveFolderSetupDialog = showArchiveFolderSetupDialog,
-            archiveBrowserState = archiveBrowserState
+            archiveBrowserState = archiveBrowserState,
+            allFilesAccessRequired = android.os.Build.VERSION.SDK_INT >= AllFilesAccessPolicy.ANDROID_11_API_LEVEL,
+            allFilesAccessGranted = allFilesAccessGranted
         )
     }
 
@@ -2112,4 +2128,28 @@ class MainActivity : ComponentActivity() {
         selectedRootTreeUriText = state.targetRootTreeUriText
         realDeployEnabledState = state.realDeployEnabled
     }
+    private fun refreshAllFilesAccessState() {
+        allFilesAccessGranted = allFilesAccessManager.isGranted()
+    }
+
+    private fun requestAllFilesAccess() {
+        val primary = allFilesAccessManager.appSpecificSettingsIntent() ?: return
+
+        try {
+            allFilesAccessSettingsLauncher.launch(primary)
+        } catch (_: ActivityNotFoundException) {
+            val fallback = allFilesAccessManager.fallbackSettingsIntent()
+            if (fallback == null) {
+                appendLog("All-files access settings are unavailable on this device.")
+                return
+            }
+
+            try {
+                allFilesAccessSettingsLauncher.launch(fallback)
+            } catch (e: ActivityNotFoundException) {
+                appendError("All-files access settings are unavailable: ${e.message}", e)
+            }
+        }
+    }
+
 }
