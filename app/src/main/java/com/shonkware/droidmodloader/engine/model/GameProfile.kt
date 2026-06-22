@@ -10,9 +10,5 @@ data class GameProfile(
     val targetRootPath: String = "",
     val dataPathReselectionRequired: Boolean = false,
     val rootPathReselectionRequired: Boolean = false,
-    val iniPresetId: String? = null,
-    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
-    val targetTreeUri: String? = null,
-    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
-    val targetRootTreeUri: String? = null
+    val iniPresetId: String? = null
 )

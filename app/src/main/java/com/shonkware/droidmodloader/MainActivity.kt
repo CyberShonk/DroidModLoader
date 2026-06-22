@@ -1850,9 +1850,6 @@ class MainActivity : ComponentActivity() {
             val backupRootDir = File(profileStateDir, "repair_backups/v050_artifacts")
             val reportDir = File(profileStateDir, "repair_reports")
 
-            val dataTreeUri: String? = null
-            val rootTreeUri: String? = null
-
             val dataPath = targetPathText
                 .trim()
                 .takeIf { it.isNotBlank() }
@@ -1862,16 +1859,13 @@ class MainActivity : ComponentActivity() {
                 .takeIf { it.isNotBlank() }
 
             val tool = V050ArtifactRepairTool(
-                context = applicationContext,
                 backupRootDir = backupRootDir,
                 reportDir = reportDir
             )
 
             val result = tool.repair(
                 modsDir = modsDir,
-                dataTreeUri = dataTreeUri,
                 dataPath = dataPath,
-                rootTreeUri = rootTreeUri,
                 rootPath = rootPath
             )
 

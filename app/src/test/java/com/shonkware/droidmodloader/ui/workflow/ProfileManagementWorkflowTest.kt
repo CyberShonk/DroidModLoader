@@ -5,7 +5,6 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.profile.ProfileRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -87,7 +86,6 @@ class ProfileManagementWorkflowTest {
         assertEquals("fallout_nv_2000", profile.profileId)
         assertEquals("Fallout New Vegas Profile", profile.profileName)
         assertEquals("/games/falloutnv/Data", profile.targetDataPath)
-        assertNull(profile.targetTreeUri)
         assertFalse(profile.realDeployEnabled)
         assertEquals(profile, appliedProfile)
         assertEquals("fallout_nv_2000", repository.loadSetupState().activeProfileId)
@@ -140,9 +138,7 @@ class ProfileManagementWorkflowTest {
         val savedProfiles = repository.loadProfiles()
         val savedCurrent = savedProfiles.first { it.profileId == currentProfile.profileId }
         assertEquals("/games/skyrim/Data", savedCurrent.targetDataPath)
-        assertNull(savedCurrent.targetTreeUri)
         assertEquals("/games/skyrim", savedCurrent.targetRootPath)
-        assertNull(savedCurrent.targetRootTreeUri)
         assertTrue(savedCurrent.realDeployEnabled)
         assertEquals(targetProfile, switchedProfile)
         assertEquals(targetProfile.profileId, repository.loadSetupState().activeProfileId)
@@ -257,9 +253,7 @@ class ProfileManagementWorkflowTest {
             gameId = gameId,
             gameDisplayName = gameId,
             targetDataPath = "",
-            targetTreeUri = null,
             targetRootPath = "",
-            targetRootTreeUri = null,
             realDeployEnabled = false,
             iniPresetId = null
         )

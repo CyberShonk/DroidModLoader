@@ -7,9 +7,5 @@ data class GameDeploymentConfig(
     val realDeployEnabled: Boolean,
     val targetRootPath: String = "",
     val dataPathReselectionRequired: Boolean = false,
-    val rootPathReselectionRequired: Boolean = false,
-    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
-    val targetTreeUri: String? = null,
-    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
-    val targetRootTreeUri: String? = null
+    val rootPathReselectionRequired: Boolean = false
 )

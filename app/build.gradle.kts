@@ -60,8 +60,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     //noinspection UseTomlInstead
-    implementation("androidx.documentfile:documentfile:1.1.0")
-    //noinspection UseTomlInstead
     implementation("org.apache.commons:commons-compress:1.28.0")
     //noinspection UseTomlInstead
     implementation("org.tukaani:xz:1.12")

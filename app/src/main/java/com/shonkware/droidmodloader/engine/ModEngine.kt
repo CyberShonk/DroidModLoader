@@ -18,8 +18,6 @@ import com.shonkware.droidmodloader.engine.data.GameDeploymentConfigRepository
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import java.io.File
 import android.content.Context
-import android.net.Uri
-import com.shonkware.droidmodloader.engine.deploy.TreeUriDeploymentManager
 import com.shonkware.droidmodloader.engine.data.PluginListRepository
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.data.PluginOutputRepository
@@ -72,6 +70,7 @@ import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalResul
 import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalStatus
 import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRecord
 import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRepository
+import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 
 data class UninstallResult(
     val removed: Boolean,
@@ -112,7 +111,7 @@ class ModEngine(
             File(stateFile.parentFile, "mod_file_indexes")
         )
     )
-    private val overwriteScanner = OverwriteScanner(appContext)
+    private val overwriteScanner = OverwriteScanner()
     private val preparedArchiveInstaller = PreparedArchiveInstaller(
         tempDir = tempDir,
         modsDir = modsDir
@@ -127,7 +126,8 @@ class ModEngine(
         outputRepository = pluginOutputRepository,
         timestampOrderer = PluginTimestampOrderer()
     )
-    private val dataFolderPluginScanner = DataFolderPluginScanner(appContext)
+    private val dataFolderPluginScanner = DataFolderPluginScanner()
+    private val directPathValidator = DirectPathValidator()
     private val gamePluginRules = GamePluginRules()
     fun buildModFromInstalledFolder(
         modDir: File,
@@ -484,21 +484,16 @@ class ModEngine(
     }
 
     fun validateTargetDataPath(path: String): Boolean {
-        if (path.isBlank()) return false
-
-        val target = File(path)
-        val normalized = path.lowercase()
-
-        if (normalized.contains("android/data/com.shonkware.droidmodloader")) return false
-        if (normalized.endsWith("/")) return true
-
-        return target.exists() || target.parentFile?.exists() == true
+        return directPathValidator.validateDirectory(
+            path = path,
+            requireWritable = true
+        ).isValid
     }
     fun deployForGame(gameId: String): ScopedDeploymentResult {
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker(appContext).check(
+        val preflight = DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )
@@ -531,7 +526,6 @@ class ModEngine(
                 oldManifest = oldDataManifest,
                 newWinningRecords = dataWinningRecords,
                 realDeployEnabled = config?.realDeployEnabled == true,
-                targetTreeUri = config?.targetTreeUri,
                 targetPath = config?.targetDataPath ?: "",
                 fallbackRootDir = deployRootDir,
                 backupRootDir = getDeploymentBackupDir(
@@ -557,7 +551,6 @@ class ModEngine(
                     oldManifest = oldRootManifest,
                     newWinningRecords = rootWinningRecords,
                     realDeployEnabled = config?.realDeployEnabled == true,
-                    targetTreeUri = config?.targetRootTreeUri,
                     targetPath = config?.targetRootPath ?: "",
                     fallbackRootDir = getSimulatedGameRootDir(),
                     backupRootDir = getDeploymentBackupDir(
@@ -611,7 +604,7 @@ class ModEngine(
         val plan = buildFullRedeployPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker(appContext).check(
+        val preflight = DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )
@@ -658,7 +651,6 @@ class ModEngine(
                 oldManifest = forcedOldDataManifest,
                 newWinningRecords = dataWinningRecords,
                 realDeployEnabled = config?.realDeployEnabled == true,
-                targetTreeUri = config?.targetTreeUri,
                 targetPath = config?.targetDataPath ?: "",
                 fallbackRootDir = deployRootDir,
                 backupRootDir = getDeploymentBackupDir(
@@ -687,7 +679,6 @@ class ModEngine(
                     oldManifest = forcedOldRootManifest,
                     newWinningRecords = rootWinningRecords,
                     realDeployEnabled = config?.realDeployEnabled == true,
-                    targetTreeUri = config?.targetRootTreeUri,
                     targetPath = config?.targetRootPath ?: "",
                     fallbackRootDir = getSimulatedGameRootDir(),
                     backupRootDir = getDeploymentBackupDir(
@@ -741,39 +732,20 @@ class ModEngine(
         oldManifest: List<DeploymentRecord>,
         newWinningRecords: List<FileRecord>,
         realDeployEnabled: Boolean,
-        targetTreeUri: String?,
         targetPath: String,
         fallbackRootDir: File,
         backupRootDir: File
     ): Pair<List<DeploymentRecord>, DeploymentResult> {
-        return when {
-            realDeployEnabled && !targetTreeUri.isNullOrBlank() -> {
-                val treeDeploymentManager = TreeUriDeploymentManager(
-                    context = appContext,
-                    contentResolver = appContext.contentResolver,
-                    treeUri = Uri.parse(targetTreeUri),
-                    backupRootDir = backupRootDir
-                )
-
-                treeDeploymentManager.deploy(oldManifest, newWinningRecords)
-            }
-
-            realDeployEnabled && validateTargetDataPath(targetPath) -> {
-                val deploymentManager = DeploymentManager(
-                    deployRootDir = File(targetPath),
-                    backupRootDir = backupRootDir
-                )
-                deploymentManager.deploy(oldManifest, newWinningRecords)
-            }
-
-            else -> {
-                val deploymentManager = DeploymentManager(
-                    deployRootDir = fallbackRootDir,
-                    backupRootDir = backupRootDir
-                )
-                deploymentManager.deploy(oldManifest, newWinningRecords)
-            }
+        val deployTarget = if (realDeployEnabled && validateTargetDataPath(targetPath)) {
+            File(targetPath)
+        } else {
+            fallbackRootDir
         }
+
+        return DeploymentManager(
+            deployRootDir = deployTarget,
+            backupRootDir = backupRootDir
+        ).deploy(oldManifest, newWinningRecords)
     }
 
     fun buildDeploymentPlanForGame(gameId: String): ScopedDeploymentPlan {
@@ -815,7 +787,7 @@ class ModEngine(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker(appContext).check(
+        val preflight = DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )
@@ -838,15 +810,15 @@ class ModEngine(
 
         val dataTargetStatus = when {
             config == null -> "no config"
-            !config.targetTreeUri.isNullOrBlank() -> "Tree URI selected"
-            config.targetDataPath.isNotBlank() -> "local path selected"
+            config.dataPathReselectionRequired -> "reselection required"
+            config.targetDataPath.isNotBlank() -> "direct path selected"
             else -> "not selected"
         }
 
         val rootTargetStatus = when {
             config == null -> "no config"
-            !config.targetRootTreeUri.isNullOrBlank() -> "Tree URI selected"
-            config.targetRootPath.isNotBlank() -> "local path selected"
+            config.rootPathReselectionRequired -> "reselection required"
+            config.targetRootPath.isNotBlank() -> "direct path selected"
             else -> "not selected"
         }
 
@@ -875,7 +847,7 @@ class ModEngine(
             return true
         }
 
-        return !config.targetRootTreeUri.isNullOrBlank() ||
+        return !config.rootPathReselectionRequired &&
                 validateTargetDataPath(config.targetRootPath)
     }
 
@@ -987,14 +959,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId)
 
         if (config?.realDeployEnabled == true) {
-            if (!config.targetTreeUri.isNullOrBlank()) {
-                throw PluginConfigurationApplyException(
-                    "Timestamp-based plugin ordering cannot write modification times through " +
-                        "a Storage Access Framework tree URI. Select a writable local Data " +
-                        "folder path or use simulated deployment."
-                )
-            }
-
             if (!validateTargetDataPath(config.targetDataPath)) {
                 throw PluginConfigurationApplyException(
                     "The configured local Data folder is invalid: ${config.targetDataPath}"
@@ -1159,10 +1123,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId) ?: return emptyList()
 
         val foundNames = when {
-            config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
-                dataFolderPluginScanner.scanTreeUriDataFolder(config.targetTreeUri)
-            }
-
             config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
                 dataFolderPluginScanner.scanLocalDataFolder(File(config.targetDataPath))
             }
@@ -1489,9 +1449,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId)
 
         val targetDescription = when {
-            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() ->
-                config.targetTreeUri ?: ""
-
             config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) ->
                 config.targetDataPath
 
@@ -1534,10 +1491,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId)
 
         return when {
-            config != null && config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> {
-                overwriteScanner.scanTreeUriDataFolder(config.targetTreeUri)
-            }
-
             config != null && config.realDeployEnabled && validateTargetDataPath(config.targetDataPath) -> {
                 overwriteScanner.scanLocalDataFolder(File(config.targetDataPath))
             }
@@ -1556,9 +1509,9 @@ class ModEngine(
             return true
         }
 
-        // SAF lastModified values are not always reliable, so only treat modified time as a signal
-        // when both values are present and the size also changed elsewhere.
-        return false
+        return baseline.modifiedEpochMillis != null &&
+                current.modifiedEpochMillis != null &&
+                baseline.modifiedEpochMillis != current.modifiedEpochMillis
     }
 
     private fun shouldIgnoreOverwritePath(normalizedPath: String): Boolean {
@@ -1605,16 +1558,6 @@ class ModEngine(
         val config = getGameDeploymentConfig(gameId)
 
         return when {
-            config != null &&
-                    config.realDeployEnabled &&
-                    !config.targetTreeUri.isNullOrBlank() -> {
-                DeploymentTargetIdentity(
-                    gameId = gameId,
-                    mode = "tree_uri",
-                    target = config.targetTreeUri ?: ""
-                )
-            }
-
             config != null &&
                     config.realDeployEnabled &&
                     validateTargetDataPath(config.targetDataPath) -> {
@@ -1671,16 +1614,6 @@ class ModEngine(
         return when {
             config != null &&
                     config.realDeployEnabled &&
-                    !config.targetRootTreeUri.isNullOrBlank() -> {
-                DeploymentTargetIdentity(
-                    gameId = gameId,
-                    mode = "root_tree_uri",
-                    target = config.targetRootTreeUri ?: ""
-                )
-            }
-
-            config != null &&
-                    config.realDeployEnabled &&
                     validateTargetDataPath(config.targetRootPath) -> {
                 DeploymentTargetIdentity(
                     gameId = gameId,
@@ -1728,7 +1661,7 @@ class ModEngine(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        return DeploymentPreflightChecker(appContext).check(
+        return DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )
@@ -1737,7 +1670,7 @@ class ModEngine(
         val plan = buildDeploymentPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val result = DeploymentPreflightChecker(appContext).check(
+        val result = DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )
@@ -1881,7 +1814,7 @@ class ModEngine(
         val plan = buildFullRedeployPlanForGame(gameId)
         val config = getGameDeploymentConfig(gameId)
 
-        val preflight = DeploymentPreflightChecker(appContext).check(
+        val preflight = DeploymentPreflightChecker().check(
             config = config,
             plan = plan
         )

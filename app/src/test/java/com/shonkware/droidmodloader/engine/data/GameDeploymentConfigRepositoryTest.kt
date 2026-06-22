@@ -3,7 +3,6 @@ package com.shonkware.droidmodloader.engine.data
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,8 +36,6 @@ class GameDeploymentConfigRepositoryTest {
 
         assertTrue(config.dataPathReselectionRequired)
         assertTrue(config.rootPathReselectionRequired)
-        assertNull(config.targetTreeUri)
-        assertNull(config.targetRootTreeUri)
     }
 
     @Test

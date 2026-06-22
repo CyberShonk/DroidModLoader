@@ -3,7 +3,6 @@ package com.shonkware.droidmodloader.engine.profile
 import com.shonkware.droidmodloader.engine.model.GameProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -44,8 +43,6 @@ class ProfileRepositoryTest {
         assertEquals("", profile.targetRootPath)
         assertTrue(profile.dataPathReselectionRequired)
         assertTrue(profile.rootPathReselectionRequired)
-        assertNull(profile.targetTreeUri)
-        assertNull(profile.targetRootTreeUri)
     }
 
     @Test
