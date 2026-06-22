@@ -62,8 +62,8 @@ Risk order:
 
 ### Direct Storage Migration
 
-- Android-version policy distinguishes pre-Android-11 behavior from the
-  all-files special-access requirement.
+- Storage-access policy verifies granted and denied all-files access for
+  supported Android 11+ versions.
 - Direct folder selection returns canonical absolute paths and rejects missing,
   relative, unreadable, or unwritable targets as required.
 - Legacy URI-only profile and deployment records preserve unrelated state, set

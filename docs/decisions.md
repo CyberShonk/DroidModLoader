@@ -287,8 +287,8 @@ ROADMAP.md, docs/tasks/backlog.md.
 Status: Accepted.
 
 Decision: Droid Mod Loader will use ordinary absolute filesystem paths for all
-production shared-storage workflows. On Android 11 and newer, DML will require
-the user-granted `MANAGE_EXTERNAL_STORAGE` special access before browsing or
+production shared-storage workflows. DML requires Android 11 (API 30) or newer
+and requires the user-granted `MANAGE_EXTERNAL_STORAGE` special access before browsing or
 modifying shared game and mod folders. The app will not retain SAF as a parallel
 production backend.
 

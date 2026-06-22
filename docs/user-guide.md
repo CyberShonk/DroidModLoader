@@ -20,8 +20,8 @@ The normal user path is:
 
 ## 1. Grant Storage Access and Select a Game Target
 
-On Android 11 and newer, DML requires its all-files special access before it can
-browse or modify shared game and mod folders. When prompted, open the Android
+DML requires Android 11 (API 30) or newer and requires its all-files special
+access before it can browse or modify shared game and mod folders. When prompted, open the Android
 settings page for DML, enable **Allow access to manage all files**, then return
 to the app.
 

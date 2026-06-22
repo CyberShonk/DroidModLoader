@@ -2,6 +2,7 @@
 
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
+* **Minimum Android version:** Android 11 / API 30
 * **Implementation baseline:** `3480a14` (`fix: apply plugin configuration by game`)
 * **Storage direction:** one all-files direct-filesystem backend for production shared-storage work.
 

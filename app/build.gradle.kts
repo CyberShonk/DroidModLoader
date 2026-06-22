@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.shonkware.droidmodloader"
-        minSdk = 28
+        minSdk = 30
         //noinspection OldTargetApi
         targetSdk = 36
         versionCode = 2

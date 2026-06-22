@@ -80,10 +80,10 @@ backend using Android's all-files access permission.
 
 ### Permission
 
-On Android 11 and newer, direct shared-storage workflows require all-files
-access. DML must check the current grant and direct the user to the app-specific
-system settings screen when access is absent. Android 10 and older do not use
-this special permission gate.
+DML requires Android 11 (API 30) or newer. Every supported Android version
+requires all-files access for direct shared-storage workflows. DML must check
+the current grant and direct the user to the app-specific system settings screen
+when access is absent.
 
 ### Stored paths
 
@@ -142,7 +142,7 @@ and write access.
 
 ## Automated Tests
 
-- all-files permission policy for API levels below and at/above Android 11;
+- all-files permission policy and settings-intent behavior for supported Android versions;
 - settings-intent action selection;
 - canonical path validation for readable and writable directories;
 - rejection of blank, relative, missing, and non-directory paths;

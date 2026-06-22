@@ -558,7 +558,8 @@ mod storage workflows.
 
 Done when:
 
-- Android 11 and newer require and verify all-files access before shared-storage work
+- Android 11 / API 30 is the minimum supported platform
+- every supported Android version requires and verifies all-files access before shared-storage work
 - Data, Game Root, and Archive Library selections are canonical absolute paths
 - deployment, scanning, archive import, conflict inspection, and timestamp ordering use direct filesystem APIs
 - production SAF tree-URI and DocumentFile paths are removed

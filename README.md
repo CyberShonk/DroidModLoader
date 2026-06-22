@@ -2,6 +2,8 @@
 
 Droid Mod Loader is an Android app for managing Bethesda game mods.
 
+**Minimum Android version:** Android 11 (API 30).
+
 The simple version:
 
 You install mods into Droid Mod Loader.
