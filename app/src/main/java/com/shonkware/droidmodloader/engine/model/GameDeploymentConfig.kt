@@ -5,7 +5,11 @@ data class GameDeploymentConfig(
     val displayName: String,
     val targetDataPath: String,
     val realDeployEnabled: Boolean,
-    val targetTreeUri: String?,
     val targetRootPath: String = "",
+    val dataPathReselectionRequired: Boolean = false,
+    val rootPathReselectionRequired: Boolean = false,
+    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
+    val targetTreeUri: String? = null,
+    @Deprecated("Legacy SAF migration field; remove after direct-storage migration")
     val targetRootTreeUri: String? = null
 )

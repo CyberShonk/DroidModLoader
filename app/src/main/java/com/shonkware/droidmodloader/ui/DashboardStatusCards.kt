@@ -54,20 +54,20 @@ fun HeaderCard(
 fun StatusCard(
     activeProfileName: String,
     selectedGameId: String,
-    selectedTreeUriText: String,
-    selectedRootTreeUriText: String,
+    selectedDataPathText: String,
+    selectedRootPathText: String,
     realDeployEnabled: Boolean,
     lastOperationStatus: String,
     summaryText: String,
     onOpenProfileDialog: () -> Unit
 ) {
     val dataTargetReady =
-        selectedTreeUriText.isNotBlank() &&
-                selectedTreeUriText != "No folder selected"
+        selectedDataPathText.isNotBlank() &&
+                selectedDataPathText != "No folder selected"
 
     val rootTargetReady =
-        selectedRootTreeUriText.isNotBlank() &&
-                selectedRootTreeUriText != "No root folder selected"
+        selectedRootPathText.isNotBlank() &&
+                selectedRootPathText != "No root folder selected"
 
     Card(
         modifier = Modifier.fillMaxWidth(),

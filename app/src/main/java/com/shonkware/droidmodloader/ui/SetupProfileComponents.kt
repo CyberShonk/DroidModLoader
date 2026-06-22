@@ -94,7 +94,7 @@ fun SetupScreen(
                         onSelectGame = actions.onSetupGameChanged
                     )
 
-                    Text("Target folder: ${state.selectedTreeUriText}")
+                    Text("Target folder: ${state.selectedDataPathText}")
                     Text(
                         text = "Pick the Data folder of your installed game.",
                         style = MaterialTheme.typography.bodySmall
@@ -136,7 +136,7 @@ fun ProfileManagerDialog(
     activeProfileId: String?,
     newProfileNameText: String,
     newProfileGameId: String,
-    newProfileTreeUriText: String,
+    newProfileDataPathText: String,
     newProfileRealDeployEnabled: Boolean,
     onSelectProfile: (String) -> Unit,
     onDeleteProfile: (String) -> Unit,
@@ -208,7 +208,7 @@ fun ProfileManagerDialog(
                     onSelectGame = onNewProfileGameChanged
                 )
 
-                Text("Selected folder: $newProfileTreeUriText")
+                Text("Selected folder: $newProfileDataPathText")
                 Text(
                     text = "Pick the Data folder of your installed game.",
                     style = MaterialTheme.typography.bodySmall

@@ -32,6 +32,7 @@ class ProfileManagementWorkflowTest {
                 FirstSetupInput(
                     profileNameText = "   ",
                     gameId = "skyrim_le",
+                    targetDataPath = "/games/skyrim/Data",
                     realDeployEnabled = true
                 )
             },
@@ -47,6 +48,7 @@ class ProfileManagementWorkflowTest {
         assertEquals(1, profiles.size)
         assertEquals("skyrim_le_1234", profiles.single().profileId)
         assertEquals("Default", profiles.single().profileName)
+        assertEquals("/games/skyrim/Data", profiles.single().targetDataPath)
         assertTrue(profiles.single().realDeployEnabled)
         assertEquals(profiles.single(), appliedProfile)
         assertEquals(
@@ -59,7 +61,7 @@ class ProfileManagementWorkflowTest {
     }
 
     @Test
-    fun createAdditionalProfileUsesFallbackNameAndNormalizesMissingTreeUri() {
+    fun createAdditionalProfileUsesFallbackNameAndDirectPath() {
         val repository = createRepository("additional-profile")
         var appliedProfile: GameProfile? = null
         var syncCount = 0
@@ -71,7 +73,7 @@ class ProfileManagementWorkflowTest {
                 AdditionalProfileInput(
                     profileNameText = "",
                     gameId = "fallout_nv",
-                    targetTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED,
+                    targetDataPath = "/games/falloutnv/Data",
                     realDeployEnabled = false
                 )
             },
@@ -84,6 +86,7 @@ class ProfileManagementWorkflowTest {
         val profile = repository.loadProfiles().single()
         assertEquals("fallout_nv_2000", profile.profileId)
         assertEquals("Fallout New Vegas Profile", profile.profileName)
+        assertEquals("/games/falloutnv/Data", profile.targetDataPath)
         assertNull(profile.targetTreeUri)
         assertFalse(profile.realDeployEnabled)
         assertEquals(profile, appliedProfile)
@@ -118,10 +121,10 @@ class ProfileManagementWorkflowTest {
             dashboardProfileInputProvider = {
                 DashboardProfileInput(
                     targetPathText = " /games/skyrim/Data ",
-                    selectedTreeUriText = "content://skyrim-data",
                     rootTargetPathText = " /games/skyrim ",
-                    selectedRootTreeUriText = "content://skyrim-root",
-                    realDeployEnabled = true
+                    realDeployEnabled = true,
+                    dataPathReselectionRequired = false,
+                    rootPathReselectionRequired = false
                 )
             },
             applySwitchedProfileUiState = { profile ->
@@ -137,9 +140,9 @@ class ProfileManagementWorkflowTest {
         val savedProfiles = repository.loadProfiles()
         val savedCurrent = savedProfiles.first { it.profileId == currentProfile.profileId }
         assertEquals("/games/skyrim/Data", savedCurrent.targetDataPath)
-        assertEquals("content://skyrim-data", savedCurrent.targetTreeUri)
+        assertNull(savedCurrent.targetTreeUri)
         assertEquals("/games/skyrim", savedCurrent.targetRootPath)
-        assertEquals("content://skyrim-root", savedCurrent.targetRootTreeUri)
+        assertNull(savedCurrent.targetRootTreeUri)
         assertTrue(savedCurrent.realDeployEnabled)
         assertEquals(targetProfile, switchedProfile)
         assertEquals(targetProfile.profileId, repository.loadSetupState().activeProfileId)
@@ -185,13 +188,13 @@ class ProfileManagementWorkflowTest {
         repository: ProfileRepository,
         currentTimeMillis: () -> Long = { 1L },
         firstSetupInputProvider: () -> FirstSetupInput = {
-            FirstSetupInput("Default", "skyrim_le", false)
+            FirstSetupInput("Default", "skyrim_le", "", false)
         },
         additionalProfileInputProvider: () -> AdditionalProfileInput = {
             AdditionalProfileInput(
                 "New Profile",
                 "skyrim_le",
-                DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED,
+                "",
                 false
             )
         },
@@ -199,10 +202,10 @@ class ProfileManagementWorkflowTest {
         dashboardProfileInputProvider: () -> DashboardProfileInput = {
             DashboardProfileInput(
                 targetPathText = "",
-                selectedTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED,
                 rootTargetPathText = "",
-                selectedRootTreeUriText = DeploymentConfigUiMapper.NO_ROOT_FOLDER_SELECTED,
-                realDeployEnabled = false
+                realDeployEnabled = false,
+                dataPathReselectionRequired = false,
+                rootPathReselectionRequired = false
             )
         },
         applyFirstSetupUiState: (List<GameProfile>, GameProfile) -> Unit = { _, _ -> },

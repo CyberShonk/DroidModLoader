@@ -18,17 +18,28 @@ class ProfileRepository(
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+            val targetDataPath = obj.optString("targetDataPath", "").trim()
+            val targetRootPath = obj.optString("targetRootPath", "").trim()
+            val legacyDataUri = obj.optString("targetTreeUri", "").trim()
+            val legacyRootUri = obj.optString("targetRootTreeUri", "").trim()
+
             results.add(
                 GameProfile(
                     profileId = obj.getString("profileId"),
                     profileName = obj.getString("profileName"),
                     gameId = obj.getString("gameId"),
                     gameDisplayName = obj.getString("gameDisplayName"),
-                    targetDataPath = obj.optString("targetDataPath", ""),
-                    targetTreeUri = obj.optString("targetTreeUri").ifBlank { null },
-                    targetRootPath = obj.optString("targetRootPath", ""),
-                    targetRootTreeUri = obj.optString("targetRootTreeUri").ifBlank { null },
+                    targetDataPath = targetDataPath,
                     realDeployEnabled = obj.optBoolean("realDeployEnabled", false),
+                    targetRootPath = targetRootPath,
+                    dataPathReselectionRequired = obj.optBoolean(
+                        "dataPathReselectionRequired",
+                        targetDataPath.isBlank() && legacyDataUri.isNotBlank()
+                    ),
+                    rootPathReselectionRequired = obj.optBoolean(
+                        "rootPathReselectionRequired",
+                        targetRootPath.isBlank() && legacyRootUri.isNotBlank()
+                    ),
                     iniPresetId = obj.optString("iniPresetId").ifBlank { null }
                 )
             )
@@ -47,10 +58,10 @@ class ProfileRepository(
             obj.put("gameId", profile.gameId)
             obj.put("gameDisplayName", profile.gameDisplayName)
             obj.put("targetDataPath", profile.targetDataPath)
-            obj.put("targetTreeUri", profile.targetTreeUri)
             obj.put("targetRootPath", profile.targetRootPath)
-            obj.put("targetRootTreeUri", profile.targetRootTreeUri)
             obj.put("realDeployEnabled", profile.realDeployEnabled)
+            obj.put("dataPathReselectionRequired", profile.dataPathReselectionRequired)
+            obj.put("rootPathReselectionRequired", profile.rootPathReselectionRequired)
             obj.put("iniPresetId", profile.iniPresetId)
             array.put(obj)
         }

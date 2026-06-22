@@ -77,6 +77,10 @@ import com.shonkware.droidmodloader.ui.workflow.FullscreenPanelActionWorkflowCon
 import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowController
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
+import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
+import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
+import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
+import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -101,7 +105,7 @@ class MainActivity : ComponentActivity() {
     private var newProfileNameText by mutableStateOf("")
     private var newProfileGameId by mutableStateOf("skyrim_le")
     private var newProfileGameDisplayName by mutableStateOf("Skyrim Legendary Edition")
-    private var newProfileTreeUriText by mutableStateOf("No folder selected")
+    private var newProfileDataPathText by mutableStateOf("No folder selected")
     private var newProfileRealDeployEnabled by mutableStateOf(false)
     private var developerTapCount = 0
     private var developerModeEnabled by mutableStateOf(false)
@@ -113,10 +117,16 @@ class MainActivity : ComponentActivity() {
     private var gameOptions by mutableStateOf(listOf("skyrim_le", "fallout_nv"))
     private var selectedGameId by mutableStateOf("skyrim_le")
     private var targetPathText by mutableStateOf("")
-    private var selectedTreeUriText by mutableStateOf("No folder selected")
-    private var selectedRootTreeUriText by mutableStateOf("No root folder selected")
+    private var selectedDataPathText by mutableStateOf("No folder selected")
+    private var selectedRootPathText by mutableStateOf("No root folder selected")
     private var rootTargetPathText by mutableStateOf("")
+    private var dataPathReselectionRequired by mutableStateOf(false)
+    private var rootPathReselectionRequired by mutableStateOf(false)
     private var realDeployEnabledState by mutableStateOf(false)
+    private var showDirectFolderBrowser by mutableStateOf(false)
+    private var directFolderBrowserTitle by mutableStateOf("Choose Folder")
+    private var directFolderBrowserRequiresWritable by mutableStateOf(true)
+    private var directFolderBrowserState by mutableStateOf(DirectFolderBrowserState())
     private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
     private var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
@@ -141,32 +151,17 @@ class MainActivity : ComponentActivity() {
     private val allFilesAccessManager by lazy {
         AllFilesAccessManager(applicationContext)
     }
+    private val directPathValidator by lazy { DirectPathValidator() }
+    private val directFolderBrowser by lazy {
+        DirectFolderBrowser(
+            roots = DirectStorageRootProvider(applicationContext).roots(),
+            pathValidator = directPathValidator
+        )
+    }
     private val allFilesAccessSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         refreshAllFilesAccessState()
-    }
-    private val pickTargetFolderLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) {
-            appendLog("No target folder selected.")
-            return@registerForActivityResult
-        }
-
-        try {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-
-            folderPickerWorkflowController.handlePickedFolder(
-                mode = folderPickMode,
-                treeUri = uri.toString()
-            )
-        } catch (e: Exception) {
-            appendError("Failed to persist folder permission: ${e.message}", e)
-        }
     }
     private val pickArchiveFolderLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
@@ -316,6 +311,7 @@ class MainActivity : ComponentActivity() {
                 FirstSetupInput(
                     profileNameText = profileNameText,
                     gameId = setupGameId,
+                    targetDataPath = setupTargetPathText,
                     realDeployEnabled = setupRealDeployEnabled
                 )
             },
@@ -323,7 +319,9 @@ class MainActivity : ComponentActivity() {
                 AdditionalProfileInput(
                     profileNameText = newProfileNameText,
                     gameId = newProfileGameId,
-                    targetTreeUriText = newProfileTreeUriText,
+                    targetDataPath = newProfileDataPathText
+                        .takeUnless { it == DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED }
+                        .orEmpty(),
                     realDeployEnabled = newProfileRealDeployEnabled
                 )
             },
@@ -331,10 +329,10 @@ class MainActivity : ComponentActivity() {
             dashboardProfileInputProvider = {
                 DashboardProfileInput(
                     targetPathText = targetPathText,
-                    selectedTreeUriText = selectedTreeUriText,
                     rootTargetPathText = rootTargetPathText,
-                    selectedRootTreeUriText = selectedRootTreeUriText,
-                    realDeployEnabled = realDeployEnabledState
+                    realDeployEnabled = realDeployEnabledState,
+                    dataPathReselectionRequired = dataPathReselectionRequired,
+                    rootPathReselectionRequired = rootPathReselectionRequired
                 )
             },
             applyFirstSetupUiState = { profiles, profile ->
@@ -363,7 +361,7 @@ class MainActivity : ComponentActivity() {
                     visibleModContentIndexes = emptyMap()
 
                     newProfileNameText = ""
-                    newProfileTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED
+                    newProfileDataPathText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED
                     newProfileRealDeployEnabled = false
                     showProfileDialog = false
                     archiveBrowserWorkflow.onProfileChanged()
@@ -487,15 +485,22 @@ class MainActivity : ComponentActivity() {
     private val folderPickerWorkflowController by lazy {
         FolderPickerWorkflowController(
             runInBackground = { task -> runInBackground(task) },
-            savePickedDataFolderToSelectedGameConfig = { treeUri ->
-                savePickedDataFolderToSelectedGameConfig(treeUri)
-            },
-            savePickedRootFolderToSelectedGameConfig = { treeUri ->
-                savePickedRootFolderToSelectedGameConfig(treeUri)
-            },
-            setNewProfileTreeUriText = { treeUri ->
+            saveFirstSetupDataPath = { path ->
                 runOnUiThread {
-                    newProfileTreeUriText = treeUri
+                    setupTargetPathText = path
+                    selectedDataPathText = path
+                    setupRealDeployEnabled = true
+                }
+            },
+            savePickedDataFolderToSelectedGameConfig = { path ->
+                savePickedDataFolderToSelectedGameConfig(path)
+            },
+            savePickedRootFolderToSelectedGameConfig = { path ->
+                savePickedRootFolderToSelectedGameConfig(path)
+            },
+            setNewProfileDataPathText = { path ->
+                runOnUiThread {
+                    newProfileDataPathText = path
                 }
             },
             appendLog = { message -> appendLog(message) }
@@ -798,7 +803,7 @@ class MainActivity : ComponentActivity() {
             plugins = visiblePlugins,
             gameOptions = gameOptions,
             selectedGameId = selectedGameId,
-            selectedTreeUriText = selectedTreeUriText,
+            selectedDataPathText = selectedDataPathText,
             realDeployEnabled = realDeployEnabledState,
             logText = logText,
             setupComplete = setupComplete,
@@ -813,7 +818,7 @@ class MainActivity : ComponentActivity() {
             newProfileGameId = newProfileGameId,
             newProfileRealDeployEnabled = newProfileRealDeployEnabled,
             showProfileDialog = showProfileDialog,
-            newProfileTreeUriText = newProfileTreeUriText,
+            newProfileDataPathText = newProfileDataPathText,
             operationInProgress = operationInProgress,
             activeOperationText = activeOperationText,
             modContentIndexes = visibleModContentIndexes,
@@ -830,7 +835,7 @@ class MainActivity : ComponentActivity() {
             showOverwriteDialog = showOverwriteDialog,
             overwriteBaselineExists = overwriteBaselineExists,
             overwriteMessage = overwriteMessage,
-            selectedRootTreeUriText = selectedRootTreeUriText,
+            selectedRootPathText = selectedRootPathText,
 
             deployRecoveryWarningText = deployRecoveryWarningText,
             showDeployRecoveryDialog = showDeployRecoveryDialog,
@@ -839,7 +844,11 @@ class MainActivity : ComponentActivity() {
             showArchiveFolderSetupDialog = showArchiveFolderSetupDialog,
             archiveBrowserState = archiveBrowserState,
             allFilesAccessRequired = android.os.Build.VERSION.SDK_INT >= AllFilesAccessPolicy.ANDROID_11_API_LEVEL,
-            allFilesAccessGranted = allFilesAccessGranted
+            allFilesAccessGranted = allFilesAccessGranted,
+            showDirectFolderBrowser = showDirectFolderBrowser,
+            directFolderBrowserTitle = directFolderBrowserTitle,
+            directFolderBrowserRequiresWritable = directFolderBrowserRequiresWritable,
+            directFolderBrowserState = directFolderBrowserState
         )
     }
 
@@ -912,12 +921,16 @@ class MainActivity : ComponentActivity() {
                 realDeployEnabledState = enabled
             },
             onPickTargetFolder = {
-                folderPickMode = FolderPickMode.ActiveDataFolder
-                pickTargetFolderLauncher.launch(null)
+                openDirectFolderBrowser(
+                    if (setupComplete) {
+                        FolderPickMode.ActiveDataFolder
+                    } else {
+                        FolderPickMode.FirstSetupDataFolder
+                    }
+                )
             },
             onPickRootTargetFolder = {
-                folderPickMode = FolderPickMode.ActiveGameRootFolder
-                pickTargetFolderLauncher.launch(null)
+                openDirectFolderBrowser(FolderPickMode.ActiveGameRootFolder)
             },
             onSaveSettings = {
                 runInBackground {
@@ -956,8 +969,7 @@ class MainActivity : ComponentActivity() {
                 showProfileDialog = false
             },
             onPickNewProfileTargetFolder = {
-                folderPickMode = FolderPickMode.NewProfileDataFolder
-                pickTargetFolderLauncher.launch(null)
+                openDirectFolderBrowser(FolderPickMode.NewProfileDataFolder)
             },
             onDeleteProfile = { profileId ->
                 profileWorkflowController.deleteProfile(profileId)
@@ -1047,8 +1059,24 @@ class MainActivity : ComponentActivity() {
             onCancelForceFullRedeploy = {
                 showForceFullRedeployConfirmDialog = false
             },
-
-            )
+            onRequestAllFilesAccess = {
+                requestAllFilesAccess()
+            },
+            onDirectFolderBrowserOpenPath = { path ->
+                directFolderBrowserState = directFolderBrowser.open(path)
+            },
+            onDirectFolderBrowserNavigateUp = {
+                directFolderBrowserState = directFolderBrowser.navigateUp(
+                    directFolderBrowserState
+                )
+            },
+            onDirectFolderBrowserSelectCurrent = {
+                selectCurrentDirectFolder()
+            },
+            onDirectFolderBrowserCancel = {
+                showDirectFolderBrowser = false
+            }
+        )
 
     }
 
@@ -1250,14 +1278,12 @@ class MainActivity : ComponentActivity() {
         val config = engine.getGameDeploymentConfig(selectedGameId)
         val deployMode = when {
             config == null -> "Simulated"
-            config.realDeployEnabled && !config.targetTreeUri.isNullOrBlank() -> "Tree URI"
-            config.realDeployEnabled && engine.validateTargetDataPath(config.targetDataPath) -> "Real Path"
+            config.realDeployEnabled && engine.validateTargetDataPath(config.targetDataPath) -> "Direct Path"
             else -> "Simulated"
         }
 
         val targetStatus = when {
             config == null -> "Not configured"
-            !config.targetTreeUri.isNullOrBlank() -> "Folder selected"
             config.targetDataPath.isNotBlank() -> config.targetDataPath
             else -> "Not configured"
         }
@@ -1302,9 +1328,11 @@ class MainActivity : ComponentActivity() {
                 .show()
         }
     }
-    private fun savePickedDataFolderToSelectedGameConfig(treeUri: String) {
+    private fun savePickedDataFolderToSelectedGameConfig(path: String) {
         runOnUiThreadBlocking {
-            selectedTreeUriText = treeUri
+            targetPathText = path
+            selectedDataPathText = path
+            dataPathReselectionRequired = false
             realDeployEnabledState = true
         }
 
@@ -1314,11 +1342,13 @@ class MainActivity : ComponentActivity() {
         ensureDataBaselineIfMissing("target folder selected")
         refreshDashboard()
 
-        appendLog("Saved picked Data folder URI for $selectedGameId")
+        appendLog("Saved direct Data folder path for $selectedGameId: $path")
     }
-    private fun savePickedRootFolderToSelectedGameConfig(treeUri: String) {
+    private fun savePickedRootFolderToSelectedGameConfig(path: String) {
         runOnUiThreadBlocking {
-            selectedRootTreeUriText = treeUri
+            rootTargetPathText = path
+            selectedRootPathText = path
+            rootPathReselectionRequired = false
             realDeployEnabledState = true
         }
 
@@ -1326,7 +1356,7 @@ class MainActivity : ComponentActivity() {
         profileManagementWorkflow.saveActiveProfileFromDashboard()
         refreshDashboard()
 
-        appendLog("Saved picked game root folder URI for $selectedGameId")
+        appendLog("Saved direct Game Root path for $selectedGameId: $path")
     }
     private fun buildDiagnosticSummary(): String {
         val engine = createModEngineForWorkflows()
@@ -1571,9 +1601,9 @@ class MainActivity : ComponentActivity() {
             displayName = getGameDisplayName(selectedGameId),
             targetPathText = targetPathText,
             realDeployEnabled = realDeployEnabledState,
-            selectedTreeUriText = selectedTreeUriText,
             rootTargetPathText = rootTargetPathText,
-            selectedRootTreeUriText = selectedRootTreeUriText
+            dataPathReselectionRequired = dataPathReselectionRequired,
+            rootPathReselectionRequired = rootPathReselectionRequired
         )
 
         val index = existingConfigs.indexOfFirst { it.gameId == selectedGameId }
@@ -1690,7 +1720,7 @@ class MainActivity : ComponentActivity() {
             "Profile context: activeProfileId=$activeProfileId, " +
                     "activeProfileName=$activeProfileName, " +
                     "selectedGameId=$selectedGameId, " +
-                    "targetTreeUri=$selectedTreeUriText"
+                    "targetDataPath=$targetPathText"
         )
     }
 
@@ -1860,11 +1890,8 @@ class MainActivity : ComponentActivity() {
             val backupRootDir = File(profileStateDir, "repair_backups/v050_artifacts")
             val reportDir = File(profileStateDir, "repair_reports")
 
-            val dataTreeUri = selectedTreeUriText
-                .takeIf { it != "No folder selected" && it.isNotBlank() }
-
-            val rootTreeUri = selectedRootTreeUriText
-                .takeIf { it != "No root folder selected" && it.isNotBlank() }
+            val dataTreeUri: String? = null
+            val rootTreeUri: String? = null
 
             val dataPath = targetPathText
                 .trim()
@@ -2115,19 +2142,89 @@ class MainActivity : ComponentActivity() {
     private fun applyDeploymentConfigUiState(state: DeploymentConfigUiState) {
         targetPathText = state.targetDataPath
         realDeployEnabledState = state.realDeployEnabled
-        selectedTreeUriText = state.targetTreeUriText
+        dataPathReselectionRequired = state.dataPathReselectionRequired
+        selectedDataPathText = DeploymentConfigUiMapper.dataPathDisplayText(
+            state.targetDataPath,
+            state.dataPathReselectionRequired
+        )
         rootTargetPathText = state.targetRootPath
-        selectedRootTreeUriText = state.targetRootTreeUriText
+        rootPathReselectionRequired = state.rootPathReselectionRequired
+        selectedRootPathText = DeploymentConfigUiMapper.rootPathDisplayText(
+            state.targetRootPath,
+            state.rootPathReselectionRequired
+        )
     }
 
     private fun applyProfileConfigUiState(state: ProfileConfigUiState) {
         selectedGameId = state.selectedGameId
         targetPathText = state.targetDataPath
-        selectedTreeUriText = state.targetTreeUriText
+        dataPathReselectionRequired = state.dataPathReselectionRequired
+        selectedDataPathText = DeploymentConfigUiMapper.dataPathDisplayText(
+            state.targetDataPath,
+            state.dataPathReselectionRequired
+        )
         rootTargetPathText = state.targetRootPath
-        selectedRootTreeUriText = state.targetRootTreeUriText
+        rootPathReselectionRequired = state.rootPathReselectionRequired
+        selectedRootPathText = DeploymentConfigUiMapper.rootPathDisplayText(
+            state.targetRootPath,
+            state.rootPathReselectionRequired
+        )
         realDeployEnabledState = state.realDeployEnabled
     }
+    private fun openDirectFolderBrowser(mode: FolderPickMode) {
+        if (!allFilesAccessManager.isGranted()) {
+            refreshAllFilesAccessState()
+            requestAllFilesAccess()
+            return
+        }
+
+        folderPickMode = mode
+        directFolderBrowserRequiresWritable = true
+        directFolderBrowserTitle = when (mode) {
+            FolderPickMode.FirstSetupDataFolder,
+            FolderPickMode.ActiveDataFolder,
+            FolderPickMode.NewProfileDataFolder -> "Choose Data Folder"
+            FolderPickMode.ActiveGameRootFolder -> "Choose Game Root Folder"
+        }
+
+        val currentPath = when (mode) {
+            FolderPickMode.FirstSetupDataFolder -> setupTargetPathText
+            FolderPickMode.ActiveDataFolder -> targetPathText
+            FolderPickMode.ActiveGameRootFolder -> rootTargetPathText
+            FolderPickMode.NewProfileDataFolder -> newProfileDataPathText
+                .takeUnless { it == DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED }
+                .orEmpty()
+        }
+
+        directFolderBrowserState = if (currentPath.isBlank()) {
+            directFolderBrowser.openRoots()
+        } else {
+            directFolderBrowser.open(currentPath)
+        }
+        showDirectFolderBrowser = true
+    }
+
+    private fun selectCurrentDirectFolder() {
+        val currentPath = directFolderBrowserState.currentPath ?: return
+        val validation = directPathValidator.validateDirectory(
+            path = currentPath,
+            requireWritable = directFolderBrowserRequiresWritable
+        )
+
+        if (!validation.isValid || validation.canonicalPath == null) {
+            directFolderBrowserState = directFolderBrowserState.copy(
+                errorMessage = validation.message
+            )
+            return
+        }
+
+        showDirectFolderBrowser = false
+        folderPickerWorkflowController.handlePickedFolder(
+            mode = folderPickMode,
+            path = validation.canonicalPath
+        )
+    }
+
     private fun refreshAllFilesAccessState() {
         allFilesAccessGranted = allFilesAccessManager.isGranted()
     }
