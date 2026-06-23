@@ -31,7 +31,6 @@ import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
 import java.util.concurrent.CountDownLatch
-import com.shonkware.droidmodloader.engine.repair.V050ArtifactRepairTool
 import com.shonkware.droidmodloader.ui.workflow.OperationLogFormatter
 import com.shonkware.droidmodloader.ui.workflow.OperationStatusController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
@@ -552,9 +551,6 @@ class MainActivity : ComponentActivity() {
     private val developerToolsWorkflowController by lazy {
         DeveloperToolsWorkflowController(
             runInBackground = { task -> runInBackground(task) },
-            repairV050Artifacts = {
-                runV050ArtifactRepairTool()
-            },
             buildResolvedDataGraph = {
                 runResolvedDataGraphDebugSummary()
             },
@@ -989,9 +985,6 @@ class MainActivity : ComponentActivity() {
             },
             onCloseOverwriteFolder = {
                 overwriteActionWorkflowController.closeOverwriteFolder()
-            },
-            onRepairV050Artifacts = {
-                developerToolsWorkflowController.repairV050Artifacts()
             },
             onBuildResolvedDataGraph = {
                 developerToolsWorkflowController.buildResolvedDataGraph()
@@ -1830,81 +1823,6 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             appendError("Failed to build installed mod routing summary: ${e.message}", e)
         }
-    }
-
-    private fun runV050ArtifactRepairTool() {
-        if (operationInProgress) {
-            appendLog("Ignoring repair request: operation already in progress.")
-            return
-        }
-
-        beginOperation("Repairing v0.5.0-beta artifacts...")
-
-        try {
-            val externalBaseDir = getExternalFilesDir(null)
-                ?: throw IllegalStateException("External files directory is null.")
-
-            val profileInternalDir = profileStoragePaths.getProfileInternalDir()
-            val modsDir = File(profileInternalDir, "mods")
-            val profileStateDir = profileStoragePaths.getProfileStateDir(externalBaseDir)
-
-            val backupRootDir = File(profileStateDir, "repair_backups/v050_artifacts")
-            val reportDir = File(profileStateDir, "repair_reports")
-
-            val dataPath = targetPathText
-                .trim()
-                .takeIf { it.isNotBlank() }
-
-            val rootPath = rootTargetPathText
-                .trim()
-                .takeIf { it.isNotBlank() }
-
-            val tool = V050ArtifactRepairTool(
-                backupRootDir = backupRootDir,
-                reportDir = reportDir
-            )
-
-            val result = tool.repair(
-                modsDir = modsDir,
-                dataPath = dataPath,
-                rootPath = rootPath
-            )
-
-            val engine = createModEngineForWorkflows()
-            if (engine != null) {
-                val mods = engine.getCurrentMods()
-                var rebuiltCount = 0
-
-                for (mod in mods) {
-                    if (engine.rebuildModFileIndex(mod.id)) {
-                        rebuiltCount++
-                    }
-                }
-
-                appendLog("Rebuilt mod file indexes after repair: $rebuiltCount")
-
-                syncPluginsFromCurrentState(engine)
-            }
-
-            appendLog("v0.5.0-beta artifact repair complete.")
-            appendLog("Installed mod files renamed: ${result.installedModFilesRenamed}")
-            appendLog("Installed mod folders unwrapped: ${result.installedModFoldersUnwrapped}")
-            appendLog("Target files renamed: ${result.targetFilesRenamed}")
-            appendLog("Duplicate folders merged: ${result.duplicateFoldersMerged}")
-            appendLog("Conflicts quarantined: ${result.conflictsQuarantined}")
-            appendLog("Skipped: ${result.skippedCount}")
-            appendLog("Repair report: ${result.reportFile.absolutePath}")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Repair complete.")
-        } catch (e: Exception) {
-            appendError("v0.5.0-beta artifact repair failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Repair failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-        appendLog("----- v0.5.0-beta Artifact Repair End -----")
     }
 
     private fun runResolvedDataGraphDebugSummary() {
