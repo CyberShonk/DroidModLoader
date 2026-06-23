@@ -103,3 +103,44 @@ same device and the raw results are committed or attached to the relevant task.
 Correctness remains mandatory even if direct deployment is faster: file counts,
 content hashes where practical, profile isolation, rollback behavior, and plugin
 ordering must still pass.
+
+## Recorded exploratory result — 2026-06-22
+
+The first same-device capture used:
+
+- **Device:** AYN Thor
+- **Android:** 13 / API 33
+- **SAF baseline:** `3480a146dc3651d9a5de270c108a35d3aa8e2764`
+- **Direct build:** `80dc51522489abd8631e52d52370a96ff0986b62`
+- **Small-file fixture:** 2,000 files × 4 KiB
+- **Large-file fixture:** 4 files × 32 MiB
+
+### Raw operation durations
+
+| Workload | SAF baseline | Direct build |
+|---|---|---|
+| Small files | 30,247; 109,180; 108,495 ms | 8,429; 14,098; 13,986 ms |
+| Large files | 474; 466; 493; 491 ms | 45,704; 345; 317; 319 ms |
+
+The second and third small-file samples were close but not duplicates. Using
+those internally stable later samples gives approximately 108.8 seconds for SAF
+and 14.0 seconds for direct paths, an exploratory speedup of about 7.75× and
+about 87% lower elapsed time.
+
+The first direct large-file run was an obvious setup/cold-start outlier. Treating
+the first run from each build as warm-up leaves a 491 ms SAF median and a 319 ms
+direct median, an exploratory speedup of about 1.54× and about 35% lower
+elapsed time.
+
+### Interpretation
+
+The capture strongly supports retaining the direct-filesystem architecture,
+especially for high-file-count deployment. It does **not** meet the complete
+five-measured-run protocol above: sample counts were limited, warm-up separation
+was inconsistent, and one large direct run was a major outlier. Therefore:
+
+- the result is suitable as engineering evidence for the storage decision;
+- the raw numbers may be retained in project documentation;
+- the result must be described as exploratory; and
+- no definitive public speed multiplier should be advertised without a new,
+  controlled run following the complete protocol.

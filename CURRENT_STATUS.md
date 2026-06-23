@@ -3,14 +3,17 @@
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
 * **Minimum Android version:** Android 11 / API 30
-* **Reviewed migration baseline:** `23f5fa3` (`build: require Android 11 for direct storage`)
+* **Direct-storage migration baseline:** `23f5fa3` (`build: require Android 11 for direct storage`)
+* **Startup hotfix:** `90d788a` (`fix: restore active profile state on startup`)
+* **Runtime verification record:** `80dc515` (`docs: record direct storage runtime verification`)
 * **Storage direction:** one all-files direct-filesystem backend for production shared-storage work.
 
 ## Current objective
 
-Complete the active-profile startup hotfix, capture the same-device storage
-benchmark, and finish real-container verification of game-aware plugin output.
-The accepted 1.0 UI redesign remains outside this work.
+Finish real-container verification of game-aware plugin activation output and
+effective order. The active-profile startup hotfix and exploratory same-device
+storage benchmark are complete. The accepted 1.0 UI redesign remains outside
+this work.
 
 The bounded storage task is `docs/tasks/direct-storage-migration.md`. It excludes
 new game definitions, `DML_output`, LOOT, xEdit, INI recipes, and broad
@@ -61,6 +64,15 @@ Recorded Android 11+ disposable-folder checks passed for:
 * Skyrim text-file plugin ordering; and
 * Oblivion, Fallout 3, and Fallout: New Vegas timestamp ordering.
 
+An exploratory same-device benchmark on an AYN Thor running Android 13 compared
+SAF commit `3480a14` with direct-storage commit `80dc515` using deterministic
+fixtures. The stable later small-file samples were approximately 108.8 seconds
+for SAF and 14.0 seconds for direct paths. After excluding the direct build's
+first large-file setup outlier, the stable large-file medians were approximately
+491 ms for SAF and 319 ms for direct paths. These results support the direct
+filesystem architecture, but the limited sample count and imperfect warm-up
+separation do not support a definitive public multiplier.
+
 Regular incremental deployment intentionally follows the saved deployment
 manifest and does not repair an externally edited deployed file when the plan is
 otherwise unchanged. Force Full Redeploy rewrites the winning file set. No
@@ -68,16 +80,11 @@ user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Validate the active-profile startup hotfix on Android:
-
-1. select a profile;
-2. force-stop DML;
-3. relaunch it; and
-4. confirm the status area immediately shows the persisted profile name.
-
-Then collect the same-device SAF-baseline versus direct-build benchmark results
-from `docs/benchmarks/direct-storage.md` and run real game/container checks for
-the generated activation files and effective plugin order.
+Run real game/container checks for the generated activation files and effective
+plugin order. Use valid plugins from actual game installations; disposable empty
+`.esm`/`.esp` fixtures only verify DML's file handling. Preserve the exploratory
+benchmark evidence described in `docs/benchmarks/direct-storage.md`; repeat the
+benchmark only if a publication-grade performance claim is needed.
 
 ## Current constraints
 
@@ -93,8 +100,6 @@ the generated activation files and effective plugin order.
 
 ## Known open work
 
-* Confirm the active-profile status hotfix on Android after restart.
-* Capture SAF-baseline versus direct-build deployment benchmark results.
 * Finish real-container game checks for activation files and effective plugin order.
 * Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
 * Treat broad `ModEngine.kt` service extraction as a separate later project.
@@ -105,9 +110,9 @@ the generated activation files and effective plugin order.
 
 ## Blockers
 
-Acceptance is blocked on the startup hotfix retest, device benchmark capture, and
-real-container plugin verification. No public version change is part of this
-migration.
+Acceptance is blocked only on real-container plugin verification. The startup
+hotfix retest and exploratory device benchmark are complete. No public version
+change is part of this migration.
 
 ## Private and public boundary
 

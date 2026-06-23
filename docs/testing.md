@@ -74,8 +74,8 @@ Risk order:
 - No production `DocumentFile`, tree-URI launcher, or SAF deployment backend
   remains after migration.
 - Same-device performance comparison follows
-  `benchmarks/direct-storage.md`; raw Android results are required before making
-  a speed claim.
+  `benchmarks/direct-storage.md`; the recorded Android result is exploratory and
+  must not be presented as a definitive public multiplier.
 
 ### Plugin Handling
 

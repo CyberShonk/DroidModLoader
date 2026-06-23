@@ -7,9 +7,9 @@ Feature, refactor, safety, test, and documentation.
 ## Implementation Status
 
 The direct-storage code migration, host Gradle validation, debug APK assembly,
-focused tests, and disposable-folder Android checks are complete. Same-device
-SAF-versus-direct benchmark measurements remain required before the task is
-complete.
+focused tests, disposable-folder Android checks, startup-profile regression
+check, and exploratory same-device benchmark are complete. A publication-grade
+benchmark remains optional future work rather than an acceptance blocker.
 
 ## Requirement IDs
 
@@ -189,15 +189,31 @@ Passed on disposable shared-storage folders:
   unmanaged file; and
 - direct plugin scanning and timestamp mutation.
 
-A startup presentation defect was also found: the persisted active profile ID
-was restored, but the status card retained `No profile` until the same profile
-was selected again. The focused startup hotfix restores the profile name from
-the resolved active profile and requires one Android restart regression check.
+A startup presentation defect was found and fixed: the persisted active profile
+ID was restored, but the status card retained `No profile` until the same profile
+was selected again. The focused startup hotfix now restores the profile name from
+the resolved active profile, and the Android restart regression check passed.
 
 Regular deployment does not rewrite an externally changed target when the saved
 manifest and winning source hash are unchanged. Force Full Redeploy does rewrite
 the complete winning file set. No user-facing external-change scan is currently
 available.
+
+## Recorded Exploratory Benchmark — 2026-06-22
+
+An AYN Thor running Android 13 / API 33 compared SAF commit `3480a14` with
+direct-storage commit `80dc515` using the deterministic fixtures documented in
+`docs/benchmarks/direct-storage.md`.
+
+- Stable later small-file samples: approximately 108.8 seconds SAF versus
+  14.0 seconds direct.
+- Stable large-file samples after excluding the direct cold-start outlier:
+  approximately 491 ms SAF median versus 319 ms direct median.
+
+The result supports the direct-filesystem architecture. Because the capture used
+fewer than five measured samples, did not separate every warm-up consistently,
+and contained one major cold-start outlier, it is recorded as exploratory rather
+than as a definitive public multiplier.
 
 ## Likely Affected Structures
 
@@ -225,7 +241,7 @@ available.
 - [x] Debug APK assembles.
 - [x] Manual disposable-folder Android checks pass.
 - [x] Benchmark procedure and deterministic fixtures are recorded.
-- [ ] Same-device SAF-baseline and direct-build results are captured.
+- [x] Exploratory same-device SAF-baseline and direct-build results are captured.
 
 ## Suggested Commit Sequence
 

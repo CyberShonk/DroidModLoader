@@ -15,31 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Finish direct-filesystem storage acceptance
-
-Requirement IDs:
-
-- REQ-STORAGE-001
-- REQ-STORAGE-002
-- REQ-GAME-001
-- REQ-GAME-003
-- REQ-MOD-001
-- REQ-MOD-005
-- REQ-DEPLOY-002
-- REQ-PLUGIN-005
-- REQ-PROFILE-002
-
-Expected result:
-
-- Confirm the active-profile name restores in the status area after restart.
-- Preserve the completed host, permission, folder, profile, archive, deployment,
-  rollback, and disposable-folder plugin checks.
-- Capture same-device SAF-baseline and direct-build benchmark results.
-
-Task definition: `docs/tasks/direct-storage-migration.md`.
-Benchmark protocol: `docs/benchmarks/direct-storage.md`.
-
-### 2. Validate game-aware plugin output and legacy timestamp ordering
+### 1. Finish real-container plugin output verification
 
 Requirement IDs:
 
@@ -58,7 +34,7 @@ Expected result:
 
 Task definition: `docs/tasks/game-aware-plugin-ordering.md`.
 
-### 3. Continue MainActivity responsibility extraction
+### 2. Continue MainActivity responsibility extraction
 
 Reason:
 
@@ -70,7 +46,7 @@ Expected result:
 Continue cohesive, behavior-preserving extractions without mixing in the later
 `ModEngine` service-extraction phase.
 
-### 4. Improve archive extraction robustness
+### 3. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -81,7 +57,7 @@ Expected result:
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
 variants that remain unsupported.
 
-### 5. Define the stable 1.0 acceptance boundary
+### 4. Define the stable 1.0 acceptance boundary
 
 Reason:
 
