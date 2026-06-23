@@ -10,16 +10,33 @@
 
 ## Current objective
 
-Finish real-container verification of game-aware plugin activation output and
-effective order. The active-profile startup hotfix and exploratory same-device
-storage benchmark are complete. The accepted 1.0 UI redesign remains outside
-this work.
+Define the bounded `ModEngine.kt` service-extraction task before moving code.
+The long-running `MainActivity.kt` responsibility extraction is complete: the
+activity now owns Android lifecycle, Activity Result registration, Compose
+attachment, platform dialogs/intents, and top-level dependency wiring while
+focused state, workflow, reporting, storage-selection, startup, and diagnostic
+classes own reusable behavior.
 
-The bounded storage task is `docs/tasks/direct-storage-migration.md`. It excludes
-new game definitions, `DML_output`, LOOT, xEdit, INI recipes, and broad
-`ModEngine` extraction.
+Normal integrations, bug fixes, and feature additions remain separate from the
+structural `ModEngine` work. The accepted 1.0 UI redesign is still out of scope.
 
 ## Completed most recently
+
+The final `MainActivity` extraction:
+
+* removed the obsolete v0.5.0 artifact-repair feature and engine class;
+* moved mutable Compose state and `DashboardUiState` projection into
+  `MainActivityUiState.kt`;
+* moved dashboard callback binding into `DashboardActionBindings.kt`;
+* extracted operation reporting, session logging, startup sequencing,
+  profile/session configuration, dashboard refresh, plugin synchronization,
+  selected-folder persistence, diagnostics, support reports, content inspection,
+  second-screen decisions, and thread coordination into focused classes;
+* moved profile-scoped engine and repository construction into factories; and
+* left `MainActivity` with platform UI actions and top-level workflow wiring.
+
+The only intentional user-visible change was removal of the obsolete developer-only
+v0.5.0 repair action. All other behavior and the public version remain unchanged.
 
 The current source migration:
 
@@ -28,7 +45,7 @@ The current source migration:
 * stores canonical profile-specific paths for Data, Game Root, and Archive Library;
 * treats legacy URI-only selections as reselection state without guessing paths;
 * uses direct files for archive scanning/import, deployment, plugin scanning,
-  overwrite scanning, baseline work, repair, and plugin timestamp ordering;
+  overwrite scanning, baseline work, backup/restoration, and plugin timestamp ordering;
 * removes the production tree-URI deployment manager and `DocumentFile` dependency;
 * adds permission, path-validation, migration, profile-isolation, archive, and
   deployment-focused JVM tests; and
@@ -80,11 +97,9 @@ user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Run real game/container checks for the generated activation files and effective
-plugin order. Use valid plugins from actual game installations; disposable empty
-`.esm`/`.esp` fixtures only verify DML's file handling. Preserve the exploratory
-benchmark evidence described in `docs/benchmarks/direct-storage.md`; repeat the
-benchmark only if a publication-grade performance claim is needed.
+Review and validate the completed `MainActivity` extraction series, then create a
+separate bounded task definition for `ModEngine.kt` service extraction before
+moving any engine responsibility.
 
 ## Current constraints
 
@@ -100,9 +115,10 @@ benchmark only if a publication-grade performance claim is needed.
 
 ## Known open work
 
-* Finish real-container game checks for activation files and effective plugin order.
-* Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
-* Treat broad `ModEngine.kt` service extraction as a separate later project.
+* Define and execute broad `ModEngine.kt` service extraction as a separate,
+  patch-driven structural project.
+* Keep real-container plugin verification as deferred regression work unless a
+  user report or release-specific check makes it necessary.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
 * Continue improving beginner-facing Game Root and Data Folder wording.
 * Keep TTW setup, game-folder validation, `DML_output`, configuration recipes,
@@ -110,9 +126,9 @@ benchmark only if a publication-grade performance claim is needed.
 
 ## Blockers
 
-Acceptance is blocked only on real-container plugin verification. The startup
-hotfix retest and exploratory device benchmark are complete. No public version
-change is part of this migration.
+No active storage, plugin-verification, or `MainActivity` extraction blocker
+remains. `ModEngine` extraction has not started and must receive its own bounded
+task definition. No public version change is part of this structural work.
 
 ## Private and public boundary
 
@@ -130,4 +146,4 @@ Private experiments, unpublished research, credentials, signing material, and pr
 
 ## Last updated
 
-2026-06-22
+2026-06-23

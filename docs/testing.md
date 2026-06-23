@@ -70,7 +70,7 @@ Risk order:
   explicit reselection flags, and stop writing obsolete URI fields.
 - Data, Game Root, and Archive Library selections remain profile-isolated.
 - Archive scanning/import, plugin discovery, overwrite scanning, deployment
-  preflight, deployment execution, and repair use direct filesystem paths.
+  preflight, and deployment execution use direct filesystem paths.
 - No production `DocumentFile`, tree-URI launcher, or SAF deployment backend
   remains after migration.
 - Same-device performance comparison follows
@@ -163,6 +163,8 @@ Start tests around dangerous logic first.
 | ResolvedDataGraphBuilder     | Prevent wrong conflict winners          |
 
 ## Current JVM Unit Tests
+
+Activity extraction coverage includes state projection, startup ordering, profile/session coordination, selected-folder persistence, dashboard refresh application, operation reporting, diagnostics, and thread execution.
 
 These tests run without an Android device. The exact test-file list is derived
 from source rather than duplicated as a hand-maintained table here.

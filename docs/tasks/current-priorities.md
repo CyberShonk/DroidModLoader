@@ -15,38 +15,23 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Finish real-container plugin output verification
-
-Requirement IDs:
-
-- REQ-PLUGIN-002
-- REQ-PLUGIN-003
-- REQ-PLUGIN-005
-- REQ-PROFILE-002
-
-Expected result:
-
-- Preserve the completed disposable-folder checks for Skyrim LE text ordering
-  and legacy-game timestamp ordering.
-- Launch each supported game in its target container and confirm the generated
-  activation output and effective order are consumed as intended.
-- Preserve profile-specific enabled state and order.
-
-Task definition: `docs/tasks/game-aware-plugin-ordering.md`.
-
-### 2. Continue MainActivity responsibility extraction
+### 1. Define the ModEngine service-extraction boundary
 
 Reason:
 
-`MainActivity.kt` remains a large coordinator even after the completed workflow
-extractions.
+`ModEngine.kt` still owns too many engine responsibilities. It should be split
+through a separate patch-driven structural task rather than mixed with feature
+or integration work.
 
 Expected result:
 
-Continue cohesive, behavior-preserving extractions without mixing in the later
-`ModEngine` service-extraction phase.
+- Inventory current `ModEngine` responsibilities and call sites.
+- Identify coherent service boundaries and dependency direction.
+- Preserve behavior and public interfaces during extraction where practical.
+- Define small commit boundaries, focused tests, manual checks, and explicit
+  exclusions before changing engine code.
 
-### 3. Improve archive extraction robustness
+### 2. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -57,7 +42,7 @@ Expected result:
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
 variants that remain unsupported.
 
-### 4. Define the stable 1.0 acceptance boundary
+### 3. Define the stable 1.0 acceptance boundary
 
 Reason:
 

@@ -149,7 +149,6 @@ data class DashboardActions(
 
     val onOpenOverwriteFolder: () -> Unit,
     val onCloseOverwriteFolder: () -> Unit,
-    val onRepairV050Artifacts: () -> Unit = {},
 
     val onBuildResolvedDataGraph: () -> Unit = {},
     val onBuildDeploymentPlan: () -> Unit = {},
@@ -265,8 +264,7 @@ private fun MainDashboardScreen(
                         operationInProgress = state.operationInProgress,
                         onBuildResolvedDataGraph = actions.onBuildResolvedDataGraph,
                         onBuildDeploymentPlan = actions.onBuildDeploymentPlan,
-                        onShowArchiveLibrarySummary = actions.onShowArchiveLibrarySummary,
-                        onRepairV050Artifacts = actions.onRepairV050Artifacts
+                        onShowArchiveLibrarySummary = actions.onShowArchiveLibrarySummary
                     )
                 }
 

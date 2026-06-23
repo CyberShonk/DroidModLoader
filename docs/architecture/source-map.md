@@ -12,13 +12,16 @@ Use this when planning changes so work does not get shoved into the wrong file.
 
 | File              | Responsibility                                                                                                              |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `MainActivity.kt` | Android entry point and high-level coordinator. This file is allowed to wire systems together, but should shrink over time. |
+| `MainActivity.kt` | Android lifecycle, Activity Result launchers, Compose attachment, platform UI launches, and top-level dependency wiring. |
 
 ## UI
 
 | File/Folder                            | Responsibility                                                     |
 |----------------------------------------|--------------------------------------------------------------------|
 | `ui/MainScreen.kt`                     | Main app screen and primary user path                              |
+| `ui/MainActivityUiState.kt`            | Activity-scoped Compose state and dashboard-state projection       |
+| `ui/workflow/*Coordinator.kt`          | Focused startup, profile, refresh, storage, diagnostics, and UI coordination |
+| `ui/workflow/DashboardActionBindings.kt` | Dashboard callback binding to focused workflow controllers       |
 | `ui/*Components.kt`                    | Focused dashboard cards, dialogs, and fullscreen panels            |
 | `ui/ArchiveLibraryComponents.kt`       | Archive-folder setup and searchable archive browser UI             |
 | `ui/archive/ArchiveBrowserUiItem.kt`   | Structured archive browser presentation state                      |
@@ -76,7 +79,6 @@ These files/areas should be reduced over time:
 
 | Target               | Reason                                                                     |
 |----------------------|----------------------------------------------------------------------------|
-| `MainActivity.kt`    | Should not keep accumulating app coordination logic                        |
 | `ModEngine.kt`       | Should be split into focused services over time                            |
 | Large UI composables | Should be broken into reusable components when they become hard to read    |
 | Deployment code      | Planning, preflight, journal, execution, and recovery must remain separate |

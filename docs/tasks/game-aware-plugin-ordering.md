@@ -27,7 +27,7 @@ Fallout 3, or Oblivion would not actually load.
 
 ## Verified Current Game Matrix
 
-`MainActivity.getSupportedGameIds()` currently returns these game IDs:
+`GameCatalog.supportedGameIds` currently exposes these game IDs:
 
 | Game ID | Display name | Activation output | Load-order mechanism |
 |---|---|---|---|
@@ -56,8 +56,8 @@ the game uses.
 
 ## Profile Isolation
 
-The existing `ProfileStoragePaths` and `MainActivity.createModEngineForWorkflows()`
-construction must remain authoritative:
+The existing `ProfileStoragePaths` and `ProfileScopedEngineFactory` construction
+must remain authoritative:
 
 - `plugins.json`, `plugins.txt`, and any `loadorder.txt` output stay under the
   active profile state directory;

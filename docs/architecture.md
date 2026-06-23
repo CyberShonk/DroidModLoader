@@ -14,7 +14,7 @@ app/src/main/java/com/shonkware/droidmodloader/
 
 | Area            | Purpose                                                                       |
 |-----------------|-------------------------------------------------------------------------------|
-| MainActivity.kt | Main Android entry point and high-level coordinator                           |
+| MainActivity.kt | Android lifecycle, platform UI, Compose attachment, and dependency wiring       |
 | ui/             | Compose screens, dashboard components, panels, and theme                      |
 | engine/         | Core logic for mods, plugins, deployment, profiles, diagnostics, and recovery |
 
@@ -43,6 +43,36 @@ Important UI files:
 | SecondScreenController.kt         | Second-screen handling                                         |
 | SecondScreenPluginPresentation.kt | Second-screen plugin UI                                        |
 | theme/DmlTheme.kt                 | Theme styling                                                  |
+
+### Activity Composition and Workflow Ownership
+
+`MainActivity.kt` is the Android composition root. It registers Activity Result
+launchers, attaches Compose content, forwards lifecycle events, creates the
+second-screen controller, launches Android settings/share/dialog/toast UI, and
+wires focused dependencies together.
+
+Reusable activity behavior is separated as follows:
+
+- `MainActivityUiState.kt` owns activity-scoped Compose state and projects it to
+  `DashboardUiState`.
+- `DashboardActionBindings.kt` binds dashboard callbacks to focused workflow
+  controllers.
+- `AppStartupCoordinator.kt` preserves startup sequencing.
+- `ProfileSessionCoordinator.kt` applies profile/startup/game configuration to
+  UI state.
+- `SelectedFolderConfigurationCoordinator.kt` persists selected Data and Game
+  Root paths and triggers the required follow-up work.
+- `DashboardRefreshCoordinator.kt` applies dashboard refresh results.
+- `OperationReporter.kt` and `SessionLogWriter.kt` own operation status and
+  file-backed session logging.
+- focused workflow coordinators own diagnostics, recovery, direct-folder
+  selection, content inspection, plugin synchronization, second-screen state,
+  and thread execution.
+- `ProfileScopedEngineFactory.kt` and `ProfileRepositoryFactory.kt` own
+  profile-scoped construction details.
+
+The activity must not regain domain file operations or reusable workflow logic.
+Top-level dependency wiring is intentionally retained there.
 
 ## Engine Layer
 
@@ -79,9 +109,9 @@ It should handle:
 
 ## Plugin Activation and Ordering Flow
 
-Plugin state remains profile-scoped. `MainActivity.createModEngineForWorkflows()`
-constructs each engine with the active profile's `plugins.json`, `plugins.txt`,
-and `loadorder.txt` paths.
+Plugin state remains profile-scoped. `ProfileScopedEngineFactory.kt` constructs
+each engine with the active profile's `plugins.json`, `plugins.txt`, and
+`loadorder.txt` paths.
 
 Responsibilities are separated as follows:
 
@@ -167,7 +197,6 @@ Do not let architecture docs become fictional. If the code changes, update the d
 
 ## Known Cleanup Targets
 
-- MainActivity.kt is too large and should be reduced over time.
 - ModEngine.kt is large and should eventually be split into smaller services.
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
 - Release APKs should not be committed.
@@ -196,7 +225,7 @@ Responsibilities are separated as follows:
 
 Game Root, Data, and Archive Library selections use the same direct folder
 browser and persist canonical absolute paths. Deployment, plugin discovery,
-overwrite scanning, baseline scanning, repair, archive import, and legacy plugin
+overwrite scanning, baseline scanning, archive import, and legacy plugin
 timestamp ordering use ordinary filesystem APIs. Legacy tree-URI values are read
 only as migration signals; DML does not guess a filesystem path from them.
 

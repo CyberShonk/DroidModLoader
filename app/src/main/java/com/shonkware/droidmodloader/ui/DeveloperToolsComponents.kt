@@ -21,8 +21,7 @@ fun DeveloperToolsCard(
     operationInProgress: Boolean,
     onBuildResolvedDataGraph: () -> Unit,
     onBuildDeploymentPlan: () -> Unit,
-    onShowArchiveLibrarySummary: () -> Unit,
-    onRepairV050Artifacts: () -> Unit
+    onShowArchiveLibrarySummary: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -36,7 +35,7 @@ fun DeveloperToolsCard(
             Text("Developer Tools", fontWeight = FontWeight.Bold)
 
             Text(
-                text = "Advanced tools for testing and repair. Most users should not need these every day.",
+                text = "Advanced diagnostics for testing current profile state. Most users should not need these every day.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -79,23 +78,6 @@ fun DeveloperToolsCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Text(
-                text = "Advanced repair tools. Use these only when troubleshooting beta builds.",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Button(
-                enabled = !operationInProgress,
-                onClick = onRepairV050Artifacts,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Repair v0.5.0-beta Artifacts")
-            }
-
-            Text(
-                text = "Repairs earlier beta artifacts such as .ini.txt/.xml.txt files, duplicate folders like sound(1), and incorrectly wrapped installed mod folders. Existing correct files are not overwritten.",
-                style = MaterialTheme.typography.bodySmall
-            )
         }
     }
 }
