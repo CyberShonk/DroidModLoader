@@ -4,6 +4,10 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 
 internal object ProfileConfigUiMapper {
 
+    fun activeProfileName(profile: GameProfile?): String {
+        return profile?.profileName ?: "No profile"
+    }
+
     fun fromProfile(profile: GameProfile): ProfileConfigUiState {
         return ProfileConfigUiState(
             selectedGameId = profile.gameId,

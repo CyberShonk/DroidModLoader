@@ -1650,6 +1650,7 @@ class MainActivity : ComponentActivity() {
         runOnUiThreadBlocking {
             setupComplete = resolvedState.setupComplete
             activeProfileId = resolvedState.activeProfileId
+            activeProfileName = ProfileConfigUiMapper.activeProfileName(activeProfile)
             profileOptions = profiles
 
             if (resolvedState.setupComplete && activeProfile != null) {
