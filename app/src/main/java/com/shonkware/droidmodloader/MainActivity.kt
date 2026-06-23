@@ -23,14 +23,9 @@ import java.io.File
 import android.os.Looper
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
-import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.GameCatalog
-import com.shonkware.droidmodloader.ui.workflow.GameConfigurationEngineAdapter
-import com.shonkware.droidmodloader.ui.workflow.GameConfigurationInput
 import com.shonkware.droidmodloader.ui.workflow.GameConfigurationWorkflow
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
-import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
-import com.shonkware.droidmodloader.ui.workflow.ProfileStartupRepositoryAdapter
 import com.shonkware.droidmodloader.ui.workflow.ProfileStartupWorkflow
 import com.shonkware.droidmodloader.ui.workflow.PriorityNormalizationEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.PriorityNormalizationWorkflow
@@ -68,6 +63,7 @@ import com.shonkware.droidmodloader.ui.workflow.DirectFolderSelectionCoordinator
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshWorkflow
+import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshCoordinator
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
@@ -86,6 +82,9 @@ import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionCoordina
 import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.SecondScreenPluginCoordinator
 import com.shonkware.droidmodloader.ui.workflow.ActivityThreadRunner
+import com.shonkware.droidmodloader.ui.workflow.AppStartupCoordinator
+import com.shonkware.droidmodloader.ui.workflow.ProfileSessionCoordinator
+import com.shonkware.droidmodloader.ui.workflow.SelectedFolderConfigurationCoordinator
 import com.shonkware.droidmodloader.ui.workflow.DashboardActionBindings
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
@@ -191,8 +190,8 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 overwriteMessage = message
             },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) }
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) }
         )
     }
     private val supportReportCoordinator by lazy {
@@ -217,12 +216,12 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         )
     }
     private val pluginSynchronizationWorkflow by lazy {
-        PluginSynchronizationWorkflow { message -> appendLog(message) }
+        PluginSynchronizationWorkflow { message -> operationReporter.appendLog(message) }
     }
     private val pluginSyncWorkflowController = PluginSyncWorkflowController(
         createEngine = { profileScopedEngineFactory.create() },
         syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
-        refreshDashboard = { refreshDashboard() }
+        refreshDashboard = { dashboardRefreshCoordinator.refresh() }
     )
     private val pluginManagementWorkflow by lazy {
         PluginManagementWorkflow(
@@ -235,14 +234,14 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 }
             },
             isOperationInProgress = { operationInProgress },
-            beginOperation = { text -> beginOperation(text) },
-            finishOperation = { text -> finishOperation(text) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
+            beginOperation = { text -> operationReporter.beginOperation(text) },
+            finishOperation = { text -> operationReporter.finishOperation(text) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
             selectedGameIdProvider = { selectedGameId },
-            refreshDashboard = { refreshDashboard() }
+            refreshDashboard = dashboardRefreshCoordinator::refresh
         )
     }
 
@@ -287,11 +286,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     )
                 }
             },
-            beginOperation = { message -> beginOperation(message) },
-            finishOperation = { message -> finishOperation(message) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
+            beginOperation = { message -> operationReporter.beginOperation(message) },
+            finishOperation = { message -> operationReporter.finishOperation(message) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
             updateSelectedOptionIds = { selectedOptionIds ->
                 pendingInstallerSelectedOptionIds = selectedOptionIds
@@ -306,7 +305,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 }
             },
             refreshDashboard = {
-                refreshDashboard()
+                dashboardRefreshCoordinator.refresh()
                 archiveBrowserWorkflow.refreshIfOpen()
             }
         )
@@ -376,7 +375,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     activeProfileName = profile.profileName
                     profileOptions = profiles
 
-                    applyProfileConfigUiState(
+                    profileSessionCoordinator.applyProfileConfigUiState(
                         ProfileConfigUiMapper.fromProfile(profile)
                     )
                     archiveBrowserWorkflow.onProfileChanged()
@@ -387,7 +386,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     profileOptions = profiles
                     activeProfileId = profile.profileId
                     activeProfileName = profile.profileName
-                    applyProfileConfigUiState(
+                    profileSessionCoordinator.applyProfileConfigUiState(
                         ProfileConfigUiMapper.fromProfile(profile)
                     )
                     visibleMods = emptyList()
@@ -405,7 +404,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 activityThreadRunner.runOnUiThreadBlocking {
                     activeProfileId = profile.profileId
                     activeProfileName = profile.profileName
-                    applyProfileConfigUiState(
+                    profileSessionCoordinator.applyProfileConfigUiState(
                         ProfileConfigUiMapper.fromProfile(profile)
                     )
                     visibleMods = emptyList()
@@ -428,11 +427,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     setupComplete = profiles.isNotEmpty()
 
                     if (newActiveProfile != null) {
-                        applyProfileConfigUiState(
+                        profileSessionCoordinator.applyProfileConfigUiState(
                             ProfileConfigUiMapper.fromProfile(newActiveProfile)
                         )
                     } else {
-                        applyProfileConfigUiState(
+                        profileSessionCoordinator.applyProfileConfigUiState(
                             ProfileConfigUiMapper.emptyState()
                         )
                         visiblePlugins = emptyList()
@@ -448,11 +447,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     setupComplete = profiles.isNotEmpty()
 
                     if (newActiveProfile != null) {
-                        applyProfileConfigUiState(
+                        profileSessionCoordinator.applyProfileConfigUiState(
                             ProfileConfigUiMapper.fromProfile(newActiveProfile)
                         )
                     } else {
-                        applyProfileConfigUiState(
+                        profileSessionCoordinator.applyProfileConfigUiState(
                             ProfileConfigUiMapper.emptyState()
                         )
                         showProfileDialog = false
@@ -464,17 +463,17 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     visibleModContentIndexes = emptyMap()
                 }
             },
-            saveSelectedGameConfigFromUi = { saveSelectedGameConfigFromUi() },
-            loadSelectedGameConfigIntoUi = { loadSelectedGameConfigIntoUi() },
+            saveSelectedGameConfigFromUi = { profileSessionCoordinator.saveSelectedGameConfigFromUi() },
+            loadSelectedGameConfigIntoUi = { profileSessionCoordinator.loadSelectedGameConfigIntoUi() },
             syncPluginsFromCurrentState = {
                 val engine = profileScopedEngineFactory.create()
                 if (engine != null) {
                     syncPluginsFromCurrentState(engine)
                 }
             },
-            refreshDashboard = { refreshDashboard() },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message -> appendError(message) },
+            refreshDashboard = dashboardRefreshCoordinator::refresh,
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message -> operationReporter.appendError(message) },
             updateLastOperationStatus = { status -> lastOperationStatus = status }
         )
     }
@@ -491,10 +490,10 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     )
                 }
             },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
-            refreshDashboard = { refreshDashboard() }
+            refreshDashboard = dashboardRefreshCoordinator::refresh
         )
     }
     private val modActionWorkflowController by lazy {
@@ -510,7 +509,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
     }
     private val archiveImportWorkflowController: ArchiveImportWorkflowController by lazy {
         ArchiveImportWorkflowController(
-            appendLog = { message -> appendLog(message) },
+            appendLog = { message -> operationReporter.appendLog(message) },
             runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             handleImportedArchive = { uri -> archiveImportExecutionWorkflow.importArchive(uri) },
             showArchiveLibrarySummary = { developerDiagnosticsCoordinator.buildArchiveLibrarySummary() }
@@ -526,12 +525,8 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     setupRealDeployEnabled = true
                 }
             },
-            savePickedDataFolderToSelectedGameConfig = { path ->
-                savePickedDataFolderToSelectedGameConfig(path)
-            },
-            savePickedRootFolderToSelectedGameConfig = { path ->
-                savePickedRootFolderToSelectedGameConfig(path)
-            },
+            savePickedDataFolderToSelectedGameConfig = selectedFolderConfigurationCoordinator::saveDataFolder,
+            savePickedRootFolderToSelectedGameConfig = selectedFolderConfigurationCoordinator::saveGameRoot,
             setNewProfileDataPathText = { path ->
                 runOnUiThread {
                     newProfileDataPathText = path
@@ -540,14 +535,14 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             saveArchiveLibraryPath = { path ->
                 archiveBrowserWorkflow.selectFolder(path)
             },
-            appendLog = { message -> appendLog(message) }
+            appendLog = { message -> operationReporter.appendLog(message) }
         )
     }
     private val dashboardRefreshWorkflow = DashboardRefreshWorkflow()
     private val gameConfigurationWorkflow = GameConfigurationWorkflow()
     private val profileStartupWorkflow = ProfileStartupWorkflow()
     private val priorityNormalizationWorkflow by lazy {
-        PriorityNormalizationWorkflow { message -> appendLog(message) }
+        PriorityNormalizationWorkflow { message -> operationReporter.appendLog(message) }
     }
     private val deploymentExecutionWorkflow by lazy {
         DeploymentExecutionWorkflow(
@@ -563,7 +558,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 profileManagementWorkflow.saveActiveProfileFromDashboard()
             },
             saveSelectedGameConfig = {
-                saveSelectedGameConfigFromUi()
+                profileSessionCoordinator.saveSelectedGameConfigFromUi()
             },
             createEngine = {
                 profileScopedEngineFactory.create()?.let { engine ->
@@ -573,12 +568,12 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     )
                 }
             },
-            beginOperation = { message -> beginOperation(message) },
-            finishOperation = { message -> finishOperation(message) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
-            refreshDashboard = { refreshDashboard() }
+            beginOperation = { message -> operationReporter.beginOperation(message) },
+            finishOperation = { message -> operationReporter.finishOperation(message) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
+            refreshDashboard = dashboardRefreshCoordinator::refresh
         )
     }
     private val deploymentActionWorkflowController by lazy {
@@ -597,11 +592,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 profileScopedEngineFactory.create()?.let(::DeployRecoveryEngineAdapter)
             },
             selectedGameIdProvider = { selectedGameId },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
-            beginOperation = { message -> beginOperation(message) },
-            finishOperation = { message -> finishOperation(message) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
+            beginOperation = { message -> operationReporter.beginOperation(message) },
+            finishOperation = { message -> operationReporter.finishOperation(message) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
             updateWarningState = { warning, showDetails ->
                 runOnUiThread {
                     deployRecoveryWarningText = warning
@@ -609,7 +604,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 }
             },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
-            refreshDashboard = { refreshDashboard() }
+            refreshDashboard = dashboardRefreshCoordinator::refresh
         )
     }
     private val deployRecoveryWorkflowController by lazy {
@@ -624,7 +619,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             dismissRecoveryWarning = {
                 deployRecoveryWarningText = ""
                 showDeployRecoveryDialog = false
-                appendLog("Dismissed previous deploy warning for this session.")
+                operationReporter.appendLog("Dismissed previous deploy warning for this session.")
             },
             viewLastDeployJournal = {
                 deployRecoveryWorkflow.readLastJournalSummary()
@@ -641,12 +636,12 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 profileScopedEngineFactory.create()?.let(::DeveloperDiagnosticsEngineAdapter)
             },
             selectedGameIdProvider = { selectedGameId },
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
-            beginOperation = { message -> beginOperation(message) },
-            finishOperation = { message -> finishOperation(message) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
-            refreshDashboard = { refreshDashboard() }
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
+            beginOperation = { message -> operationReporter.beginOperation(message) },
+            finishOperation = { message -> operationReporter.finishOperation(message) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            refreshDashboard = dashboardRefreshCoordinator::refresh
         )
     }
     private val developerToolsWorkflowController by lazy {
@@ -704,13 +699,37 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             externalFilesDirProvider = { getExternalFilesDir(null) },
             profileStoragePaths = profileStoragePaths,
             selectedGameIdProvider = { selectedGameId },
-            appendError = { message -> appendError(message) }
+            appendError = { message -> operationReporter.appendError(message) }
         )
     }
     private val profileRepositoryFactory by lazy {
         ProfileRepositoryFactory(
             externalFilesDirProvider = { getExternalFilesDir(null) },
-            appendError = { message -> appendError(message) }
+            appendError = { message -> operationReporter.appendError(message) }
+        )
+    }
+
+    private val profileSessionCoordinator by lazy {
+        ProfileSessionCoordinator(
+            state = this,
+            profileRepositoryFactory = profileRepositoryFactory,
+            profileScopedEngineFactory = profileScopedEngineFactory,
+            profileStartupWorkflow = profileStartupWorkflow,
+            gameConfigurationWorkflow = gameConfigurationWorkflow,
+            runOnUiThreadBlocking = activityThreadRunner::runOnUiThreadBlocking,
+            appendLog = operationReporter::appendLog
+        )
+    }
+
+    private val selectedFolderConfigurationCoordinator by lazy {
+        SelectedFolderConfigurationCoordinator(
+            state = this,
+            runOnUiThreadBlocking = activityThreadRunner::runOnUiThreadBlocking,
+            saveSelectedGameConfig = profileSessionCoordinator::saveSelectedGameConfigFromUi,
+            saveActiveProfile = profileManagementWorkflow::saveActiveProfileFromDashboard,
+            ensureDataBaselineIfMissing = profileContentInspectionCoordinator::ensureDataBaselineIfMissing,
+            refreshDashboard = dashboardRefreshCoordinator::refresh,
+            appendLog = operationReporter::appendLog
         )
     }
 
@@ -720,8 +739,8 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             externalFilesDirProvider = { getExternalFilesDir(null) },
             activeProfileIdProvider = { activeProfileId },
             profileStoragePaths = profileStoragePaths,
-            appendLog = { message -> appendLog(message) },
-            appendError = { message, throwable -> appendError(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status }
         )
     }
@@ -729,14 +748,14 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
     private val archiveImportFileStore by lazy {
         ArchiveImportFileStore(
             externalFilesDirProvider = { getExternalFilesDir(null) },
-            appendError = { message -> appendError(message) }
+            appendError = { message -> operationReporter.appendError(message) }
         )
     }
 
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow by lazy {
         ArchiveImportExecutionWorkflow(
             operationInProgressProvider = { operationInProgress },
-            beginOperation = { message -> beginOperation(message) },
+            beginOperation = { message -> operationReporter.beginOperation(message) },
             createEngine = { profileScopedEngineFactory.create() },
             archiveImportFileStore = archiveImportFileStore,
             showInstallerChoices = { prepared, archiveRecordId ->
@@ -748,15 +767,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                     installerDialogFullscreen = false
                 }
             },
-            appendLog = { message -> appendLog(message) },
-            finishOperation = { message -> finishOperation(message) },
-            failOperation = { message, throwable -> failOperation(message, throwable) },
+            appendLog = { message -> operationReporter.appendLog(message) },
+            finishOperation = { message -> operationReporter.finishOperation(message) },
+            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
             syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
             appendInstalledModRoutingSummary = { engine, mod ->
                 developerDiagnosticsCoordinator.appendInstalledModRoutingSummary(DeveloperDiagnosticsEngineAdapter(engine), mod)
             },
             refreshDashboard = {
-                refreshDashboard()
+                dashboardRefreshCoordinator.refresh()
                 archiveBrowserWorkflow.refreshIfOpen()
             }
         )
@@ -813,7 +832,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             installArchivePath = { sourcePath ->
                 archiveImportWorkflowController.handleArchivePath(sourcePath)
             },
-            appendLog = { message -> appendLog(message) }
+            appendLog = { message -> operationReporter.appendLog(message) }
         )
     }
 
@@ -822,9 +841,26 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             controllerProvider = { secondScreenController },
             pluginsProvider = { visiblePlugins },
             activeProfileNameProvider = { activeProfileName },
-            appendLog = { message -> appendLog(message) },
+            appendLog = { message -> operationReporter.appendLog(message) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
             showToast = { message -> showToast(message) }
+        )
+    }
+
+    private val dashboardRefreshCoordinator by lazy {
+        DashboardRefreshCoordinator(
+            state = this,
+            buildResult = {
+                profileScopedEngineFactory.create()?.let { engine ->
+                    dashboardRefreshWorkflow.build(
+                        engine = DashboardRefreshEngineAdapter(engine),
+                        selectedGameId = selectedGameId
+                    )
+                }
+            },
+            runOnUiThread = { action -> runOnUiThread(action) },
+            refreshSecondScreen = secondScreenPluginCoordinator::refresh,
+            appendLog = operationReporter::appendLog
         )
     }
 
@@ -841,6 +877,32 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             toggleModFilePreviewFullscreen = {
                 modFilePreviewFullscreen = !modFilePreviewFullscreen
             }
+        )
+    }
+
+    private val appStartupCoordinator by lazy {
+        AppStartupCoordinator(
+            runInBackground = activityThreadRunner::runInBackground,
+            loadSetupState = profileSessionCoordinator::loadSetupState,
+            migrateLegacyProfileStorage = legacyProfileStorageMigrator::migrateIfNeeded,
+            refreshGameOptions = profileSessionCoordinator::refreshGameOptions,
+            loadSelectedGameConfig = profileSessionCoordinator::loadSelectedGameConfigIntoUi,
+            migratePrioritySpacing = {
+                profileScopedEngineFactory.create()?.let { engine ->
+                    priorityNormalizationWorkflow.migrateIfNeeded(
+                        PriorityNormalizationEngineAdapter(engine)
+                    )
+                }
+            },
+            ensureDataBaseline = {
+                profileContentInspectionCoordinator.ensureDataBaselineIfMissing("startup")
+            },
+            createRuntime = profileScopedEngineFactory::create,
+            checkRecovery = { engine ->
+                deployRecoveryWorkflow.checkStartup(DeployRecoveryEngineAdapter(engine))
+            },
+            synchronizePluginsAndRefresh = pluginSyncWorkflowController::syncWithExistingEngineThenRefresh,
+            appendLog = operationReporter::appendLog
         )
     }
 
@@ -863,10 +925,10 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             activityThreadRunner = activityThreadRunner,
             profileContentInspectionCoordinator = profileContentInspectionCoordinator,
             pluginSyncWorkflowController = pluginSyncWorkflowController,
-            loadSelectedGameConfigIntoUi = ::loadSelectedGameConfigIntoUi,
+            loadSelectedGameConfigIntoUi = profileSessionCoordinator::loadSelectedGameConfigIntoUi,
             shareLogs = ::shareLogs,
             requestAllFilesAccess = ::requestAllFilesAccess,
-            appendLog = ::appendLog
+            appendLog = operationReporter::appendLog
         )
     }
 
@@ -896,7 +958,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         secondScreenController = SecondScreenController(this)
 
 
-        initializeComposeUi()
+        appStartupCoordinator.initialize()
     }
 
     override fun onResume() {
@@ -914,73 +976,6 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
     }
 
 
-
-    private fun initializeComposeUi() {
-        activityThreadRunner.runInBackground {
-            loadSetupState()
-            legacyProfileStorageMigrator.migrateIfNeeded()
-            refreshGameOptions()
-            loadSelectedGameConfigIntoUi()
-            migratePrioritySpacingIfNeeded()
-
-            profileContentInspectionCoordinator.ensureDataBaselineIfMissing("startup")
-
-            val engine = profileScopedEngineFactory.create()
-
-            if (engine != null) {
-                deployRecoveryWorkflow.checkStartup(DeployRecoveryEngineAdapter(engine))
-            }
-
-            pluginSyncWorkflowController.syncWithExistingEngineThenRefresh(engine)
-        }
-
-        appendLog("UI ready.")
-    }
-
-
-
-
-    //log stuff
-    private fun appendLog(message: String) {
-        operationReporter.appendLog(message)
-    }
-
-    private fun appendError(message: String, throwable: Throwable? = null) {
-        operationReporter.appendError(message, throwable)
-    }
-
-    private fun beginOperation(text: String) {
-        operationReporter.beginOperation(text)
-    }
-
-    private fun finishOperation(successText: String) {
-        operationReporter.finishOperation(successText)
-    }
-
-    private fun failOperation(message: String, throwable: Throwable? = null) {
-        operationReporter.failOperation(message, throwable)
-    }
-
-
-
-    private fun refreshDashboard() {
-        val engine = profileScopedEngineFactory.create() ?: return
-        val result = dashboardRefreshWorkflow.build(
-            engine = DashboardRefreshEngineAdapter(engine),
-            selectedGameId = selectedGameId
-        )
-
-        runOnUiThread {
-            visibleMods = result.mods
-            visiblePlugins = result.plugins
-            visibleModContentIndexes = result.modContentIndexes
-            summaryText = result.summaryText
-            secondScreenPluginCoordinator.refresh()
-        }
-
-        appendLog("Dashboard refreshed.")
-    }
-
     private fun showDeleteConfirmDialog(mod: Mod) {
         runOnUiThread {
             AlertDialog.Builder(this)
@@ -997,37 +992,6 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
                 .show()
         }
     }
-    private fun savePickedDataFolderToSelectedGameConfig(path: String) {
-        activityThreadRunner.runOnUiThreadBlocking {
-            targetPathText = path
-            selectedDataPathText = path
-            dataPathReselectionRequired = false
-            realDeployEnabledState = true
-        }
-
-        saveSelectedGameConfigFromUi()
-        profileManagementWorkflow.saveActiveProfileFromDashboard()
-
-        profileContentInspectionCoordinator.ensureDataBaselineIfMissing("target folder selected")
-        refreshDashboard()
-
-        appendLog("Saved direct Data folder path for $selectedGameId: $path")
-    }
-    private fun savePickedRootFolderToSelectedGameConfig(path: String) {
-        activityThreadRunner.runOnUiThreadBlocking {
-            rootTargetPathText = path
-            selectedRootPathText = path
-            rootPathReselectionRequired = false
-            realDeployEnabledState = true
-        }
-
-        saveSelectedGameConfigFromUi()
-        profileManagementWorkflow.saveActiveProfileFromDashboard()
-        refreshDashboard()
-
-        appendLog("Saved direct Game Root path for $selectedGameId: $path")
-    }
-
     private fun shareLogs() {
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
@@ -1038,8 +1002,6 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
     }
 
 
-
-
     private fun syncPluginsFromCurrentState(engine: ModEngine) {
         pluginSynchronizationWorkflow.sync(
             engine = PluginSynchronizationEngineAdapter(engine),
@@ -1048,172 +1010,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
     }
 
 
-    private fun refreshGameOptions() {
-        runOnUiThread {
-            gameOptions = GameCatalog.supportedGameIds
-            selectedGameId = GameCatalog.supportedOrDefault(selectedGameId)
-            setupGameId = GameCatalog.supportedOrDefault(setupGameId)
-            setupGameDisplayName = GameCatalog.displayName(setupGameId)
-            newProfileGameId = GameCatalog.supportedOrDefault(newProfileGameId)
-            newProfileGameDisplayName = GameCatalog.displayName(newProfileGameId)
-        }
-    }
-
-    private fun loadSelectedGameConfigIntoUi() {
-        val engine = profileScopedEngineFactory.create() ?: return
-        val activeProfile = profileOptions.firstOrNull { it.profileId == activeProfileId }
-        val previousGameId = selectedGameId
-        val result = gameConfigurationWorkflow.load(
-            engine = GameConfigurationEngineAdapter(engine),
-            activeProfile = activeProfile,
-            selectedGameId = selectedGameId
-        )
-
-        if (previousGameId != result.selectedGameId) {
-            appendLog(
-                "Corrected selectedGameId from $previousGameId to active profile game ${result.selectedGameId}"
-            )
-        }
-        runOnUiThread {
-            selectedGameId = result.selectedGameId
-            applyDeploymentConfigUiState(result.uiState)
-        }
-        appendLog(result.logMessage)
-    }
-
-    private fun saveSelectedGameConfigFromUi() {
-        val engine = profileScopedEngineFactory.create() ?: return
-        val updatedConfig = gameConfigurationWorkflow.save(
-            engine = GameConfigurationEngineAdapter(engine),
-            input = GameConfigurationInput(
-                selectedGameId = selectedGameId,
-                targetDataPath = targetPathText,
-                realDeployEnabled = realDeployEnabledState,
-                targetRootPath = rootTargetPathText,
-                dataPathReselectionRequired = dataPathReselectionRequired,
-                rootPathReselectionRequired = rootPathReselectionRequired
-            )
-        )
-        appendLog("Saved updated config from Compose state: $updatedConfig")
-    }
-
-
-    private fun migratePrioritySpacingIfNeeded() {
-        val engine = profileScopedEngineFactory.create() ?: return
-        priorityNormalizationWorkflow.migrateIfNeeded(
-            PriorityNormalizationEngineAdapter(engine)
-        )
-    }
-
-
-
-
-
-
-    private fun loadSetupState() {
-        val repository = profileRepositoryFactory.create() ?: return
-        val result = profileStartupWorkflow.load(
-            ProfileStartupRepositoryAdapter(repository)
-        )
-        result.recoveryLogMessage?.let(::appendLog)
-
-        activityThreadRunner.runOnUiThreadBlocking {
-            setupComplete = result.setupState.setupComplete
-            activeProfileId = result.setupState.activeProfileId
-            activeProfileName = ProfileConfigUiMapper.activeProfileName(result.activeProfile)
-            profileOptions = result.profiles
-            applyProfileConfigUiState(
-                result.activeProfile
-                    ?.takeIf { result.setupState.setupComplete }
-                    ?.let(ProfileConfigUiMapper::fromProfile)
-                    ?: ProfileConfigUiMapper.emptyState()
-            )
-            visibleMods = emptyList()
-            visiblePlugins = emptyList()
-            visibleModContentIndexes = emptyMap()
-        }
-
-        appendLog("Loaded setup state: ${result.setupState}")
-        appendLog("Loaded profile count: ${result.profiles.size}")
-        appendProfileContextLog()
-    }
-
-
-    private fun appendProfileContextLog() {
-        appendLog(
-            "Profile context: activeProfileId=$activeProfileId, " +
-                    "activeProfileName=$activeProfileName, " +
-                    "selectedGameId=$selectedGameId, " +
-                    "targetDataPath=$targetPathText"
-        )
-    }
-
     private fun showToast(message: String) {
         runOnUiThread {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private fun applyDeploymentConfigUiState(state: DeploymentConfigUiState) {
-        targetPathText = state.targetDataPath
-        realDeployEnabledState = state.realDeployEnabled
-        dataPathReselectionRequired = state.dataPathReselectionRequired
-        selectedDataPathText = DeploymentConfigUiMapper.dataPathDisplayText(
-            state.targetDataPath,
-            state.dataPathReselectionRequired
-        )
-        rootTargetPathText = state.targetRootPath
-        rootPathReselectionRequired = state.rootPathReselectionRequired
-        selectedRootPathText = DeploymentConfigUiMapper.rootPathDisplayText(
-            state.targetRootPath,
-            state.rootPathReselectionRequired
-        )
-    }
-
-    private fun applyProfileConfigUiState(state: ProfileConfigUiState) {
-        selectedGameId = state.selectedGameId
-        targetPathText = state.targetDataPath
-        dataPathReselectionRequired = state.dataPathReselectionRequired
-        selectedDataPathText = DeploymentConfigUiMapper.dataPathDisplayText(
-            state.targetDataPath,
-            state.dataPathReselectionRequired
-        )
-        rootTargetPathText = state.targetRootPath
-        rootPathReselectionRequired = state.rootPathReselectionRequired
-        selectedRootPathText = DeploymentConfigUiMapper.rootPathDisplayText(
-            state.targetRootPath,
-            state.rootPathReselectionRequired
-        )
-        realDeployEnabledState = state.realDeployEnabled
-    }
-
-
-
-
 
 
     private fun requestAllFilesAccess() {
@@ -1224,14 +1025,14 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         } catch (_: ActivityNotFoundException) {
             val fallback = allFilesAccessManager.fallbackSettingsIntent()
             if (fallback == null) {
-                appendLog("All-files access settings are unavailable on this device.")
+                operationReporter.appendLog("All-files access settings are unavailable on this device.")
                 return
             }
 
             try {
                 allFilesAccessSettingsLauncher.launch(fallback)
             } catch (e: ActivityNotFoundException) {
-                appendError("All-files access settings are unavailable: ${e.message}", e)
+                operationReporter.appendError("All-files access settings are unavailable: ${e.message}", e)
             }
         }
     }
