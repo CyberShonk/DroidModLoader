@@ -38,7 +38,7 @@ class DownloadedArchiveRepository(
     fun registerArchive(
         archiveFile: File,
         originalDisplayName: String,
-        sourceUri: String? = null,
+        sourcePath: String? = null,
         sourceUrl: String? = null
     ): DownloadedArchiveRecord {
         archiveLibraryDir.mkdirs()
@@ -55,7 +55,7 @@ class DownloadedArchiveRepository(
             sizeBytes = archiveFile.length(),
             modifiedAtMillis = archiveFile.lastModified(),
             fingerprint = ArchiveMetadataReader.buildFingerprint(archiveFile),
-            sourceUri = sourceUri,
+            sourcePath = sourcePath,
             sourceUrl = sourceUrl,
             nexusGameDomain = nexusInfo?.gameDomain,
             nexusModId = nexusInfo?.modId,
@@ -137,7 +137,7 @@ class DownloadedArchiveRepository(
             put("sizeBytes", record.sizeBytes)
             put("modifiedAtMillis", record.modifiedAtMillis)
             put("fingerprint", record.fingerprint)
-            putNullable("sourceUri", record.sourceUri)
+            putNullable("sourcePath", record.sourcePath)
             putNullable("sourceUrl", record.sourceUrl)
             putNullable("nexusGameDomain", record.nexusGameDomain)
             putNullable("nexusModId", record.nexusModId)
@@ -160,7 +160,7 @@ class DownloadedArchiveRepository(
             sizeBytes = obj.optLong("sizeBytes"),
             modifiedAtMillis = obj.optLong("modifiedAtMillis"),
             fingerprint = obj.optString("fingerprint"),
-            sourceUri = obj.optNullableString("sourceUri"),
+            sourcePath = obj.optNullableString("sourcePath") ?: obj.optNullableString("sourceUri"),
             sourceUrl = obj.optNullableString("sourceUrl"),
             nexusGameDomain = obj.optNullableString("nexusGameDomain"),
             nexusModId = obj.optNullableLong("nexusModId"),

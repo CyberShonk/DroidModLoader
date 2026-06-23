@@ -2,29 +2,41 @@ package com.shonkware.droidmodloader.ui.workflow
 
 internal class FolderPickerWorkflowController(
     private val runInBackground: (() -> Unit) -> Unit,
+    private val saveFirstSetupDataPath: (String) -> Unit,
     private val savePickedDataFolderToSelectedGameConfig: (String) -> Unit,
     private val savePickedRootFolderToSelectedGameConfig: (String) -> Unit,
-    private val setNewProfileTreeUriText: (String) -> Unit,
+    private val setNewProfileDataPathText: (String) -> Unit,
+    private val saveArchiveLibraryPath: (String) -> Unit,
     private val appendLog: (String) -> Unit
 ) {
 
     fun handlePickedFolder(
         mode: FolderPickMode,
-        treeUri: String
+        path: String
     ) {
         runInBackground {
             when (mode) {
+                FolderPickMode.FirstSetupDataFolder -> {
+                    saveFirstSetupDataPath(path)
+                    appendLog("Selected Data folder for first setup.")
+                }
+
                 FolderPickMode.ActiveDataFolder -> {
-                    savePickedDataFolderToSelectedGameConfig(treeUri)
+                    savePickedDataFolderToSelectedGameConfig(path)
                 }
 
                 FolderPickMode.ActiveGameRootFolder -> {
-                    savePickedRootFolderToSelectedGameConfig(treeUri)
+                    savePickedRootFolderToSelectedGameConfig(path)
                 }
 
                 FolderPickMode.NewProfileDataFolder -> {
-                    setNewProfileTreeUriText(treeUri)
+                    setNewProfileDataPathText(path)
                     appendLog("Selected Data folder for new profile.")
+                }
+
+                FolderPickMode.ArchiveLibraryFolder -> {
+                    saveArchiveLibraryPath(path)
+                    appendLog("Selected Archive Library folder.")
                 }
             }
         }

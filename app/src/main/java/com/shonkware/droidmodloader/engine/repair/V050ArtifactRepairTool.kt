@@ -1,8 +1,5 @@
 package com.shonkware.droidmodloader.engine.repair
 
-import android.content.Context
-import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -19,7 +16,6 @@ data class V050ArtifactRepairResult(
 )
 
 class V050ArtifactRepairTool(
-    private val context: Context,
     private val backupRootDir: File,
     private val reportDir: File
 ) {
@@ -68,9 +64,7 @@ class V050ArtifactRepairTool(
 
     fun repair(
         modsDir: File,
-        dataTreeUri: String?,
         dataPath: String?,
-        rootTreeUri: String?,
         rootPath: String?
     ): V050ArtifactRepairResult {
         val counters = Counters()
@@ -82,9 +76,7 @@ class V050ArtifactRepairTool(
         lines.add("=== Droid Mod Loader v0.5.0-beta Artifact Repair ===")
         lines.add("Started: ${Date()}")
         lines.add("Mods dir: ${modsDir.absolutePath}")
-        lines.add("Data Tree URI: ${dataTreeUri ?: "(none)"}")
         lines.add("Data path: ${dataPath ?: "(none)"}")
-        lines.add("Root Tree URI: ${rootTreeUri ?: "(none)"}")
         lines.add("Root path: ${rootPath ?: "(none)"}")
         lines.add("")
 
@@ -96,7 +88,6 @@ class V050ArtifactRepairTool(
 
         repairTarget(
             label = "Data target",
-            treeUri = dataTreeUri,
             localPath = dataPath,
             counters = counters,
             lines = lines
@@ -104,7 +95,6 @@ class V050ArtifactRepairTool(
 
         repairTarget(
             label = "Game Root target",
-            treeUri = rootTreeUri,
             localPath = rootPath,
             counters = counters,
             lines = lines
@@ -238,7 +228,6 @@ class V050ArtifactRepairTool(
 
     private fun repairTarget(
         label: String,
-        treeUri: String?,
         localPath: String?,
         counters: Counters,
         lines: MutableList<String>
@@ -246,63 +235,33 @@ class V050ArtifactRepairTool(
         lines.add("")
         lines.add("=== $label Repair ===")
 
-        when {
-            !treeUri.isNullOrBlank() -> {
-                val root = DocumentFile.fromTreeUri(context, Uri.parse(treeUri))
-
-                if (root == null || !root.exists() || !root.isDirectory) {
-                    lines.add("$label Tree URI could not be opened. Skipping.")
-                    counters.skippedCount++
-                    return
-                }
-
-                repairBadTextSuffixesTree(
-                    dir = root,
-                    relativePath = "",
-                    targetLabel = label,
-                    counters = counters,
-                    lines = lines
-                )
-
-                repairDuplicateFoldersTree(
-                    parent = root,
-                    relativePath = "",
-                    targetLabel = label,
-                    counters = counters,
-                    lines = lines
-                )
-            }
-
-            !localPath.isNullOrBlank() -> {
-                val root = File(localPath)
-
-                if (!root.exists() || !root.isDirectory) {
-                    lines.add("$label local path does not exist or is not a folder. Skipping: $localPath")
-                    counters.skippedCount++
-                    return
-                }
-
-                repairBadTextSuffixesLocal(
-                    root = root,
-                    rootLabel = label,
-                    targetCounter = TargetCounter.TARGET,
-                    counters = counters,
-                    lines = lines
-                )
-
-                repairDuplicateFoldersLocal(
-                    parent = root,
-                    relativePath = "",
-                    targetLabel = label,
-                    counters = counters,
-                    lines = lines
-                )
-            }
-
-            else -> {
-                lines.add("$label is not configured. Skipping.")
-            }
+        if (localPath.isNullOrBlank()) {
+            lines.add("$label is not configured. Skipping.")
+            return
         }
+
+        val root = File(localPath)
+        if (!root.exists() || !root.isDirectory) {
+            lines.add("$label path does not exist or is not a folder. Skipping: $localPath")
+            counters.skippedCount++
+            return
+        }
+
+        repairBadTextSuffixesLocal(
+            root = root,
+            rootLabel = label,
+            targetCounter = TargetCounter.TARGET,
+            counters = counters,
+            lines = lines
+        )
+
+        repairDuplicateFoldersLocal(
+            parent = root,
+            relativePath = "",
+            targetLabel = label,
+            counters = counters,
+            lines = lines
+        )
     }
 
     private enum class TargetCounter {
@@ -347,67 +306,6 @@ class V050ArtifactRepairTool(
                     )
                 }
             }
-    }
-
-    private fun repairBadTextSuffixesTree(
-        dir: DocumentFile,
-        relativePath: String,
-        targetLabel: String,
-        counters: Counters,
-        lines: MutableList<String>
-    ) {
-        dir.listFiles().forEach { child ->
-            val childName = child.name ?: return@forEach
-            val childRelativePath = joinPath(relativePath, childName)
-
-            when {
-                child.isDirectory -> {
-                    repairBadTextSuffixesTree(
-                        dir = child,
-                        relativePath = childRelativePath,
-                        targetLabel = targetLabel,
-                        counters = counters,
-                        lines = lines
-                    )
-                }
-
-                child.isFile -> {
-                    val fixedName = fixedNameForBadTextSuffix(childName) ?: return@forEach
-                    val existingCorrect = findChildIgnoreCase(dir, fixedName)
-
-                    if (existingCorrect == null) {
-                        val fixedFile = dir.createFile(
-                            "application/octet-stream",
-                            fixedName
-                        )
-
-                        if (fixedFile == null) {
-                            lines.add("Skipped Tree URI rename; could not create fixed file: $childRelativePath")
-                            counters.skippedCount++
-                            return@forEach
-                        }
-
-                        copyTreeFileToTreeFile(child, fixedFile)
-
-                        if (child.delete()) {
-                            counters.targetFilesRenamed++
-                            lines.add("Renamed Tree URI file: $targetLabel/$childRelativePath -> $fixedName")
-                        } else {
-                            lines.add("Copied fixed file but could not delete old Tree URI file: $targetLabel/$childRelativePath")
-                            counters.skippedCount++
-                        }
-                    } else {
-                        quarantineTreeFile(
-                            file = child,
-                            label = targetLabel,
-                            relativePath = childRelativePath,
-                            counters = counters,
-                            lines = lines
-                        )
-                    }
-                }
-            }
-        }
     }
 
     private fun repairDuplicateFoldersLocal(
@@ -461,57 +359,6 @@ class V050ArtifactRepairTool(
         }
     }
 
-    private fun repairDuplicateFoldersTree(
-        parent: DocumentFile,
-        relativePath: String,
-        targetLabel: String,
-        counters: Counters,
-        lines: MutableList<String>
-    ) {
-        val dirs = parent.listFiles()
-            .filter { it.isDirectory }
-
-        for (dir in dirs) {
-            val name = dir.name ?: continue
-            repairDuplicateFoldersTree(
-                parent = dir,
-                relativePath = joinPath(relativePath, name),
-                targetLabel = targetLabel,
-                counters = counters,
-                lines = lines
-            )
-        }
-
-        val refreshedDirs = parent.listFiles()
-            .filter { it.isDirectory }
-
-        for (duplicate in refreshedDirs) {
-            val duplicateName = duplicate.name ?: continue
-            val baseName = duplicateBaseName(duplicateName) ?: continue
-
-            val canonical = refreshedDirs.firstOrNull {
-                val name = it.name ?: return@firstOrNull false
-
-                it != duplicate &&
-                        !isDuplicateSuffixName(name) &&
-                        name.equals(baseName, ignoreCase = true)
-            } ?: continue
-
-            mergeTreeDirectoryContents(
-                sourceDir = duplicate,
-                targetDir = canonical,
-                relativePath = joinPath(relativePath, duplicateName),
-                targetLabel = targetLabel,
-                counters = counters,
-                lines = lines
-            )
-
-            duplicate.delete()
-            counters.duplicateFoldersMerged++
-            lines.add("Merged Tree URI duplicate folder: $targetLabel/${joinPath(relativePath, duplicateName)} -> ${canonical.name}")
-        }
-    }
-
     private fun moveDirectoryContentsLocal(
         sourceDir: File,
         targetDir: File,
@@ -556,87 +403,10 @@ class V050ArtifactRepairTool(
         }
     }
 
-    private fun mergeTreeDirectoryContents(
-        sourceDir: DocumentFile,
-        targetDir: DocumentFile,
-        relativePath: String,
-        targetLabel: String,
-        counters: Counters,
-        lines: MutableList<String>
-    ) {
-        sourceDir.listFiles().forEach { child ->
-            val childName = child.name ?: return@forEach
-            val existing = findChildIgnoreCase(targetDir, childName)
-
-            when {
-                existing == null && child.isFile -> {
-                    val created = targetDir.createFile(
-                        "application/octet-stream",
-                        childName
-                    )
-
-                    if (created == null) {
-                        lines.add("Skipped Tree URI move; could not create file: $targetLabel/${joinPath(relativePath, childName)}")
-                        counters.skippedCount++
-                        return@forEach
-                    }
-
-                    copyTreeFileToTreeFile(child, created)
-                    child.delete()
-                }
-
-                existing == null && child.isDirectory -> {
-                    val createdDir = targetDir.createDirectory(childName)
-
-                    if (createdDir == null) {
-                        lines.add("Skipped Tree URI move; could not create folder: $targetLabel/${joinPath(relativePath, childName)}")
-                        counters.skippedCount++
-                        return@forEach
-                    }
-
-                    mergeTreeDirectoryContents(
-                        sourceDir = child,
-                        targetDir = createdDir,
-                        relativePath = joinPath(relativePath, childName),
-                        targetLabel = targetLabel,
-                        counters = counters,
-                        lines = lines
-                    )
-
-                    child.delete()
-                }
-
-                existing != null && child.isDirectory && existing.isDirectory -> {
-                    mergeTreeDirectoryContents(
-                        sourceDir = child,
-                        targetDir = existing,
-                        relativePath = joinPath(relativePath, childName),
-                        targetLabel = targetLabel,
-                        counters = counters,
-                        lines = lines
-                    )
-
-                    child.delete()
-                }
-
-                else -> {
-                    quarantineTreeFileOrDirectory(
-                        file = child,
-                        label = targetLabel,
-                        relativePath = joinPath(relativePath, childName),
-                        counters = counters,
-                        lines = lines
-                    )
-                }
-            }
-        }
-    }
-
     private fun fixedNameForBadTextSuffix(fileName: String): String? {
         val lower = fileName.lowercase()
 
-        val badSuffix = badTextSuffixes.firstOrNull { lower.endsWith(it) }
-            ?: return null
+        if (badTextSuffixes.none { lower.endsWith(it) }) return null
 
         return fileName.dropLast(4)
     }
@@ -787,117 +557,6 @@ class V050ArtifactRepairTool(
         } catch (e: Exception) {
             counters.skippedCount++
             lines.add("Skipped conflict; quarantine failed: $label/$relativePath (${e.message})")
-        }
-    }
-
-    private fun quarantineTreeFile(
-        file: DocumentFile,
-        label: String,
-        relativePath: String,
-        counters: Counters,
-        lines: MutableList<String>
-    ) {
-        quarantineTreeFileOrDirectory(
-            file = file,
-            label = label,
-            relativePath = relativePath,
-            counters = counters,
-            lines = lines
-        )
-    }
-
-    private fun quarantineTreeFileOrDirectory(
-        file: DocumentFile,
-        label: String,
-        relativePath: String,
-        counters: Counters,
-        lines: MutableList<String>
-    ) {
-        val quarantineFile = File(
-            backupRootDir,
-            "quarantine/${sanitizePath(label)}/${sanitizePath(relativePath)}"
-        )
-
-        try {
-            if (file.isDirectory) {
-                copyTreeDirectoryToLocal(
-                    sourceDir = file,
-                    targetDir = quarantineFile
-                )
-                file.delete()
-            } else {
-                quarantineFile.parentFile?.mkdirs()
-                copyTreeFileToLocal(file, quarantineFile)
-                file.delete()
-            }
-
-            counters.conflictsQuarantined++
-            lines.add("Quarantined Tree URI conflict: $label/$relativePath -> ${quarantineFile.absolutePath}")
-        } catch (e: Exception) {
-            counters.skippedCount++
-            lines.add("Skipped Tree URI conflict; quarantine failed: $label/$relativePath (${e.message})")
-        }
-    }
-
-    private fun copyTreeDirectoryToLocal(
-        sourceDir: DocumentFile,
-        targetDir: File
-    ) {
-        targetDir.mkdirs()
-
-        sourceDir.listFiles().forEach { child ->
-            val name = child.name ?: return@forEach
-            val target = File(targetDir, name)
-
-            when {
-                child.isDirectory -> copyTreeDirectoryToLocal(child, target)
-                child.isFile -> copyTreeFileToLocal(child, target)
-            }
-        }
-    }
-
-    private fun copyTreeFileToLocal(
-        sourceFile: DocumentFile,
-        targetFile: File
-    ) {
-        targetFile.parentFile?.mkdirs()
-
-        context.contentResolver.openInputStream(sourceFile.uri).use { input ->
-            if (input == null) {
-                throw IllegalStateException("Could not read Tree URI file: ${sourceFile.name}")
-            }
-
-            targetFile.outputStream().use { output ->
-                input.copyTo(output, bufferSize = 256 * 1024)
-            }
-        }
-    }
-
-    private fun copyTreeFileToTreeFile(
-        sourceFile: DocumentFile,
-        targetFile: DocumentFile
-    ) {
-        context.contentResolver.openInputStream(sourceFile.uri).use { input ->
-            if (input == null) {
-                throw IllegalStateException("Could not read Tree URI file: ${sourceFile.name}")
-            }
-
-            context.contentResolver.openOutputStream(targetFile.uri, "w").use { output ->
-                if (output == null) {
-                    throw IllegalStateException("Could not write Tree URI file: ${targetFile.name}")
-                }
-
-                input.copyTo(output, bufferSize = 256 * 1024)
-            }
-        }
-    }
-
-    private fun findChildIgnoreCase(
-        parent: DocumentFile,
-        childName: String
-    ): DocumentFile? {
-        return parent.listFiles().firstOrNull {
-            it.name?.equals(childName, ignoreCase = true) == true
         }
     }
 

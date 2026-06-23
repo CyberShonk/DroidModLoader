@@ -1,9 +1,7 @@
 package com.shonkware.droidmodloader.engine.download
 
-import android.content.Context
-import android.net.Uri
-import android.provider.DocumentsContract
-import androidx.documentfile.provider.DocumentFile
+import java.io.File
+import java.io.IOException
 import java.util.Locale
 
 class ArchiveFolderAccessException(message: String, cause: Throwable? = null) :
@@ -11,7 +9,7 @@ class ArchiveFolderAccessException(message: String, cause: Throwable? = null) :
 
 data class ArchiveFolderEntry(
     val stableId: String,
-    val documentUri: String,
+    val sourcePath: String,
     val fileName: String,
     val archiveFormat: String,
     val sizeBytes: Long,
@@ -23,50 +21,45 @@ data class ArchiveFolderScanResult(
     val entries: List<ArchiveFolderEntry>
 )
 
-class ArchiveFolderScanner(
-    private val context: Context
-) {
-    fun scan(treeUriText: String): ArchiveFolderScanResult {
-        val treeUri = Uri.parse(treeUriText)
+class ArchiveFolderScanner {
+    fun scan(folderPath: String): ArchiveFolderScanResult {
         val root = try {
-            DocumentFile.fromTreeUri(context, treeUri)
-        } catch (t: Throwable) {
+            File(folderPath).canonicalFile
+        } catch (t: IOException) {
             throw ArchiveFolderAccessException(
-                "DML could not open the selected archive folder.",
+                "DML could not resolve the selected archive folder.",
                 t
             )
-        } ?: throw ArchiveFolderAccessException(
-            "DML could not open the selected archive folder."
-        )
+        }
 
         if (!root.exists() || !root.isDirectory || !root.canRead()) {
             throw ArchiveFolderAccessException(
-                "DML no longer has access to the selected archive folder. Choose the folder again."
+                "DML cannot read the selected archive folder. Choose the folder again."
             )
         }
 
         val entries = try {
             root.listFiles()
-                .asSequence()
-                .filter { it.isFile }
-                .mapNotNull { document ->
-                    val fileName = document.name?.trim().orEmpty()
-                    if (!isSupportedArchiveName(fileName)) {
+                ?.asSequence()
+                ?.filter { it.isFile && it.canRead() }
+                ?.mapNotNull { file ->
+                    if (!isSupportedArchiveName(file.name)) {
                         return@mapNotNull null
                     }
 
-                    val documentUri = document.uri.toString()
+                    val canonical = file.canonicalFile
                     ArchiveFolderEntry(
-                        stableId = canonicalIdentityForUri(documentUri) ?: documentUri,
-                        documentUri = documentUri,
-                        fileName = fileName,
-                        archiveFormat = fileName.substringAfterLast('.', "archive")
+                        stableId = canonicalIdentityForPath(canonical.path) ?: canonical.path,
+                        sourcePath = canonical.path,
+                        fileName = canonical.name,
+                        archiveFormat = canonical.name.substringAfterLast('.', "archive")
                             .lowercase(Locale.ROOT),
-                        sizeBytes = document.length().coerceAtLeast(0L),
-                        lastModifiedMillis = document.lastModified().coerceAtLeast(0L)
+                        sizeBytes = canonical.length().coerceAtLeast(0L),
+                        lastModifiedMillis = canonical.lastModified().coerceAtLeast(0L)
                     )
                 }
-                .toList()
+                ?.toList()
+                ?: emptyList()
         } catch (t: Throwable) {
             throw ArchiveFolderAccessException(
                 "DML could not scan the selected archive folder. Choose the folder again or tap Refresh.",
@@ -75,36 +68,14 @@ class ArchiveFolderScanner(
         }
 
         return ArchiveFolderScanResult(
-            folderName = root.name?.takeIf { it.isNotBlank() } ?: "Selected folder",
+            folderName = root.name.takeIf { it.isNotBlank() } ?: root.path,
             entries = entries
         )
     }
 
-    fun canonicalIdentityForUri(uriText: String?): String? {
-        if (uriText.isNullOrBlank()) return null
-
-        return try {
-            val uri = Uri.parse(uriText)
-            val documentId = when {
-                DocumentsContract.isDocumentUri(context, uri) -> {
-                    DocumentsContract.getDocumentId(uri)
-                }
-
-                uri.path?.contains("/tree/") == true -> {
-                    DocumentsContract.getTreeDocumentId(uri)
-                }
-
-                else -> null
-            }
-
-            if (!documentId.isNullOrBlank() && !uri.authority.isNullOrBlank()) {
-                "${uri.authority}|$documentId"
-            } else {
-                uri.normalizeScheme().toString()
-            }
-        } catch (_: Throwable) {
-            null
-        }
+    fun canonicalIdentityForPath(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        return runCatching { File(path).canonicalPath }.getOrNull()
     }
 }
 

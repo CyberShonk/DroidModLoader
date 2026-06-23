@@ -50,9 +50,9 @@ class ArchiveBrowserWorkflowTest {
             updateState = { states += it }
         )
 
-        workflow.selectFolder("content://folder")
+        workflow.selectFolder("/archives")
 
-        assertEquals("content://folder", store.folderUris["profile-a"])
+        assertEquals("/archives", store.folderPaths["profile-a"])
         assertEquals(1, browserCount)
         assertEquals("Downloads", states.last().folderName)
         assertEquals(listOf("One.zip"), states.last().items.map { it.fileName })
@@ -70,24 +70,24 @@ class ArchiveBrowserWorkflowTest {
         val workflow = workflow(
             store = store,
             activeProfileIdProvider = { activeProfileId },
-            scanFolder = { folderUri ->
-                scannedFolders += folderUri
+            scanFolder = { folderPath ->
+                scannedFolders += folderPath
                 ArchiveFolderScanResult("Downloads", emptyList())
             },
             showFolderSetup = { setupCount++ }
         )
 
-        workflow.selectFolder("content://profile-a")
+        workflow.selectFolder("/archives/a")
         activeProfileId = "profile-b"
         workflow.onProfileChanged()
-        workflow.selectFolder("content://profile-b")
+        workflow.selectFolder("/archives/b")
         activeProfileId = "profile-a"
         workflow.onProfileChanged()
 
-        assertEquals("content://profile-a", store.folderUris["profile-a"])
-        assertEquals("content://profile-b", store.folderUris["profile-b"])
+        assertEquals("/archives/a", store.folderPaths["profile-a"])
+        assertEquals("/archives/b", store.folderPaths["profile-b"])
         assertEquals(1, setupCount)
-        assertEquals("content://profile-a", scannedFolders.last())
+        assertEquals("/archives/a", scannedFolders.last())
     }
 
     @Test
@@ -110,7 +110,7 @@ class ArchiveBrowserWorkflowTest {
             entries = entries,
             records = records,
             currentMods = listOf(mod("installed-mod", "Installed Mod")),
-            canonicalIdentityForSourceUri = { sourceUri -> sourceUri?.removePrefix("source:") }
+            canonicalIdentityForSourcePath = { sourcePath -> sourcePath?.substringAfterLast('/') }
         )
 
         assertEquals(listOf("new", "old", "installed"), items.map { it.stableId })
@@ -130,7 +130,7 @@ class ArchiveBrowserWorkflowTest {
                 )
             ),
             currentMods = emptyList(),
-            canonicalIdentityForSourceUri = { sourceUri -> sourceUri?.removePrefix("source:") }
+            canonicalIdentityForSourcePath = { sourcePath -> sourcePath?.substringAfterLast('/') }
         )
 
         assertEquals(ArchiveBrowserItemStatus.PREVIOUSLY_INSTALLED, items.single().status)
@@ -162,7 +162,7 @@ class ArchiveBrowserWorkflowTest {
             entries = entries,
             records = records,
             currentMods = listOf(mod("same-mod", "Same Mod")),
-            canonicalIdentityForSourceUri = { sourceUri -> sourceUri?.removePrefix("source:") }
+            canonicalIdentityForSourcePath = { sourcePath -> sourcePath?.substringAfterLast('/') }
         )
 
         assertEquals(
@@ -176,9 +176,9 @@ class ArchiveBrowserWorkflowTest {
     }
 
     @Test
-    fun installRoutesSelectedDocumentUriAndRespectsBusyState() {
-        val store = FakeFolderStore("content://folder")
-        val installedUris = mutableListOf<String>()
+    fun installRoutesSelectedArchivePathAndRespectsBusyState() {
+        val store = FakeFolderStore("/archives")
+        val installedPaths = mutableListOf<String>()
         var busy = false
 
         val workflow = workflow(
@@ -190,7 +190,7 @@ class ArchiveBrowserWorkflowTest {
                     entries = listOf(folderEntry("one", "One.zip", 100L))
                 )
             },
-            installArchiveUri = { installedUris += it }
+            installArchivePath = { installedPaths += it }
         )
 
         workflow.openBrowser()
@@ -198,7 +198,7 @@ class ArchiveBrowserWorkflowTest {
         busy = true
         workflow.installArchive("one")
 
-        assertEquals(listOf("content://one"), installedUris)
+        assertEquals(listOf("/archives/one"), installedPaths)
     }
 
     private fun workflow(
@@ -211,7 +211,7 @@ class ArchiveBrowserWorkflowTest {
         showFolderSetup: () -> Unit = {},
         showBrowser: () -> Unit = {},
         updateState: (ArchiveBrowserUiState) -> Unit = {},
-        installArchiveUri: (String) -> Unit = {}
+        installArchivePath: (String) -> Unit = {}
     ): ArchiveBrowserWorkflow {
         return ArchiveBrowserWorkflow(
             preferences = store,
@@ -221,11 +221,11 @@ class ArchiveBrowserWorkflowTest {
             isBrowserOpen = { true },
             scanFolder = scanFolder,
             loadHistory = { ArchiveBrowserHistory(emptyList(), emptyList()) },
-            canonicalIdentityForSourceUri = { it },
+            canonicalIdentityForSourcePath = { it },
             showFolderSetup = showFolderSetup,
             showBrowser = showBrowser,
             updateState = updateState,
-            installArchiveUri = installArchiveUri,
+            installArchivePath = installArchivePath,
             appendLog = {}
         )
     }
@@ -237,7 +237,7 @@ class ArchiveBrowserWorkflowTest {
     ): ArchiveFolderEntry {
         return ArchiveFolderEntry(
             stableId = stableId,
-            documentUri = "content://$stableId",
+            sourcePath = "/archives/$stableId",
             fileName = fileName,
             archiveFormat = fileName.substringAfterLast('.'),
             sizeBytes = 100L,
@@ -260,7 +260,7 @@ class ArchiveBrowserWorkflowTest {
             sizeBytes = 100L,
             modifiedAtMillis = 1L,
             fingerprint = "fingerprint-$id",
-            sourceUri = "source:$sourceIdentity",
+            sourcePath = "/archives/$sourceIdentity",
             installedModId = installedModId,
             installedAtMillis = installedAtMillis,
             createdAtMillis = installedAtMillis ?: 1L
@@ -279,22 +279,24 @@ class ArchiveBrowserWorkflowTest {
     }
 
     private class FakeFolderStore(
-        initialFolderUri: String? = null
+        initialFolderPath: String? = null
     ) : ArchiveFolderSelectionStore {
-        val folderUris = mutableMapOf<String, String>().apply {
-            if (initialFolderUri != null) {
-                put("profile-a", initialFolderUri)
+        val folderPaths = mutableMapOf<String, String>().apply {
+            if (initialFolderPath != null) {
+                put("profile-a", initialFolderPath)
             }
         }
 
-        override fun getSelectedFolderUri(profileId: String): String? = folderUris[profileId]
+        override fun getSelectedFolderPath(profileId: String): String? = folderPaths[profileId]
 
-        override fun saveSelectedFolderUri(profileId: String, treeUri: String) {
-            folderUris[profileId] = treeUri
+        override fun saveSelectedFolderPath(profileId: String, path: String) {
+            folderPaths[profileId] = path
         }
 
-        override fun clearSelectedFolderUri(profileId: String) {
-            folderUris.remove(profileId)
+        override fun clearSelectedFolderPath(profileId: String) {
+            folderPaths.remove(profileId)
         }
+
+        override fun isReselectionRequired(profileId: String): Boolean = false
     }
 }

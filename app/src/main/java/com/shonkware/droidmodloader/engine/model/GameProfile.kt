@@ -6,9 +6,9 @@ data class GameProfile(
     val gameId: String,
     val gameDisplayName: String,
     val targetDataPath: String,
-    val targetTreeUri: String?,
-    val targetRootPath: String = "",
-    val targetRootTreeUri: String? = null,
     val realDeployEnabled: Boolean,
+    val targetRootPath: String = "",
+    val dataPathReselectionRequired: Boolean = false,
+    val rootPathReselectionRequired: Boolean = false,
     val iniPresetId: String? = null
 )

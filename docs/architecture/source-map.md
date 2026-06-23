@@ -45,12 +45,13 @@ UI rules:
 | `engine/plugins/`        | Plugin discovery, plugin state, game plugin rules               |
 | `engine/profile/`        | Profile persistence                                             |
 | `engine/resolve/`        | Resolved data graph and conflict winner state                   |
+| `engine/storage/`        | All-files permission policy, direct path validation, and folder browsing |
 | `engine/deploy/`         | Deployment target identity and deployment execution             |
 | `engine/deploy/plan/`    | Deployment plan building and preflight checks                   |
 | `engine/deploy/journal/` | Deployment journal and interrupted deploy state                 |
 | `engine/baseline/`       | Baseline target file tracking                                   |
 | `engine/overwrite/`      | Existing/manual/overwrite file scanning                         |
-| `engine/download/`       | Archive metadata, selected-folder persistence, and read-only scanning |
+| `engine/download/`       | Archive metadata, profile-specific direct-folder persistence, and scanning |
 | `engine/rules/`          | File classification and deployment rules                        |
 | `engine/util/`           | Path helpers, logging helpers, shared utilities                 |
 | `engine/model/`          | Shared data models                                              |

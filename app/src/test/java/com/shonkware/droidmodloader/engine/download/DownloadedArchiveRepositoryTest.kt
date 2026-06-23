@@ -28,7 +28,7 @@ class DownloadedArchiveRepositoryTest {
         val record = repository.registerArchive(
             archiveFile = archiveFile,
             originalDisplayName = "Example_Mod.zip",
-            sourceUri = "content://test/example",
+            sourcePath = "/archives/example.zip",
             sourceUrl = "https://www.nexusmods.com/newvegas/mods/12345?tab=files&file_id=67890"
         )
 
@@ -40,7 +40,7 @@ class DownloadedArchiveRepositoryTest {
         assertEquals("zip", reloaded.archiveFormat)
         assertEquals("Example_Mod.zip", reloaded.relativePath)
         assertEquals(archiveFile.length(), reloaded.sizeBytes)
-        assertEquals("content://test/example", reloaded.sourceUri)
+        assertEquals("/archives/example.zip", reloaded.sourcePath)
         assertEquals("newvegas", reloaded.nexusGameDomain)
         assertEquals(12345L, reloaded.nexusModId)
         assertEquals(67890L, reloaded.nexusFileId)
@@ -149,4 +149,35 @@ class DownloadedArchiveRepositoryTest {
             repository.buildSummary()
         )
     }
+    @Test
+    fun loadMigratesLegacySourceUriIntoSourcePath() {
+        val archiveLibraryDir = tempFolder.newFolder("legacy_archive_library")
+        val archiveListFile = File(tempFolder.newFolder("legacy_state"), "downloaded_archives.json")
+        archiveListFile.writeText(
+            """
+            [
+              {
+                "archiveId": "legacy",
+                "displayName": "Legacy",
+                "fileName": "Legacy.zip",
+                "archiveFormat": "zip",
+                "relativePath": "Legacy.zip",
+                "sizeBytes": 1,
+                "modifiedAtMillis": 1,
+                "fingerprint": "legacy",
+                "sourceUri": "/archives/Legacy.zip",
+                "createdAtMillis": 1
+              }
+            ]
+            """.trimIndent()
+        )
+
+        val record = DownloadedArchiveRepository(
+            archiveLibraryDir = archiveLibraryDir,
+            archiveListFile = archiveListFile
+        ).load().single()
+
+        assertEquals("/archives/Legacy.zip", record.sourcePath)
+    }
+
 }

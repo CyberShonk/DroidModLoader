@@ -18,9 +18,9 @@ class GameDeploymentConfigRepository(
             obj.put("displayName", config.displayName)
             obj.put("targetDataPath", config.targetDataPath)
             obj.put("targetRootPath", config.targetRootPath)
-            obj.put("targetRootTreeUri", config.targetRootTreeUri)
             obj.put("realDeployEnabled", config.realDeployEnabled)
-            obj.put("targetTreeUri", config.targetTreeUri)
+            obj.put("dataPathReselectionRequired", config.dataPathReselectionRequired)
+            obj.put("rootPathReselectionRequired", config.rootPathReselectionRequired)
             array.put(obj)
         }
 
@@ -39,15 +39,26 @@ class GameDeploymentConfigRepository(
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
+            val targetDataPath = obj.optString("targetDataPath", "").trim()
+            val targetRootPath = obj.optString("targetRootPath", "").trim()
+            val legacyDataUri = obj.optString("targetTreeUri", "").trim()
+            val legacyRootUri = obj.optString("targetRootTreeUri", "").trim()
+
             results.add(
                 GameDeploymentConfig(
                     gameId = obj.optString("gameId", ""),
                     displayName = obj.optString("displayName", ""),
-                    targetDataPath = obj.optString("targetDataPath", ""),
+                    targetDataPath = targetDataPath,
                     realDeployEnabled = obj.optBoolean("realDeployEnabled", false),
-                    targetTreeUri = if (obj.isNull("targetTreeUri")) null else obj.optString("targetTreeUri", null),
-                    targetRootPath = obj.optString("targetRootPath", ""),
-                    targetRootTreeUri = if (obj.isNull("targetRootTreeUri")) null else obj.optString("targetRootTreeUri", null)
+                    targetRootPath = targetRootPath,
+                    dataPathReselectionRequired = obj.optBoolean(
+                        "dataPathReselectionRequired",
+                        targetDataPath.isBlank() && legacyDataUri.isNotBlank()
+                    ),
+                    rootPathReselectionRequired = obj.optBoolean(
+                        "rootPathReselectionRequired",
+                        targetRootPath.isBlank() && legacyRootUri.isNotBlank()
+                    )
                 )
             )
         }

@@ -1,6 +1,6 @@
 package com.shonkware.droidmodloader.ui.workflow
 
-import android.net.Uri
+import java.io.File
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
@@ -10,7 +10,6 @@ internal class ArchiveImportExecutionWorkflow(
     private val operationInProgressProvider: () -> Boolean,
     private val beginOperation: (String) -> Unit,
     private val createEngine: () -> ModEngine?,
-    private val queryDisplayName: (Uri) -> String?,
     private val archiveImportFileStore: ArchiveImportFileStore,
     private val showInstallerChoices: (PreparedArchiveInstall, String) -> Unit,
     private val appendLog: (String) -> Unit,
@@ -21,7 +20,7 @@ internal class ArchiveImportExecutionWorkflow(
     private val refreshDashboard: () -> Unit
 ) {
 
-    fun importArchive(uri: Uri) {
+    fun importArchive(sourceFile: File) {
         if (operationInProgressProvider()) {
             appendLog("Ignoring import request: operation already in progress.")
             return
@@ -35,19 +34,19 @@ internal class ArchiveImportExecutionWorkflow(
             return
         }
 
-        val fileName = queryDisplayName(uri) ?: "imported_mod"
+        val fileName = sourceFile.name.takeIf { it.isNotBlank() } ?: "imported_mod"
         val sanitizedName = sanitizeArchiveDisplayName(fileName)
 
         try {
-            val archiveLibraryFile = archiveImportFileStore.copyUriToArchiveLibraryFile(
-                uri = uri,
+            val archiveLibraryFile = archiveImportFileStore.copyFileToArchiveLibraryFile(
+                sourceFile = sourceFile,
                 displayName = sanitizedName
             )
 
             val archiveRecord = engine.registerDownloadedArchive(
                 archiveFile = archiveLibraryFile,
                 originalDisplayName = fileName,
-                sourceUri = uri.toString()
+                sourcePath = sourceFile.canonicalPath
             )
 
             appendLog("Archive saved to library: ${archiveRecord.fileName}")

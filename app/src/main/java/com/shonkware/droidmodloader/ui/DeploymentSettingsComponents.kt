@@ -23,8 +23,8 @@ import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 
 @Composable
 fun DeploymentSettingsCard(
-    selectedTreeUriText: String,
-    selectedRootTreeUriText: String,
+    selectedDataPathText: String,
+    selectedRootPathText: String,
     realDeployEnabled: Boolean,
     secondScreenEnabled: Boolean,
     onRealDeployChanged: (Boolean) -> Unit,
@@ -45,7 +45,7 @@ fun DeploymentSettingsCard(
             Text("Deploy Targets", fontWeight = FontWeight.Bold)
 
             Text(
-                text = "Data folder: $selectedTreeUriText",
+                text = "Data folder: $selectedDataPathText",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -72,7 +72,7 @@ fun DeploymentSettingsCard(
             )
 
             Text(
-                text = "Game Root folder: $selectedRootTreeUriText",
+                text = "Game Root folder: $selectedRootPathText",
                 style = MaterialTheme.typography.bodySmall
             )
 

@@ -7,22 +7,23 @@ import com.shonkware.droidmodloader.engine.profile.ProfileRepository
 internal data class FirstSetupInput(
     val profileNameText: String,
     val gameId: String,
+    val targetDataPath: String,
     val realDeployEnabled: Boolean
 )
 
 internal data class AdditionalProfileInput(
     val profileNameText: String,
     val gameId: String,
-    val targetTreeUriText: String,
+    val targetDataPath: String,
     val realDeployEnabled: Boolean
 )
 
 internal data class DashboardProfileInput(
     val targetPathText: String,
-    val selectedTreeUriText: String,
     val rootTargetPathText: String,
-    val selectedRootTreeUriText: String,
-    val realDeployEnabled: Boolean
+    val realDeployEnabled: Boolean,
+    val dataPathReselectionRequired: Boolean,
+    val rootPathReselectionRequired: Boolean
 )
 
 internal class ProfileManagementWorkflow(
@@ -60,11 +61,11 @@ internal class ProfileManagementWorkflow(
             profileName = cleanProfileName,
             gameId = input.gameId,
             gameDisplayName = gameDisplayNameProvider(input.gameId),
-            targetDataPath = "",
-            targetTreeUri = null,
-            targetRootPath = "",
-            targetRootTreeUri = null,
+            targetDataPath = input.targetDataPath.trim(),
             realDeployEnabled = input.realDeployEnabled,
+            targetRootPath = "",
+            dataPathReselectionRequired = false,
+            rootPathReselectionRequired = false,
             iniPresetId = null
         )
 
@@ -102,11 +103,11 @@ internal class ProfileManagementWorkflow(
             profileName = cleanProfileName,
             gameId = input.gameId,
             gameDisplayName = gameDisplayNameProvider(input.gameId),
-            targetDataPath = "",
-            targetRootPath = "",
-            targetRootTreeUri = null,
-            targetTreeUri = ProfileConfigUiMapper.dataTreeUriFromText(input.targetTreeUriText),
+            targetDataPath = input.targetDataPath.trim(),
             realDeployEnabled = input.realDeployEnabled,
+            targetRootPath = "",
+            dataPathReselectionRequired = false,
+            rootPathReselectionRequired = false,
             iniPresetId = null
         )
 
@@ -186,10 +187,10 @@ internal class ProfileManagementWorkflow(
             profile = oldProfile,
             displayName = gameDisplayNameProvider(oldProfile.gameId),
             targetPathText = dashboardInput.targetPathText,
-            selectedTreeUriText = dashboardInput.selectedTreeUriText,
             rootTargetPathText = dashboardInput.rootTargetPathText,
-            selectedRootTreeUriText = dashboardInput.selectedRootTreeUriText,
-            realDeployEnabled = dashboardInput.realDeployEnabled
+            realDeployEnabled = dashboardInput.realDeployEnabled,
+            dataPathReselectionRequired = dashboardInput.dataPathReselectionRequired,
+            rootPathReselectionRequired = dashboardInput.rootPathReselectionRequired
         )
 
         profiles[index] = updatedProfile

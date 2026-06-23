@@ -22,11 +22,11 @@ internal class ArchiveBrowserWorkflow(
     private val isBrowserOpen: () -> Boolean,
     private val scanFolder: (String) -> ArchiveFolderScanResult,
     private val loadHistory: () -> ArchiveBrowserHistory,
-    private val canonicalIdentityForSourceUri: (String?) -> String?,
+    private val canonicalIdentityForSourcePath: (String?) -> String?,
     private val showFolderSetup: () -> Unit,
     private val showBrowser: () -> Unit,
     private val updateState: (ArchiveBrowserUiState) -> Unit,
-    private val installArchiveUri: (String) -> Unit,
+    private val installArchivePath: (String) -> Unit,
     private val appendLog: (String) -> Unit
 ) {
     @Volatile
@@ -40,8 +40,8 @@ internal class ArchiveBrowserWorkflow(
 
     fun openBrowser() {
         val profileId = activeProfileIdOrNull() ?: return
-        val folderUri = preferences.getSelectedFolderUri(profileId)
-        if (folderUri == null) {
+        val folderPath = preferences.getSelectedFolderPath(profileId)
+        if (folderPath == null) {
             showFolderSetup()
             return
         }
@@ -50,11 +50,11 @@ internal class ArchiveBrowserWorkflow(
         refresh()
     }
 
-    fun selectFolder(treeUri: String) {
+    fun selectFolder(folderPath: String) {
         val profileId = activeProfileIdOrNull() ?: return
-        preferences.saveSelectedFolderUri(profileId, treeUri)
+        preferences.saveSelectedFolderPath(profileId, folderPath)
         currentState = ArchiveBrowserUiState(
-            folderUri = treeUri,
+            folderPath = folderPath,
             isLoading = true
         )
         updateState(currentState)
@@ -69,8 +69,8 @@ internal class ArchiveBrowserWorkflow(
         }
 
         val profileId = activeProfileIdOrNull() ?: return
-        val folderUri = preferences.getSelectedFolderUri(profileId)
-        if (folderUri == null) {
+        val folderPath = preferences.getSelectedFolderPath(profileId)
+        if (folderPath == null) {
             showFolderSetup()
             return
         }
@@ -82,7 +82,7 @@ internal class ArchiveBrowserWorkflow(
 
         scanInProgress = true
         currentState = currentState.copy(
-            folderUri = folderUri,
+            folderPath = folderPath,
             isLoading = true,
             errorMessage = null
         )
@@ -90,17 +90,17 @@ internal class ArchiveBrowserWorkflow(
 
         runInBackground {
             try {
-                val scanResult = scanFolder(folderUri)
+                val scanResult = scanFolder(folderPath)
                 val history = loadHistory()
-                if (isCurrentSelection(profileId, folderUri)) {
+                if (isCurrentSelection(profileId, folderPath)) {
                     currentState = ArchiveBrowserUiState(
-                        folderUri = folderUri,
+                        folderPath = folderPath,
                         folderName = scanResult.folderName,
                         items = buildArchiveBrowserItems(
                             entries = scanResult.entries,
                             records = history.records,
                             currentMods = history.currentMods,
-                            canonicalIdentityForSourceUri = canonicalIdentityForSourceUri
+                            canonicalIdentityForSourcePath = canonicalIdentityForSourcePath
                         ),
                         isLoading = false,
                         errorMessage = null
@@ -108,9 +108,9 @@ internal class ArchiveBrowserWorkflow(
                     updateState(currentState)
                 }
             } catch (t: Throwable) {
-                if (isCurrentSelection(profileId, folderUri)) {
+                if (isCurrentSelection(profileId, folderPath)) {
                     currentState = currentState.copy(
-                        folderUri = folderUri,
+                        folderPath = folderPath,
                         isLoading = false,
                         errorMessage = t.message
                             ?: "DML could not scan the selected archive folder."
@@ -155,7 +155,7 @@ internal class ArchiveBrowserWorkflow(
             return
         }
 
-        installArchiveUri(item.documentUri)
+        installArchivePath(item.sourcePath)
     }
 
     private fun activeProfileIdOrNull(): String? {
@@ -166,9 +166,9 @@ internal class ArchiveBrowserWorkflow(
         return profileId
     }
 
-    private fun isCurrentSelection(profileId: String, folderUri: String): Boolean {
+    private fun isCurrentSelection(profileId: String, folderPath: String): Boolean {
         return activeProfileIdProvider() == profileId &&
-            preferences.getSelectedFolderUri(profileId) == folderUri
+            preferences.getSelectedFolderPath(profileId) == folderPath
     }
 }
 
@@ -176,7 +176,7 @@ internal fun buildArchiveBrowserItems(
     entries: List<ArchiveFolderEntry>,
     records: List<DownloadedArchiveRecord>,
     currentMods: List<Mod>,
-    canonicalIdentityForSourceUri: (String?) -> String?
+    canonicalIdentityForSourcePath: (String?) -> String?
 ): List<ArchiveBrowserUiItem> {
     val currentModsById = currentMods.associateBy { it.id }
 
@@ -194,9 +194,9 @@ internal fun buildArchiveBrowserItems(
             )
         }
 
-    val recordsByDocumentIdentity = records
+    val recordsBySourceIdentity = records
         .mapNotNull { record ->
-            canonicalIdentityForSourceUri(record.sourceUri)?.let { identity ->
+            canonicalIdentityForSourcePath(record.sourcePath)?.let { identity ->
                 identity to record
             }
         }
@@ -207,7 +207,7 @@ internal fun buildArchiveBrowserItems(
 
     return entries
         .map { entry ->
-            val matchingRecords = recordsByDocumentIdentity[entry.stableId].orEmpty()
+            val matchingRecords = recordsBySourceIdentity[entry.stableId].orEmpty()
             val installedRecord = matchingRecords
                 .filter { record ->
                     val modId = record.installedModId ?: return@filter false
@@ -231,7 +231,7 @@ internal fun buildArchiveBrowserItems(
 
             ArchiveBrowserUiItem(
                 stableId = entry.stableId,
-                documentUri = entry.documentUri,
+                sourcePath = entry.sourcePath,
                 displayName = metadataRecord?.displayName
                     ?.takeIf { it.isNotBlank() }
                     ?: entry.fileName.substringBeforeLast('.'),

@@ -60,6 +60,23 @@ Risk order:
 - Dashboard, Mods, Plugins, and Archive Library scroll positions survive opening and closing panels.
 - Portrait and landscape layouts keep Refresh, Folder, and Close reachable.
 
+### Direct Storage Migration
+
+- Storage-access policy verifies granted and denied all-files access for
+  supported Android 11+ versions.
+- Direct folder selection returns canonical absolute paths and rejects missing,
+  relative, unreadable, or unwritable targets as required.
+- Legacy URI-only profile and deployment records preserve unrelated state, set
+  explicit reselection flags, and stop writing obsolete URI fields.
+- Data, Game Root, and Archive Library selections remain profile-isolated.
+- Archive scanning/import, plugin discovery, overwrite scanning, deployment
+  preflight, deployment execution, and repair use direct filesystem paths.
+- No production `DocumentFile`, tree-URI launcher, or SAF deployment backend
+  remains after migration.
+- Same-device performance comparison follows
+  `benchmarks/direct-storage.md`; the recorded Android result is exploratory and
+  must not be presented as a definitive public multiplier.
+
 ### Plugin Handling
 
 - `.esm`, `.esp`, and relevant `.esl` files are discovered.
@@ -72,8 +89,8 @@ Risk order:
 - Timestamp ordering includes disabled plugins without enabling them.
 - Missing or duplicate plugin files fail before timestamp mutation.
 - A partial timestamp failure restores changed timestamps where practical.
-- Timestamp games reject Storage Access Framework tree-URI targets before
-  output changes.
+- Timestamp games require a valid writable direct Data-folder path before output
+  changes.
 - Switching profiles does not read or rewrite another profile's plugin state or
   output files.
 
@@ -84,6 +101,7 @@ Risk order:
 - Mod state is profile-aware.
 - Plugin state is profile-aware.
 - Profile state survives app restart.
+- Startup restores the persisted active profile name to the main status area.
 - Each profile remembers its own archive folder.
 - Switching profiles does not overwrite another profile's archive folder selection.
 

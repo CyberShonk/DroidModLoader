@@ -95,8 +95,8 @@ Responsibilities are separated as follows:
   files and removes stale `loadorder.txt` output for timestamp-based games.
 - `PluginConfigurationApplier.kt` coordinates timestamp application and output
   replacement, restoring timestamps if output replacement fails.
-- `ModEngine.kt` resolves the active game's local or simulated Data target and
-  refuses unsupported tree-URI timestamp mutation before output changes.
+- `ModEngine.kt` resolves the active game's writable direct or simulated Data
+  target before output changes.
 - `PluginManagementWorkflow.kt` preserves the existing one-time refresh fallback
   and reports the selected game and applied ordering mechanism.
 
@@ -172,31 +172,34 @@ Do not let architecture docs become fictional. If the code changes, update the d
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
 - Release APKs should not be committed.
 
-## Archive Folder Browser
+## Direct Storage and Archive Library
 
-The primary manual install source for each profile is a user-selected Android
-Storage Access Framework folder.
+DML uses one direct-filesystem backend for production shared-storage work. On
+Android 11 and newer, `AllFilesAccessManager.kt` checks the special all-files
+access state before DML opens its own folder browser.
 
 Responsibilities are separated as follows:
 
-- `engine/download/ArchiveFolderPreferences.kt` persists the selected tree URI by
-  profile ID and migrates the former app-wide preference to the first profile
-  that reads it.
-- `engine/download/ArchiveFolderScanner.kt` performs a read-only, top-level scan
-  for ZIP, 7Z, and RAR documents.
+- `engine/storage/DirectPathValidator.kt` validates existing readable/writable
+  directories and canonicalizes selected paths.
+- `engine/storage/DirectFolderBrowser.kt` provides filesystem navigation without
+  Android document-provider identifiers.
+- `engine/download/ArchiveFolderPreferences.kt` persists the selected canonical
+  Archive Library path by profile ID and marks legacy URI-only selections for
+  explicit reselection.
+- `engine/download/ArchiveFolderScanner.kt` performs a read-only, top-level direct
+  scan for ZIP, 7Z, and RAR files.
 - `ui/workflow/ArchiveBrowserWorkflow.kt` combines scanned files with profile
   archive history, sorting, status, refresh, and install routing.
-- `ui/archive/ArchiveBrowserUiItem.kt` contains structured presentation data,
-  including optional Nexus metadata fields.
-- `ui/ArchiveLibraryComponents.kt` renders the folder setup dialog and searchable
-  fullscreen list.
-- `ArchiveImportExecutionWorkflow` remains the single archive import/install
-  pipeline for folder files, document-picker sources, and future Nexus downloads.
+- `ArchiveImportExecutionWorkflow` copies the selected direct source file into
+  DML-managed profile storage before analysis and installation.
 
-The browser must not duplicate archive extraction or installation logic. It sends
-selected document URIs into the existing import workflow, which copies archives
-into DML-managed storage before installation.
+Game Root, Data, and Archive Library selections use the same direct folder
+browser and persist canonical absolute paths. Deployment, plugin discovery,
+overwrite scanning, baseline scanning, repair, archive import, and legacy plugin
+timestamp ordering use ordinary filesystem APIs. Legacy tree-URI values are read
+only as migration signals; DML does not guess a filesystem path from them.
 
-The selected folder, archive history, and installed-status calculation are
+The selected folder, archive history, and installed-status calculation remain
 profile-specific. Switching profiles loads that profile's folder selection
 without changing another profile's selection.

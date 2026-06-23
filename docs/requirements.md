@@ -131,8 +131,8 @@ Done when:
 
 Status: In Progress
 
-Droid Mod Loader must let the user select one read-only Android folder that
-contains downloaded mod archives, remember that folder, and present supported
+Droid Mod Loader must let the user select one direct-access Android folder that
+contains downloaded mod archives, remember that path, and present supported
 archives in a searchable install list.
 
 Done when:
@@ -146,6 +146,7 @@ Done when:
 - switching profiles loads that profile's archive folder without changing another profile's selection
 - changing folders does not delete or modify the original archive files
 - lost folder access produces a clear recovery message
+- the selected folder is stored as a canonical direct filesystem path
 
 ## 3. File Index and Resolver Requirements
 
@@ -545,3 +546,37 @@ Done when:
 - basic manual tests pass
 - docs are updated
 - known issues are updated
+
+## 12. Storage Requirements
+
+### REQ-STORAGE-001: Use Direct Shared-Storage Access
+
+Status: In Progress
+
+Droid Mod Loader must use one direct filesystem backend for production game and
+mod storage workflows.
+
+Done when:
+
+- Android 11 / API 30 is the minimum supported platform
+- every supported Android version requires and verifies all-files access before shared-storage work
+- Data, Game Root, and Archive Library selections are canonical absolute paths
+- deployment, scanning, archive import, conflict inspection, and timestamp ordering use direct filesystem APIs
+- production SAF tree-URI and DocumentFile paths are removed
+- diagnostics clearly report permission or path failures
+
+### REQ-STORAGE-002: Migrate Legacy Storage Selections Safely
+
+Status: In Progress
+
+Droid Mod Loader must preserve existing profiles while moving from URI-based
+folder selections to direct filesystem paths.
+
+Done when:
+
+- existing profiles, mods, plugins, and unrelated settings are preserved
+- URI-only Data and Game Root selections are marked for explicit reselection
+- URI-only Archive Library selections are marked for explicit reselection per profile
+- DML does not fabricate paths by parsing `content://` identifiers
+- real deployment is blocked until a required Data path is valid
+- migration state clears only after a valid direct path is saved

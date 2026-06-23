@@ -4,14 +4,18 @@ import com.shonkware.droidmodloader.engine.model.GameProfile
 
 internal object ProfileConfigUiMapper {
 
+    fun activeProfileName(profile: GameProfile?): String {
+        return profile?.profileName ?: "No profile"
+    }
+
     fun fromProfile(profile: GameProfile): ProfileConfigUiState {
         return ProfileConfigUiState(
             selectedGameId = profile.gameId,
             targetDataPath = profile.targetDataPath,
-            targetTreeUriText = profile.targetTreeUri ?: DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED,
             targetRootPath = profile.targetRootPath,
-            targetRootTreeUriText = profile.targetRootTreeUri ?: DeploymentConfigUiMapper.NO_ROOT_FOLDER_SELECTED,
-            realDeployEnabled = profile.realDeployEnabled
+            realDeployEnabled = profile.realDeployEnabled,
+            dataPathReselectionRequired = profile.dataPathReselectionRequired,
+            rootPathReselectionRequired = profile.rootPathReselectionRequired
         )
     }
 
@@ -19,10 +23,10 @@ internal object ProfileConfigUiMapper {
         return ProfileConfigUiState(
             selectedGameId = "No Game Selected",
             targetDataPath = "",
-            targetTreeUriText = DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED,
             targetRootPath = "",
-            targetRootTreeUriText = DeploymentConfigUiMapper.NO_ROOT_FOLDER_SELECTED,
-            realDeployEnabled = false
+            realDeployEnabled = false,
+            dataPathReselectionRequired = false,
+            rootPathReselectionRequired = false
         )
     }
 
@@ -30,46 +34,30 @@ internal object ProfileConfigUiMapper {
         profile: GameProfile,
         displayName: String,
         targetPathText: String,
-        selectedTreeUriText: String,
         rootTargetPathText: String,
-        selectedRootTreeUriText: String,
-        realDeployEnabled: Boolean
+        realDeployEnabled: Boolean,
+        dataPathReselectionRequired: Boolean,
+        rootPathReselectionRequired: Boolean
     ): GameProfile {
+        val dataPath = targetPathText.trim()
+        val rootPath = rootTargetPathText.trim()
+
         return profile.copy(
-            gameId = profile.gameId,
             gameDisplayName = displayName,
-            targetDataPath = targetPathText.trim(),
-            targetTreeUri = dataTreeUriFromText(selectedTreeUriText),
-            targetRootPath = rootTargetPathText.trim(),
-            targetRootTreeUri = rootTreeUriFromText(selectedRootTreeUriText),
-            realDeployEnabled = realDeployEnabled
+            targetDataPath = dataPath,
+            targetRootPath = rootPath,
+            realDeployEnabled = realDeployEnabled,
+            dataPathReselectionRequired = dataPathReselectionRequired && dataPath.isBlank(),
+            rootPathReselectionRequired = rootPathReselectionRequired && rootPath.isBlank()
         )
-    }
-
-    fun dataTreeUriFromText(text: String): String? {
-        return text
-            .trim()
-            .takeIf { value ->
-                value.isNotBlank() &&
-                        value != DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED
-            }
-    }
-
-    fun rootTreeUriFromText(text: String): String? {
-        return text
-            .trim()
-            .takeIf { value ->
-                value.isNotBlank() &&
-                        value != DeploymentConfigUiMapper.NO_ROOT_FOLDER_SELECTED
-            }
     }
 }
 
 internal data class ProfileConfigUiState(
     val selectedGameId: String,
     val targetDataPath: String,
-    val targetTreeUriText: String,
     val targetRootPath: String,
-    val targetRootTreeUriText: String,
-    val realDeployEnabled: Boolean
+    val realDeployEnabled: Boolean,
+    val dataPathReselectionRequired: Boolean,
+    val rootPathReselectionRequired: Boolean
 )

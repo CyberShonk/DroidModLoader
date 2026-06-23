@@ -15,7 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Correct game-aware plugin output and legacy timestamp ordering
+### 1. Finish real-container plugin output verification
 
 Requirement IDs:
 
@@ -26,17 +26,13 @@ Requirement IDs:
 
 Expected result:
 
-- Confirm the activation and ordering rules for every currently selectable game
-  definition before implementation.
-- Keep Skyrim LE text-file ordering separate from timestamp-based ordering.
-- Apply timestamp-based plugin order to currently selectable games that require
-  it, beginning with Fallout: New Vegas.
-- Implement the timestamp-ordering component so dedicated TTW, Fallout 3, and
-  Oblivion game definitions can reuse it without duplicating the logic.
+- Preserve the completed disposable-folder checks for Skyrim LE text ordering
+  and legacy-game timestamp ordering.
+- Launch each supported game in its target container and confirm the generated
+  activation output and effective order are consumed as intended.
 - Preserve profile-specific enabled state and order.
-- Add automated tests and manual runtime checks before release.
-- Do not mix this task with new game-profile definitions, LOOT integration,
-  `DML_output`, or INI presets.
+
+Task definition: `docs/tasks/game-aware-plugin-ordering.md`.
 
 ### 2. Continue MainActivity responsibility extraction
 

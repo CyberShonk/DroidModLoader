@@ -16,11 +16,9 @@ class DeploymentExecutionWorkflowTest {
     @Test
     fun deploySavesConfigurationLogsResultsAndFinishes() {
         val engine = FakeDeploymentExecutionEngine(
-            config = config(
-                targetTreeUri = "content://data",
-                targetRootTreeUri = "content://root"
-            ),
+            config = config(),
             rootRecordCount = 2,
+            validPaths = setOf("/data", "/root"),
             deployResult = scopedResult()
         )
         val harness = Harness(engine = engine)
@@ -30,16 +28,16 @@ class DeploymentExecutionWorkflowTest {
         assertEquals(1, harness.saveProfileCount)
         assertEquals(1, harness.saveConfigCount)
         assertEquals(listOf("Deploying mods..."), harness.begunOperations)
-        assertEquals(listOf("Deploy succeeded (Tree URI)."), harness.finishedOperations)
+        assertEquals(listOf("Deploy succeeded (Direct Path)."), harness.finishedOperations)
         assertTrue(harness.failedOperations.isEmpty())
         assertEquals(1, harness.refreshCount)
         assertEquals("skyrim_le", engine.deployedGameId)
         assertEquals(0, engine.syncPluginsCount)
         assertTrue(harness.logs.contains("Selected game: skyrim_le"))
         assertTrue(harness.logs.contains("Root-scope deployable file count: 2"))
-        assertTrue(harness.logs.contains("Deploy mode: Tree URI"))
-        assertTrue(harness.logs.contains("Data deploy target: content://data"))
-        assertTrue(harness.logs.contains("Game root deploy target: TREE_URI:content://root"))
+        assertTrue(harness.logs.contains("Deploy mode: Direct Path"))
+        assertTrue(harness.logs.contains("Data deploy target: /data"))
+        assertTrue(harness.logs.contains("Game root deploy target: /root"))
         assertTrue(harness.logs.contains("Data deploy result:"))
         assertTrue(harness.logs.contains("Game root deploy result:"))
         assertTrue(harness.logs.contains("Combined deploy result:"))
@@ -53,9 +51,7 @@ class DeploymentExecutionWorkflowTest {
     fun deployWarnsWhenRootFilesExistWithoutRootTarget() {
         val engine = FakeDeploymentExecutionEngine(
             config = config(
-                targetTreeUri = null,
                 targetDataPath = "/invalid/data",
-                targetRootTreeUri = null,
                 targetRootPath = ""
             ),
             rootRecordCount = 3,
@@ -301,9 +297,7 @@ class DeploymentExecutionWorkflowTest {
 
     companion object {
         private fun config(
-            targetTreeUri: String? = null,
             targetDataPath: String = "/data",
-            targetRootTreeUri: String? = null,
             targetRootPath: String = "/root"
         ): GameDeploymentConfig {
             return GameDeploymentConfig(
@@ -311,9 +305,7 @@ class DeploymentExecutionWorkflowTest {
                 displayName = "Skyrim Legendary Edition",
                 targetDataPath = targetDataPath,
                 realDeployEnabled = true,
-                targetTreeUri = targetTreeUri,
-                targetRootPath = targetRootPath,
-                targetRootTreeUri = targetRootTreeUri
+                targetRootPath = targetRootPath
             )
         }
 

@@ -93,9 +93,22 @@ Profiles should eventually isolate mod state, plugin state, target state, deploy
 
 The final view of what the game should see after enabled mods and priorities are processed.
 
+## All-Files Access
+
+Android special access that allows a file-management app to work with ordinary
+filesystem paths in shared storage. DML uses this for production game and mod
+storage workflows.
+
+## Direct Filesystem Path
+
+An absolute path such as `/storage/emulated/0/Games/Fallout New Vegas/Data` that
+DML can validate and use with ordinary filesystem APIs.
+
 ## Storage Access Framework
 
-Android's system for letting apps access user-selected files and folders.
+Android's document-provider system for user-selected files and folders. Earlier
+DML builds used tree URIs from this system; current production storage uses direct
+filesystem paths instead.
 
 ## Target Folder
 

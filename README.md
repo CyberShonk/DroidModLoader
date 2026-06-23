@@ -2,6 +2,8 @@
 
 Droid Mod Loader is an Android app for managing Bethesda game mods.
 
+**Minimum Android version:** Android 11 (API 30).
+
 The simple version:
 
 You install mods into Droid Mod Loader.
@@ -16,7 +18,8 @@ Right now, Android Bethesda modding usually means copying files by hand, guessin
 
 Droid Mod Loader helps with things like:
 
-* Browsing ZIP, 7Z, and RAR mod archives from a remembered Android folder
+* Browsing ZIP, 7Z, and RAR mod archives from a remembered direct
+  filesystem folder
 * Keeping each installed mod in its own folder
 * Turning mods on and off
 * Keeping separate profiles for different setups
@@ -27,7 +30,9 @@ Droid Mod Loader helps with things like:
 * Helping users understand conflicts and overwrites
 * Creating useful reports when something goes wrong
 
-The long term goal is to bring a Mod Organizer/Vortex style experience to Android, but built around how Android storage and Windows container apps actually work.
+The long term goal is to bring a Mod Organizer/Vortex style experience to
+Android, using user-granted all-files access and direct filesystem paths for game
+and mod storage.
 
 ## Why this exists
 
@@ -172,7 +177,7 @@ This is still early software. Back up important game folders before testing.
 The app already has early support for:
 
 * profile creation and switching
-* remembered archive-folder browsing, search, refresh, and folder switching
+* direct-path archive-folder browsing, search, refresh, and folder switching
 * ZIP, 7Z, and RAR archive import basics. RAR5 support is still being worked on.
 * managed mod folders
 * mod enable and disable
@@ -222,6 +227,7 @@ Major work still planned before a stable 1.0 release includes:
 - [Source Map](docs/architecture/source-map.md)
 - [Decision Log](docs/decisions.md)
 - [Testing](docs/testing.md)
+- [Direct Storage Benchmark](docs/benchmarks/direct-storage.md)
 - [Release Checklist](docs/release-checklist.md)
 - [Versioning](docs/process/versioning.md)
 - [Release Notes Template](releases/templates/release-notes-template.md)

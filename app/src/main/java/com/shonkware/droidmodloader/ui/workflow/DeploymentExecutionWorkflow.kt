@@ -96,10 +96,8 @@ internal class DeploymentExecutionWorkflow(
             val rootTargetSelected =
                 config != null &&
                     config.realDeployEnabled &&
-                    (
-                        !config.targetRootTreeUri.isNullOrBlank() ||
-                            engine.validateTargetDataPath(config.targetRootPath)
-                        )
+                    !config.rootPathReselectionRequired &&
+                    engine.validateTargetDataPath(config.targetRootPath)
 
             if (rootRecordCount > 0) {
                 appendLog("Root-scope deployable file count: $rootRecordCount")
@@ -114,41 +112,30 @@ internal class DeploymentExecutionWorkflow(
 
             val result = engine.deployForGame(gameId)
 
-            val usingRealDeploy = config != null && config.realDeployEnabled
-            val usingTreeUri = usingRealDeploy && !config?.targetTreeUri.isNullOrBlank()
-            val usingRealPath = usingRealDeploy && engine.validateTargetDataPath(config?.targetDataPath.orEmpty())
+            val usingDirectPath =
+                config != null &&
+                    config.realDeployEnabled &&
+                    !config.dataPathReselectionRequired &&
+                    engine.validateTargetDataPath(config.targetDataPath)
 
-            val effectiveMode = when {
-                usingTreeUri -> "Tree URI"
-                usingRealPath -> "Real Path"
-                else -> "Simulated"
-            }
-
-            val effectiveTarget = when {
-                usingTreeUri -> config?.targetTreeUri ?: "none"
-                usingRealPath -> config?.targetDataPath ?: "none"
-                else -> simulatedDataTargetPathProvider()
-            }
+            val effectiveMode = if (usingDirectPath) "Direct Path" else "Simulated"
+            val effectiveTarget = config
+                ?.targetDataPath
+                ?.takeIf { usingDirectPath }
+                ?: simulatedDataTargetPathProvider()
 
             appendLog("Deploy mode: $effectiveMode")
             appendLog("Data deploy target: $effectiveTarget")
 
-            val rootTarget = when {
+            val rootTarget = if (
                 config != null &&
-                    config.realDeployEnabled &&
-                    !config.targetRootTreeUri.isNullOrBlank() -> {
-                    "TREE_URI:${config.targetRootTreeUri}"
-                }
-
-                config != null &&
-                    config.realDeployEnabled &&
-                    engine.validateTargetDataPath(config.targetRootPath) -> {
-                    config.targetRootPath
-                }
-
-                else -> {
-                    "Simulated game root"
-                }
+                config.realDeployEnabled &&
+                !config.rootPathReselectionRequired &&
+                engine.validateTargetDataPath(config.targetRootPath)
+            ) {
+                config.targetRootPath
+            } else {
+                "Simulated game root"
             }
 
             appendLog("Game root deploy target: $rootTarget")

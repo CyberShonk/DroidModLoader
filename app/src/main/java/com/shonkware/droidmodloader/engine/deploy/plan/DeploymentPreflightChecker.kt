@@ -1,14 +1,9 @@
 package com.shonkware.droidmodloader.engine.deploy.plan
 
-import android.content.Context
-import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import java.io.File
 
-class DeploymentPreflightChecker(
-    private val context: Context
-) {
+class DeploymentPreflightChecker {
 
     fun check(
         config: GameDeploymentConfig?,
@@ -65,178 +60,114 @@ class DeploymentPreflightChecker(
         plan: ScopedDeploymentPlan,
         issues: MutableList<DeploymentPreflightIssue>
     ) {
-        if (config == null) return
+        if (config == null || !config.realDeployEnabled) return
 
-        if (!config.realDeployEnabled) {
-            return
-        }
-
-        val hasDataTarget =
-            !config.targetTreeUri.isNullOrBlank() ||
-                    config.targetDataPath.isNotBlank()
-
-        if (!hasDataTarget) {
+        if (config.dataPathReselectionRequired) {
             issues.add(
                 DeploymentPreflightIssue(
                     severity = DeploymentPreflightSeverity.ERROR,
-                    title = "Data target is not selected.",
-                    details = "Pick the game's Data folder before real deploy."
+                    title = "Data target must be reselected.",
+                    details = "The previous folder permission cannot be converted into a direct path."
                 )
             )
         } else {
-            checkTreeOrPathTarget(
+            checkPathTarget(
                 label = "Data target",
-                treeUri = config.targetTreeUri,
                 path = config.targetDataPath,
+                required = true,
                 issues = issues
             )
         }
 
         val rootOperationsNeeded = plan.rootPlan.operationCount > 0
-
-        val hasRootTarget =
-            !config.targetRootTreeUri.isNullOrBlank() ||
-                    config.targetRootPath.isNotBlank()
-
-        if (rootOperationsNeeded && !hasRootTarget) {
+        if (config.rootPathReselectionRequired && rootOperationsNeeded) {
             issues.add(
                 DeploymentPreflightIssue(
-                    severity = DeploymentPreflightSeverity.WARNING,
-                    title = "Game Root operations exist, but no Game Root target is selected.",
-                    details = "Root files may only deploy to the app's test output folder. Pick Game Root for SKSE, NVSE, ENB, DLL loaders, or root EXE files."
+                    severity = DeploymentPreflightSeverity.ERROR,
+                    title = "Game Root target must be reselected.",
+                    details = "The previous folder permission cannot be converted into a direct path."
                 )
             )
-        }
-
-        if (hasRootTarget) {
-            checkTreeOrPathTarget(
+        } else if (config.targetRootPath.isNotBlank() || rootOperationsNeeded) {
+            checkPathTarget(
                 label = "Game Root target",
-                treeUri = config.targetRootTreeUri,
                 path = config.targetRootPath,
+                required = rootOperationsNeeded,
                 issues = issues
             )
         }
     }
 
-    private fun checkTreeOrPathTarget(
+    private fun checkPathTarget(
         label: String,
-        treeUri: String?,
         path: String,
+        required: Boolean,
         issues: MutableList<DeploymentPreflightIssue>
     ) {
-        if (!treeUri.isNullOrBlank()) {
-            try {
-                val documentFile = DocumentFile.fromTreeUri(
-                    context,
-                    Uri.parse(treeUri)
-                )
-
-                when {
-                    documentFile == null -> {
-                        issues.add(
-                            DeploymentPreflightIssue(
-                                severity = DeploymentPreflightSeverity.ERROR,
-                                title = "$label could not be opened.",
-                                details = "Android did not return a valid folder for the saved Tree URI."
-                            )
-                        )
-                    }
-
-                    !documentFile.exists() -> {
-                        issues.add(
-                            DeploymentPreflightIssue(
-                                severity = DeploymentPreflightSeverity.ERROR,
-                                title = "$label does not exist.",
-                                details = treeUri
-                            )
-                        )
-                    }
-
-                    !documentFile.isDirectory -> {
-                        issues.add(
-                            DeploymentPreflightIssue(
-                                severity = DeploymentPreflightSeverity.ERROR,
-                                title = "$label is not a folder.",
-                                details = treeUri
-                            )
-                        )
-                    }
-
-                    else -> {
-                        issues.add(
-                            DeploymentPreflightIssue(
-                                severity = DeploymentPreflightSeverity.INFO,
-                                title = "$label is available.",
-                                details = "Tree URI target is readable."
-                            )
-                        )
-                    }
-                }
-            } catch (e: Exception) {
+        if (path.isBlank()) {
+            if (required) {
                 issues.add(
                     DeploymentPreflightIssue(
                         severity = DeploymentPreflightSeverity.ERROR,
-                        title = "$label check failed.",
-                        details = e.message ?: treeUri
+                        title = "$label is not selected.",
+                        details = "Choose a direct filesystem folder before real deploy."
                     )
                 )
             }
-
             return
         }
 
-        if (path.isBlank()) {
+        val folder = runCatching { File(path).canonicalFile }.getOrElse { error ->
             issues.add(
                 DeploymentPreflightIssue(
                     severity = DeploymentPreflightSeverity.ERROR,
-                    title = "$label path is blank."
+                    title = "$label path could not be resolved.",
+                    details = error.message ?: path
                 )
             )
             return
         }
 
-        val folder = File(path)
-
         when {
-            !folder.exists() -> {
-                issues.add(
-                    DeploymentPreflightIssue(
-                        severity = DeploymentPreflightSeverity.ERROR,
-                        title = "$label path does not exist.",
-                        details = path
-                    )
+            !folder.exists() -> issues.add(
+                DeploymentPreflightIssue(
+                    severity = DeploymentPreflightSeverity.ERROR,
+                    title = "$label path does not exist.",
+                    details = folder.path
                 )
-            }
+            )
 
-            !folder.isDirectory -> {
-                issues.add(
-                    DeploymentPreflightIssue(
-                        severity = DeploymentPreflightSeverity.ERROR,
-                        title = "$label path is not a folder.",
-                        details = path
-                    )
+            !folder.isDirectory -> issues.add(
+                DeploymentPreflightIssue(
+                    severity = DeploymentPreflightSeverity.ERROR,
+                    title = "$label path is not a folder.",
+                    details = folder.path
                 )
-            }
+            )
 
-            !folder.canRead() -> {
-                issues.add(
-                    DeploymentPreflightIssue(
-                        severity = DeploymentPreflightSeverity.ERROR,
-                        title = "$label path is not readable.",
-                        details = path
-                    )
+            !folder.canRead() -> issues.add(
+                DeploymentPreflightIssue(
+                    severity = DeploymentPreflightSeverity.ERROR,
+                    title = "$label path is not readable.",
+                    details = folder.path
                 )
-            }
+            )
 
-            else -> {
-                issues.add(
-                    DeploymentPreflightIssue(
-                        severity = DeploymentPreflightSeverity.INFO,
-                        title = "$label is available.",
-                        details = path
-                    )
+            !folder.canWrite() -> issues.add(
+                DeploymentPreflightIssue(
+                    severity = DeploymentPreflightSeverity.ERROR,
+                    title = "$label path is not writable.",
+                    details = folder.path
                 )
-            }
+            )
+
+            else -> issues.add(
+                DeploymentPreflightIssue(
+                    severity = DeploymentPreflightSeverity.INFO,
+                    title = "$label is available.",
+                    details = folder.path
+                )
+            )
         }
     }
 

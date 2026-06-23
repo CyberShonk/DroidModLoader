@@ -203,20 +203,22 @@ docs/tasks/task-template.md, docs/tasks/current-priorities.md, docs/process/deve
 
 ## 2026-06-16 - Use a Remembered Read-Only Folder for Manual Archive Installs
 
-Status: Revised.
+Status: Superseded by the 2026-06-22 direct-filesystem decision.
 
-Decision: The primary manual mod-install flow uses a remembered folder selected
-through Android's Storage Access Framework. DML scans only files directly inside
-that folder and retains its own managed copy when an archive is installed.
+Historical decision: The primary manual mod-install flow used a remembered
+folder selected through Android's Storage Access Framework. DML scanned only
+files directly inside that folder and retained its own managed copy when an
+archive was installed.
 
 Reason: A remembered folder provides a fast, familiar mod-manager-style list
 without cluttering the dashboard or requiring users to choose one file for every
 install. Read-only access protects the user's original downloads.
 
-Result: The UI opens a searchable fullscreen Archive Library, provides Refresh
-and Change Folder actions, and sends selected document URIs through the existing
-archive import pipeline. The design keeps structured source and Nexus metadata
-available for future enrichment. The original app-wide scope was revised by the
+Historical result: The UI opened a searchable fullscreen Archive Library,
+provided Refresh and Change Folder actions, and sent selected document URIs
+through the archive import pipeline. The later direct-filesystem decision keeps
+the same user flow but replaces URI persistence and provider I/O. The design keeps structured source and Nexus metadata available for future
+enrichment. The original app-wide scope was revised by the
 profile-specific decision below.
 
 Related: REQ-MOD-001, REQ-MOD-005, REQ-UI-001,
@@ -278,3 +280,32 @@ reusable by later TTW, Fallout 3, and Oblivion definitions.
 
 Related: REQ-PROFILE-002, REQ-GAME-001, REQ-PLUGIN-003,
 ROADMAP.md, docs/tasks/backlog.md.
+
+
+## 2026-06-22 - Use One Direct Filesystem Storage Backend
+
+Status: Accepted.
+
+Decision: Droid Mod Loader will use ordinary absolute filesystem paths for all
+production shared-storage workflows. DML requires Android 11 (API 30) or newer
+and requires the user-granted `MANAGE_EXTERNAL_STORAGE` special access before browsing or
+modifying shared game and mod folders. The app will not retain SAF as a parallel
+production backend.
+
+Reason: DML is a file-management application whose core work includes scanning
+large file trees, deploying many loose files, performing transactional backup
+and replacement, and setting legacy Bethesda plugin modification timestamps. A
+mixed SAF/direct-path architecture duplicates risky file logic and cannot
+reliably provide all required metadata operations.
+
+Result: Data, Game Root, and Archive Library selections are canonical direct
+paths selected through a DML-owned folder browser. Deployment, plugin discovery,
+overwrite scanning, archive scanning/import, repair, and timestamp ordering use
+ordinary filesystem APIs. Existing URI-only selections are never guessed into
+paths; affected profiles remain intact and require explicit reselection.
+Production tree-URI code and the DocumentFile dependency are removed after all
+call sites are migrated.
+
+Related: REQ-STORAGE-001, REQ-STORAGE-002, REQ-GAME-001, REQ-GAME-003,
+REQ-MOD-001, REQ-MOD-005, REQ-DEPLOY-002, REQ-PLUGIN-005, REQ-PROFILE-002,
+`docs/tasks/direct-storage-migration.md`.

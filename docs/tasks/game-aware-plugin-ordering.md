@@ -76,9 +76,8 @@ construction must remain authoritative:
   or a read-only target fail before mutation where practical.
 - Original timestamps are captured before mutation. A partial timestamp failure
   attempts to restore every changed timestamp and reports any rollback failure.
-- A Storage Access Framework tree URI does not provide a safe standard API for
-  assigning arbitrary modification times. Timestamp-based games using a tree
-  URI must fail with a clear message before changing activation output.
+- Timestamp-based games require a valid writable direct Data-folder path and
+  fail before changing activation output when that target is unavailable.
 - Existing valid plugin output files are preserved when replacement fails where
   practical.
 
@@ -117,12 +116,24 @@ For each selectable game profile:
    authoritative load-order mechanism.
 8. Force a missing-plugin failure and confirm existing output files and prior
    timestamps remain unchanged where practical.
-9. Test a tree-URI target for a timestamp-based game and confirm DML refuses the
+9. Clear or invalidate the direct Data target and confirm DML refuses the
    operation with a clear explanation and no partial changes.
 10. Switch profiles and confirm neither saved state nor outputs changed in the
     inactive profile.
 11. Launch each game in the target container and confirm the enabled set and
     effective load order match DML.
+
+## Recorded Disposable-Folder Results — 2026-06-22
+
+- Skyrim LE produced enabled-only `plugins.txt` and complete-order
+  `loadorder.txt` without relying on timestamp ordering.
+- Fallout: New Vegas, Fallout 3, and Oblivion produced enabled-only
+  `plugins.txt` and strictly increasing timestamps in selected priority order.
+- Disabled plugins remained absent from activation output while retaining their
+  selected timestamp priority.
+- Reordering and reapplying changed timestamp order as expected.
+- Actual game/container consumption of the generated activation files and
+  effective load order remains to be verified.
 
 ## Files Likely Affected
 
@@ -153,11 +164,12 @@ Verified current source areas:
 
 ## Done When
 
-- [ ] Each selectable game has an explicit tested activation/output rule.
-- [ ] Skyrim LE remains text-file ordered.
-- [ ] Oblivion, Fallout 3, and Fallout: New Vegas apply selected timestamp order.
-- [ ] Enabled state and profile isolation remain intact.
-- [ ] Failures avoid partial state and restore prior timestamps where practical.
-- [ ] JVM tests cover the rule matrix, formatting, ordering, and rollback paths.
-- [ ] Manual safe-folder and real-container checks are recorded.
-- [ ] Documentation accurately describes current behavior.
+- [x] Each selectable game has an explicit tested activation/output rule.
+- [x] Skyrim LE remains text-file ordered.
+- [x] Oblivion, Fallout 3, and Fallout: New Vegas apply selected timestamp order.
+- [x] Enabled state and profile isolation remain intact.
+- [x] Failures avoid partial state and restore prior timestamps where practical.
+- [x] JVM tests cover the rule matrix, formatting, ordering, and rollback paths.
+- [x] Manual safe-folder checks are recorded.
+- [ ] Real-container game checks are recorded.
+- [x] Documentation accurately describes current behavior.

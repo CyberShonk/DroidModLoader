@@ -8,7 +8,7 @@ enum class ArchiveBrowserItemStatus {
 
 data class ArchiveBrowserUiItem(
     val stableId: String,
-    val documentUri: String,
+    val sourcePath: String,
     val displayName: String,
     val fileName: String,
     val archiveFormat: String,
@@ -26,7 +26,7 @@ data class ArchiveBrowserUiItem(
 )
 
 data class ArchiveBrowserUiState(
-    val folderUri: String? = null,
+    val folderPath: String? = null,
     val folderName: String? = null,
     val items: List<ArchiveBrowserUiItem> = emptyList(),
     val isLoading: Boolean = false,

@@ -30,6 +30,7 @@ import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.theme.DmlMatteBackground
+import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
 
 data class DashboardUiState(
     val appName: String,
@@ -41,8 +42,8 @@ data class DashboardUiState(
     val plugins: List<PluginEntry>,
     val gameOptions: List<String>,
     val selectedGameId: String,
-    val selectedTreeUriText: String,
-    val selectedRootTreeUriText: String,
+    val selectedDataPathText: String,
+    val selectedRootPathText: String,
     val realDeployEnabled: Boolean,
     val logText: String,
     val setupComplete: Boolean,
@@ -57,7 +58,7 @@ data class DashboardUiState(
     val newProfileGameId: String,
     val newProfileRealDeployEnabled: Boolean,
     val showProfileDialog: Boolean,
-    val newProfileTreeUriText: String,
+    val newProfileDataPathText: String,
     val operationInProgress: Boolean,
     val activeOperationText: String,
     val modContentIndexes: Map<String, ModContentIndex>,
@@ -78,7 +79,13 @@ data class DashboardUiState(
     val showDeployRecoveryDialog: Boolean = false,
     val showForceFullRedeployConfirmDialog: Boolean = false,
     val showArchiveFolderSetupDialog: Boolean = false,
-    val archiveBrowserState: ArchiveBrowserUiState = ArchiveBrowserUiState()
+    val archiveBrowserState: ArchiveBrowserUiState = ArchiveBrowserUiState(),
+    val allFilesAccessRequired: Boolean = false,
+    val allFilesAccessGranted: Boolean = true,
+    val showDirectFolderBrowser: Boolean = false,
+    val directFolderBrowserTitle: String = "Choose Folder",
+    val directFolderBrowserRequiresWritable: Boolean = false,
+    val directFolderBrowserState: DirectFolderBrowserState = DirectFolderBrowserState()
 )
 
 data class DashboardActions(
@@ -158,7 +165,12 @@ data class DashboardActions(
 
     val onRequestForceFullRedeploy: () -> Unit = {},
     val onConfirmForceFullRedeploy: () -> Unit = {},
-    val onCancelForceFullRedeploy: () -> Unit = {}
+    val onCancelForceFullRedeploy: () -> Unit = {},
+    val onRequestAllFilesAccess: () -> Unit = {},
+    val onDirectFolderBrowserOpenPath: (String) -> Unit = {},
+    val onDirectFolderBrowserNavigateUp: () -> Unit = {},
+    val onDirectFolderBrowserSelectCurrent: () -> Unit = {},
+    val onDirectFolderBrowserCancel: () -> Unit = {}
 )
 
 @Composable
@@ -188,8 +200,8 @@ private fun MainDashboardScreen(
                 StatusCard(
                     activeProfileName = state.activeProfileName,
                     selectedGameId = state.selectedGameId,
-                    selectedTreeUriText = state.selectedTreeUriText,
-                    selectedRootTreeUriText = state.selectedRootTreeUriText,
+                    selectedDataPathText = state.selectedDataPathText,
+                    selectedRootPathText = state.selectedRootPathText,
                     realDeployEnabled = state.realDeployEnabled,
                     lastOperationStatus = state.lastOperationStatus,
                     summaryText = state.summaryText,
@@ -232,8 +244,8 @@ private fun MainDashboardScreen(
                 )
 
                 DeploymentSettingsCard(
-                    selectedTreeUriText = state.selectedTreeUriText,
-                    selectedRootTreeUriText = state.selectedRootTreeUriText,
+                    selectedDataPathText = state.selectedDataPathText,
+                    selectedRootPathText = state.selectedRootPathText,
                     realDeployEnabled = state.realDeployEnabled,
                     secondScreenEnabled = state.secondScreenEnabled,
                     onRealDeployChanged = actions.onRealDeployChanged,
@@ -298,19 +310,38 @@ fun DroidModLoaderScreen(
     val pluginsListState = rememberLazyListState()
     val archiveListState = rememberLazyListState()
     var archiveSearchText by rememberSaveable { mutableStateOf("") }
-    var lastArchiveFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var lastArchiveFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(state.archiveBrowserState.folderUri) {
-        val folderUri = state.archiveBrowserState.folderUri
-        if (folderUri != lastArchiveFolderUri) {
+    LaunchedEffect(state.archiveBrowserState.folderPath) {
+        val folderPath = state.archiveBrowserState.folderPath
+        if (folderPath != lastArchiveFolderPath) {
             archiveSearchText = ""
             archiveListState.scrollToItem(0)
-            lastArchiveFolderUri = folderUri
+            lastArchiveFolderPath = folderPath
         }
     }
 
     LaunchedEffect(archiveSearchText) {
         archiveListState.scrollToItem(0)
+    }
+
+    if (state.allFilesAccessRequired && !state.allFilesAccessGranted) {
+        AllFilesAccessDialog(
+            onOpenSettings = actions.onRequestAllFilesAccess
+        )
+        return
+    }
+
+    if (state.showDirectFolderBrowser) {
+        DirectFolderBrowserDialog(
+            title = state.directFolderBrowserTitle,
+            state = state.directFolderBrowserState,
+            requireWritable = state.directFolderBrowserRequiresWritable,
+            onOpenPath = actions.onDirectFolderBrowserOpenPath,
+            onNavigateUp = actions.onDirectFolderBrowserNavigateUp,
+            onSelectCurrent = actions.onDirectFolderBrowserSelectCurrent,
+            onCancel = actions.onDirectFolderBrowserCancel
+        )
     }
 
     if (!state.setupComplete) {
@@ -386,7 +417,7 @@ fun DroidModLoaderScreen(
             activeProfileId = state.activeProfileId,
             newProfileNameText = state.newProfileNameText,
             newProfileGameId = state.newProfileGameId,
-            newProfileTreeUriText = state.newProfileTreeUriText,
+            newProfileDataPathText = state.newProfileDataPathText,
             newProfileRealDeployEnabled = state.newProfileRealDeployEnabled,
             onSelectProfile = actions.onSelectProfile,
             onDeleteProfile = actions.onDeleteProfile,
