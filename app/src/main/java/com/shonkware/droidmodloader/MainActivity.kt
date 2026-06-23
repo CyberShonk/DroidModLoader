@@ -19,7 +19,7 @@ import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.ui.DashboardActions
 import com.shonkware.droidmodloader.ui.DashboardUiState
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
-import com.shonkware.droidmodloader.engine.profile.ProfileRepository
+import com.shonkware.droidmodloader.engine.profile.ProfileRepositoryFactory
 import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.engine.model.AppSetupState
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
@@ -31,8 +31,7 @@ import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
 import java.util.concurrent.CountDownLatch
-import com.shonkware.droidmodloader.ui.workflow.OperationLogFormatter
-import com.shonkware.droidmodloader.ui.workflow.OperationStatusController
+import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
@@ -48,6 +47,7 @@ import com.shonkware.droidmodloader.ui.workflow.PendingInstallerWorkflow
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
 import com.shonkware.droidmodloader.engine.io.LegacyProfileStorageMigrator
+import com.shonkware.droidmodloader.engine.io.SessionLogWriter
 import com.shonkware.droidmodloader.ui.workflow.ProfileWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ProfileManagementWorkflow
 import com.shonkware.droidmodloader.ui.workflow.FirstSetupInput
@@ -79,6 +79,7 @@ import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
+import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 
 class MainActivity : ComponentActivity() {
 
@@ -160,16 +161,38 @@ class MainActivity : ComponentActivity() {
     ) {
         refreshAllFilesAccessState()
     }
-    private val operationStatusController = OperationStatusController()
+    private val sessionLogWriter by lazy {
+        SessionLogWriter { getExternalFilesDir(null) }
+    }
+    private val operationReporter by lazy {
+        OperationReporter(
+            runOnUiThread = { action -> runOnUiThread(action) },
+            currentLogText = { logText },
+            updateLogText = { logText = it },
+            updateOperationInProgress = { operationInProgress = it },
+            updateActiveOperationText = { activeOperationText = it },
+            updateLastOperationStatus = { lastOperationStatus = it },
+            showToast = { message -> showToast(message) },
+            debugLog = { line -> Log.d(TAG, line) },
+            errorLog = { line, throwable ->
+                if (throwable == null) {
+                    Log.e(TAG, line)
+                } else {
+                    Log.e(TAG, line, throwable)
+                }
+            },
+            appendLogFile = { line -> sessionLogWriter.append(line) }
+        )
+    }
     private val pluginSyncWorkflowController = PluginSyncWorkflowController(
-        createEngine = { createModEngineForWorkflows() },
+        createEngine = { profileScopedEngineFactory.create() },
         syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
         refreshDashboard = { refreshDashboard() }
     )
     private val pluginManagementWorkflow by lazy {
         PluginManagementWorkflow(
             createEngine = {
-                createModEngineForWorkflows()?.let { engine ->
+                profileScopedEngineFactory.create()?.let { engine ->
                     PluginManagementEngineAdapter(
                         engine = engine,
                         syncPlugins = { syncPluginsFromCurrentState(engine) }
@@ -182,7 +205,7 @@ class MainActivity : ComponentActivity() {
             failOperation = { message, throwable -> failOperation(message, throwable) },
             appendLog = { message -> appendLog(message) },
             appendError = { message, throwable -> appendError(message, throwable) },
-            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
             selectedGameIdProvider = { selectedGameId },
             refreshDashboard = { refreshDashboard() }
         )
@@ -219,7 +242,7 @@ class MainActivity : ComponentActivity() {
             },
             isOperationInProgress = { operationInProgress },
             createEngine = {
-                createModEngineForWorkflows()?.let { engine ->
+                profileScopedEngineFactory.create()?.let { engine ->
                     PendingInstallerEngineAdapter(
                         engine = engine,
                         syncPlugins = { syncPluginsFromCurrentState(engine) },
@@ -234,7 +257,7 @@ class MainActivity : ComponentActivity() {
             failOperation = { message, throwable -> failOperation(message, throwable) },
             appendLog = { message -> appendLog(message) },
             appendError = { message, throwable -> appendError(message, throwable) },
-            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
             updateSelectedOptionIds = { selectedOptionIds ->
                 pendingInstallerSelectedOptionIds = selectedOptionIds
             },
@@ -281,7 +304,7 @@ class MainActivity : ComponentActivity() {
     }
     private val profileManagementWorkflow by lazy {
         ProfileManagementWorkflow(
-            repositoryProvider = { createProfileRepository() },
+            repositoryProvider = { profileRepositoryFactory.create() },
             gameDisplayNameProvider = { gameId -> getGameDisplayName(gameId) },
             firstSetupInputProvider = {
                 FirstSetupInput(
@@ -409,7 +432,7 @@ class MainActivity : ComponentActivity() {
             saveSelectedGameConfigFromUi = { saveSelectedGameConfigFromUi() },
             loadSelectedGameConfigIntoUi = { loadSelectedGameConfigIntoUi() },
             syncPluginsFromCurrentState = {
-                val engine = createModEngineForWorkflows()
+                val engine = profileScopedEngineFactory.create()
                 if (engine != null) {
                     syncPluginsFromCurrentState(engine)
                 }
@@ -417,13 +440,13 @@ class MainActivity : ComponentActivity() {
             refreshDashboard = { refreshDashboard() },
             appendLog = { message -> appendLog(message) },
             appendError = { message -> appendError(message) },
-            updateLastOperationStatus = { status -> updateLastOperationStatus(status) }
+            updateLastOperationStatus = { status -> lastOperationStatus = status }
         )
     }
     private val modManagementWorkflow by lazy {
         ModManagementWorkflow(
             withEngine = { action ->
-                val engine = createModEngineForWorkflows()
+                val engine = profileScopedEngineFactory.create()
                 if (engine != null) {
                     action(
                         ModManagementEngineAdapter(
@@ -435,7 +458,7 @@ class MainActivity : ComponentActivity() {
             },
             appendLog = { message -> appendLog(message) },
             appendError = { message, throwable -> appendError(message, throwable) },
-            updateLastOperationStatus = { status -> updateLastOperationStatus(status) },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
             refreshDashboard = { refreshDashboard() }
         )
     }
@@ -502,7 +525,7 @@ class MainActivity : ComponentActivity() {
                 saveSelectedGameConfigFromUi()
             },
             createEngine = {
-                createModEngineForWorkflows()?.let { engine ->
+                profileScopedEngineFactory.create()?.let { engine ->
                     DeploymentExecutionEngineAdapter(
                         engine = engine,
                         syncPluginsAction = { syncPluginsFromCurrentState(engine) }
@@ -597,6 +620,22 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val profileScopedEngineFactory by lazy {
+        ProfileScopedEngineFactory(
+            appContext = applicationContext,
+            externalFilesDirProvider = { getExternalFilesDir(null) },
+            profileStoragePaths = profileStoragePaths,
+            selectedGameIdProvider = { selectedGameId },
+            appendError = { message -> appendError(message) }
+        )
+    }
+    private val profileRepositoryFactory by lazy {
+        ProfileRepositoryFactory(
+            externalFilesDirProvider = { getExternalFilesDir(null) },
+            appendError = { message -> appendError(message) }
+        )
+    }
+
     private val legacyProfileStorageMigrator by lazy {
         LegacyProfileStorageMigrator(
             filesDir = filesDir,
@@ -605,7 +644,7 @@ class MainActivity : ComponentActivity() {
             profileStoragePaths = profileStoragePaths,
             appendLog = { message -> appendLog(message) },
             appendError = { message, throwable -> appendError(message, throwable) },
-            updateLastOperationStatus = { status -> updateLastOperationStatus(status) }
+            updateLastOperationStatus = { status -> lastOperationStatus = status }
         )
     }
 
@@ -620,7 +659,7 @@ class MainActivity : ComponentActivity() {
         ArchiveImportExecutionWorkflow(
             operationInProgressProvider = { operationInProgress },
             beginOperation = { message -> beginOperation(message) },
-            createEngine = { createModEngineForWorkflows() },
+            createEngine = { profileScopedEngineFactory.create() },
             archiveImportFileStore = archiveImportFileStore,
             showInstallerChoices = { prepared, archiveRecordId ->
                 runOnUiThread {
@@ -667,7 +706,7 @@ class MainActivity : ComponentActivity() {
             isBrowserOpen = { fullscreenPanel == FullscreenPanel.ARCHIVES },
             scanFolder = { folderPath -> archiveFolderScanner.scan(folderPath) },
             loadHistory = {
-                val engine = createModEngineForWorkflows()
+                val engine = profileScopedEngineFactory.create()
                     ?: throw IllegalStateException("Archive browser is unavailable.")
                 ArchiveBrowserHistory(
                     records = engine.getDownloadedArchives(),
@@ -1054,7 +1093,7 @@ class MainActivity : ComponentActivity() {
 
             ensureDataBaselineIfMissing("startup")
 
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
 
             if (engine != null) {
                 checkLastDeployJournalOnStartup(engine)
@@ -1094,7 +1133,7 @@ class MainActivity : ComponentActivity() {
                 showDeployRecoveryDialog = false
             }
 
-            updateLastOperationStatus("Previous deploy may need review.")
+            lastOperationStatus = "Previous deploy may need review."
 
         } catch (e: Exception) {
             appendError("Failed to check previous deploy journal: ${e.message}", e)
@@ -1103,125 +1142,29 @@ class MainActivity : ComponentActivity() {
 
     //log stuff
     private fun appendLog(message: String) {
-        val line = OperationLogFormatter.formatLogLine(message)
-
-        Log.d(TAG, line)
-        appendLogToFile(line)
-
-        runOnUiThread {
-            logText = if (logText.isBlank()) {
-                line
-            } else {
-                logText + "\n" + line
-            }
-        }
+        operationReporter.appendLog(message)
     }
+
     private fun appendError(message: String, throwable: Throwable? = null) {
-        val line = OperationLogFormatter.formatLogLine("ERROR: $message")
-
-        if (throwable != null) {
-            Log.e(TAG, line, throwable)
-            appendLogToFile(line + "\n" + Log.getStackTraceString(throwable))
-        } else {
-            Log.e(TAG, line)
-            appendLogToFile(line)
-        }
-
-        runOnUiThread {
-            logText = if (logText.isBlank()) {
-                line
-            } else {
-                logText + "\n" + line
-            }
-        }
+        operationReporter.appendError(message, throwable)
     }
+
     private fun beginOperation(text: String) {
-        val status = operationStatusController.begin(text)
-
-        runOnUiThread {
-            operationInProgress = true
-            activeOperationText = status.activeText
-            updateLastOperationStatus(status.statusText)
-        }
-
-        showToast(status.toastText)
-        appendLog(status.logText)
+        operationReporter.beginOperation(text)
     }
+
     private fun finishOperation(successText: String) {
-        val status = operationStatusController.finish(successText)
-
-        runOnUiThread {
-            operationInProgress = false
-            activeOperationText = ""
-            updateLastOperationStatus(status.statusText)
-        }
-
-        showToast(status.toastText)
-        appendLog(status.logText)
+        operationReporter.finishOperation(successText)
     }
+
     private fun failOperation(message: String, throwable: Throwable? = null) {
-        val status = operationStatusController.fail(message)
-
-        runOnUiThread {
-            operationInProgress = false
-            activeOperationText = ""
-            updateLastOperationStatus(status.statusText)
-        }
-
-        showToast(status.toastText)
-        appendError(status.logText, throwable)
+        operationReporter.failOperation(message, throwable)
     }
 
-    private fun createModEngineForWorkflows(): ModEngine? {
-        val externalBaseDir = getExternalFilesDir(null)
-        if (externalBaseDir == null) {
-            appendError("External files directory is null")
-            return null
-        }
 
-        val profileInternalDir = profileStoragePaths.getProfileInternalDir()
-        val profileStateDir = profileStoragePaths.getProfileStateDir(externalBaseDir)
 
-        val tempDir = File(profileInternalDir, "temp")
-        val modsDir = File(profileInternalDir, "mods")
-
-        val stateFile = File(profileStateDir, "installed_mods.json")
-        val pluginListFile = File(profileStateDir, "plugins.json")
-        val pluginsTxtFile = File(profileStateDir, "plugins.txt")
-        val loadorderTxtFile = File(profileStateDir, "loadorder.txt")
-        val deploymentManifestFile = File(profileStateDir, "deployment_manifest.json")
-        val gameConfigFile = File(profileStateDir, "game_deployment_configs.json")
-        val archiveLibraryDir = File(externalBaseDir, "downloads/archive_library")
-        val downloadedArchiveListFile = File(profileStateDir, "downloaded_archives.json")
-
-        val deployDir = File(
-            externalBaseDir,
-            "deploy_target/profiles/${profileStoragePaths.getActiveProfileStorageKey()}/$selectedGameId/Data"
-        )
-
-        tempDir.mkdirs()
-        modsDir.mkdirs()
-        profileStateDir.mkdirs()
-        archiveLibraryDir.mkdirs()
-        deployDir.mkdirs()
-
-        return ModEngine(
-            appContext = applicationContext,
-            tempDir = tempDir,
-            modsDir = modsDir,
-            stateFile = stateFile,
-            deploymentManifestFile = deploymentManifestFile,
-            deployRootDir = deployDir,
-            gameConfigFile = gameConfigFile,
-            pluginListFile = pluginListFile,
-            pluginsTxtFile = pluginsTxtFile,
-            loadorderTxtFile = loadorderTxtFile,
-            archiveLibraryDir = archiveLibraryDir,
-            downloadedArchiveListFile = downloadedArchiveListFile
-        )
-    }
     private fun refreshDashboard() {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         val mods = engine.getCurrentMods().sortedBy { it.priority }
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
@@ -1323,7 +1266,7 @@ class MainActivity : ComponentActivity() {
         appendLog("Saved direct Game Root path for $selectedGameId: $path")
     }
     private fun buildDiagnosticSummary(): String {
-        val engine = createModEngineForWorkflows()
+        val engine = profileScopedEngineFactory.create()
 
         val mods = engine?.getCurrentMods() ?: emptyList()
         val plugins = engine?.getCurrentPlugins() ?: emptyList()
@@ -1358,7 +1301,7 @@ class MainActivity : ComponentActivity() {
     }
     private fun shareLogs() {
         val summary = buildDiagnosticSummary()
-        appendLogToFile("=== Diagnostic Snapshot ===\n$summary")
+        sessionLogWriter.append("=== Diagnostic Snapshot ===\n$summary")
 
         val externalBaseDir = getExternalFilesDir(null)
         val logFileText = if (externalBaseDir != null) {
@@ -1379,21 +1322,9 @@ class MainActivity : ComponentActivity() {
 
         startActivity(Intent.createChooser(sendIntent, "Share Logs"))
     }
-    private fun updateLastOperationStatus(status: String) {
-        lastOperationStatus = status
-    }
 
-    private fun appendLogToFile(message: String) {
-        try {
-            val externalBaseDir = getExternalFilesDir(null) ?: return
-            val logDir = File(externalBaseDir, "logs")
-            val logFile = File(logDir, "session_log.txt")
 
-            logDir.mkdirs()
-            logFile.appendText(message + "\n")
-        } catch (_: Exception) {
-        }
-    }
+
     private fun syncPluginsFromCurrentState(engine: ModEngine) {
         appendLog("Scanning plugins from current mod state and target Data folder...")
 
@@ -1497,7 +1428,7 @@ class MainActivity : ComponentActivity() {
             selectedGameId = activeProfile.gameId
         }
 
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
         val config = engine.getGameDeploymentConfig(selectedGameId)
         if (config == null) {
             val fallbackProfile = activeProfile?.takeIf { it.gameId == selectedGameId }
@@ -1545,7 +1476,7 @@ class MainActivity : ComponentActivity() {
         appendLog("Loaded config into Compose state: $config")
     }
     private fun saveSelectedGameConfigFromUi() {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         val existingConfigs = engine.loadGameDeploymentConfigs().toMutableList()
 
@@ -1571,7 +1502,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun migratePrioritySpacingIfNeeded() {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         val mods = engine.getCurrentMods().sortedBy { it.priority }
         val normalizedMods = engine.normalizeModPriorities(mods)
@@ -1590,22 +1521,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun createProfileRepository(): ProfileRepository? {
-        val externalBaseDir = getExternalFilesDir(null)
-        if (externalBaseDir == null) {
-            appendError("External files directory is null")
-            return null
-        }
 
-        val stateDir = File(externalBaseDir, "state")
-        val profilesFile = File(stateDir, "profiles.json")
-        val setupStateFile = File(stateDir, "app_setup.json")
-
-        return ProfileRepository(
-            profilesFile = profilesFile,
-            setupStateFile = setupStateFile
-        )
-    }
 
     private fun getGameDisplayName(gameId: String): String {
         return when (gameId) {
@@ -1619,7 +1535,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadSetupState() {
-        val repo = createProfileRepository() ?: return
+        val repo = profileRepositoryFactory.create() ?: return
 
         val loadedState = repo.loadSetupState()
         val profiles = repo.loadProfiles()
@@ -1684,7 +1600,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun openModFilePreview(modId: String) {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         val mod = engine.getCurrentMods().firstOrNull { it.id == modId }
         if (mod == null) {
@@ -1714,18 +1630,18 @@ class MainActivity : ComponentActivity() {
             secondScreenController?.start()
             updateSecondScreen()
             appendLog("Second screen plugin display enabled.")
-            updateLastOperationStatus("Second screen plugin display enabled.")
+            lastOperationStatus = "Second screen plugin display enabled."
             showToast("Second screen plugin display enabled.")
         } else {
             secondScreenController?.stop()
             appendLog("Second screen plugin display disabled.")
-            updateLastOperationStatus("Second screen plugin display disabled.")
+            lastOperationStatus = "Second screen plugin display disabled."
             showToast("Second screen plugin display disabled.")
         }
     }
 
     private fun openOverwriteFolderPanel() {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         try {
             ensureDataBaselineIfMissing("opening overwrite folder")
@@ -1745,7 +1661,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun ensureDataBaselineIfMissing(reason: String) {
-        val engine = createModEngineForWorkflows() ?: return
+        val engine = profileScopedEngineFactory.create() ?: return
 
         try {
             appendLog(engine.getDeploymentTargetDebugSummary(selectedGameId))
@@ -1766,7 +1682,7 @@ class MainActivity : ComponentActivity() {
             appendLog("Baseline reason: $reason")
             appendLog("Baseline file count: ${snapshot.files.size}")
 
-            updateLastOperationStatus("Indexed existing Data folder automatically.")
+            lastOperationStatus = "Indexed existing Data folder automatically."
         } catch (e: Exception) {
             appendError("Automatic Data baseline failed: ${e.message}", e)
         }
@@ -1834,7 +1750,7 @@ class MainActivity : ComponentActivity() {
         beginOperation("Building resolved data graph...")
 
         try {
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
                 ?: throw IllegalStateException("Could not create engine for active profile.")
 
             val summary = engine.buildResolvedDataGraphDebugSummary()
@@ -1865,7 +1781,7 @@ class MainActivity : ComponentActivity() {
         beginOperation("Building deploy plan...")
 
         try {
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
                 ?: throw IllegalStateException("Could not create engine for active profile.")
 
             val summary = engine.buildDeploymentPlanDebugSummary(selectedGameId)
@@ -1897,7 +1813,7 @@ class MainActivity : ComponentActivity() {
         beginOperation("Building archive library summary...")
 
         try {
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
                 ?: throw IllegalStateException("Could not create engine for active profile.")
 
             val summary = engine.buildDownloadedArchiveSummary()
@@ -1921,7 +1837,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun markLastDeployJournalReviewed() {
-        val engine = createModEngineForWorkflows()
+        val engine = profileScopedEngineFactory.create()
         if (engine == null) {
             appendError("Could not mark deploy journal reviewed: engine unavailable.")
             return
@@ -1932,7 +1848,7 @@ class MainActivity : ComponentActivity() {
 
             if (changed) {
                 appendLog("Marked unfinished deploy journal as reviewed.")
-                updateLastOperationStatus("Previous deploy warning reviewed.")
+                lastOperationStatus = "Previous deploy warning reviewed."
             } else {
                 appendLog("No unfinished deploy journal needed review.")
             }
@@ -1957,7 +1873,7 @@ class MainActivity : ComponentActivity() {
         beginOperation("Reading last deploy journal...")
 
         try {
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
                 ?: throw IllegalStateException("Could not create engine for active profile.")
 
             appendLog("----- Last Deploy Journal -----")
@@ -1989,7 +1905,7 @@ class MainActivity : ComponentActivity() {
         beginOperation("Building full redeploy plan...")
 
         try {
-            val engine = createModEngineForWorkflows()
+            val engine = profileScopedEngineFactory.create()
                 ?: throw IllegalStateException("Could not create engine for active profile.")
 
             val summary = engine.buildFullRedeployPlanDebugSummary(selectedGameId)
