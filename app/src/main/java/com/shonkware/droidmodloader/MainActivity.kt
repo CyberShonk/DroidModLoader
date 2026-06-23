@@ -37,6 +37,8 @@ import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.ProfileConfigUiState
 import com.shonkware.droidmodloader.ui.workflow.PluginSyncWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.PluginSynchronizationEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.PluginSynchronizationWorkflow
 import com.shonkware.droidmodloader.ui.workflow.PluginActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PluginManagementEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.PluginManagementWorkflow
@@ -66,6 +68,8 @@ import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
@@ -183,6 +187,9 @@ class MainActivity : ComponentActivity() {
             },
             appendLogFile = { line -> sessionLogWriter.append(line) }
         )
+    }
+    private val pluginSynchronizationWorkflow by lazy {
+        PluginSynchronizationWorkflow { message -> appendLog(message) }
     }
     private val pluginSyncWorkflowController = PluginSyncWorkflowController(
         createEngine = { profileScopedEngineFactory.create() },
@@ -508,6 +515,7 @@ class MainActivity : ComponentActivity() {
             appendLog = { message -> appendLog(message) }
         )
     }
+    private val dashboardRefreshWorkflow = DashboardRefreshWorkflow()
     private val deploymentExecutionWorkflow by lazy {
         DeploymentExecutionWorkflow(
             isOperationInProgress = { operationInProgress },
@@ -1165,60 +1173,22 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshDashboard() {
         val engine = profileScopedEngineFactory.create() ?: return
-
-        val mods = engine.getCurrentMods().sortedBy { it.priority }
-        val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
-
-
-        val installedCount = mods.size
-        val enabledCount = mods.count { it.enabled }
-        val savedStateExists = engine.hasSavedState()
-
-        val stateSourceText = when {
-            savedStateExists -> "Saved state present"
-            installedCount > 0 -> "Using folder-discovered state"
-            else -> "No current mod state"
-        }
-
-        val highestPriorityMod = mods.lastOrNull()?.name ?: "None"
-
-        val config = engine.getGameDeploymentConfig(selectedGameId)
-        val deployMode = when {
-            config == null -> "Simulated"
-            config.realDeployEnabled && engine.validateTargetDataPath(config.targetDataPath) -> "Direct Path"
-            else -> "Simulated"
-        }
-
-        val targetStatus = when {
-            config == null -> "Not configured"
-            config.targetDataPath.isNotBlank() -> config.targetDataPath
-            else -> "Not configured"
-        }
-
-        val newSummary = buildString {
-            appendLine("Installed mods: $installedCount")
-            appendLine("Enabled mods: $enabledCount")
-            appendLine("Plugins: ${plugins.size}")
-            appendLine("State source: $stateSourceText")
-            appendLine("Highest priority mod: $highestPriorityMod")
-            appendLine("Deploy mode: $deployMode")
-            appendLine("Target: $targetStatus")
-        }
-
-        val contentIndexes = mods.associate { mod ->
-            mod.id to engine.indexModContent(mod)
-        }
+        val result = dashboardRefreshWorkflow.build(
+            engine = DashboardRefreshEngineAdapter(engine),
+            selectedGameId = selectedGameId
+        )
 
         runOnUiThread {
-            visibleMods = mods
-            visiblePlugins = plugins
-            visibleModContentIndexes = contentIndexes
-            summaryText = newSummary
+            visibleMods = result.mods
+            visiblePlugins = result.plugins
+            visibleModContentIndexes = result.modContentIndexes
+            summaryText = result.summaryText
             updateSecondScreen()
         }
 
         appendLog("Dashboard refreshed.")
     }
+
     private fun showDeleteConfirmDialog(mod: Mod) {
         runOnUiThread {
             AlertDialog.Builder(this)
@@ -1326,78 +1296,12 @@ class MainActivity : ComponentActivity() {
 
 
     private fun syncPluginsFromCurrentState(engine: ModEngine) {
-        appendLog("Scanning plugins from current mod state and target Data folder...")
-
-        val previous = engine.loadPlugins().associateBy { it.normalizedPath }
-
-        val dataFolderPlugins = engine.scanDataFolderPlugins(selectedGameId)
-        val managedPlugins = engine.discoverPluginsFromCurrentMods()
-        val enabledModCount = engine.getEnabledCurrentMods().size
-
-        val officialDataPlugins = dataFolderPlugins.filter {
-            it.sourceType == "base_game" || it.sourceType == "official_dlc"
-        }
-
-        val unmanagedDataPlugins = dataFolderPlugins.filter {
-            it.sourceType == "unmanaged_data"
-        }
-
-        val dataPluginPaths = dataFolderPlugins.map { it.normalizedPath }.toSet()
-
-        val managedMerged = managedPlugins
-            .map { managed ->
-                val existing = previous[managed.normalizedPath]
-
-                managed.copy(
-                    enabled = existing?.enabled ?: true,
-                    priority = existing?.priority ?: Int.MAX_VALUE,
-                    sourceType = "managed_mod",
-                    locked = false,
-                    filePresentInDataFolder = managed.normalizedPath in dataPluginPaths
-                )
-            }
-
-        val unmanagedMerged = unmanagedDataPlugins.map { unmanaged ->
-            val existing = previous[unmanaged.normalizedPath]
-
-            unmanaged.copy(
-                enabled = existing?.enabled ?: false,
-                priority = existing?.priority ?: Int.MAX_VALUE,
-                locked = false,
-                filePresentInDataFolder = true
-            )
-        }
-
-        val officialMerged = officialDataPlugins
-            .sortedBy { it.priority }
-            .map { official ->
-                official.copy(
-                    enabled = true,
-                    locked = true,
-                    filePresentInDataFolder = true
-                )
-            }
-
-        val officialPaths = officialMerged.map { it.normalizedPath }.toSet()
-
-        val nonOfficial = (managedMerged + unmanagedMerged)
-            .filterNot { it.normalizedPath in officialPaths }
-            .distinctBy { it.normalizedPath }
-            .sortedWith(
-                compareBy<PluginEntry> { previous[it.normalizedPath]?.priority ?: it.priority }
-                    .thenBy { it.pluginName.lowercase() }
-            )
-
-        val merged = officialMerged + nonOfficial
-
-        val normalized = engine.normalizePluginPriorities(merged)
-        engine.saveCurrentPlugins(normalized)
-        appendLog("Selected game: $selectedGameId")
-        appendLog("Enabled mod count scanned for plugins: $enabledModCount")
-        appendLog("Data folder plugin count: ${dataFolderPlugins.size}")
-        appendLog("Managed plugin count: ${managedPlugins.size}")
-        appendLog("Plugin scan complete. Plugin count: ${normalized.size}")
+        pluginSynchronizationWorkflow.sync(
+            engine = PluginSynchronizationEngineAdapter(engine),
+            selectedGameId = selectedGameId
+        )
     }
+
 
     private fun refreshGameOptions() {
         runOnUiThread {
