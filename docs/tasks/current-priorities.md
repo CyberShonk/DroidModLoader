@@ -15,38 +15,31 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Finish real-container plugin output verification
+### 1. Finish MainActivity responsibility extraction
 
 Requirement IDs:
 
-- REQ-PLUGIN-002
-- REQ-PLUGIN-003
-- REQ-PLUGIN-005
+- REQ-PROFILE-001
 - REQ-PROFILE-002
+- REQ-DIAG-001
+- REQ-DIAG-002
+- REQ-UI-001
+- REQ-UI-002
+- REQ-STORAGE-001
+- REQ-STORAGE-002
 
 Expected result:
 
-- Preserve the completed disposable-folder checks for Skyrim LE text ordering
-  and legacy-game timestamp ordering.
-- Launch each supported game in its target container and confirm the generated
-  activation output and effective order are consumed as intended.
-- Preserve profile-specific enabled state and order.
+- Remove the obsolete v0.5.0 artifact repair feature.
+- Move remaining reusable startup, configuration, dashboard refresh, logging,
+  diagnostics, direct-folder, and UI-state projection responsibilities into
+  focused classes.
+- Leave `MainActivity` as the Android lifecycle and composition root without
+  changing behavior.
 
-Task definition: `docs/tasks/game-aware-plugin-ordering.md`.
+Task definition: `docs/tasks/main-activity-extraction.md`.
 
-### 2. Continue MainActivity responsibility extraction
-
-Reason:
-
-`MainActivity.kt` remains a large coordinator even after the completed workflow
-extractions.
-
-Expected result:
-
-Continue cohesive, behavior-preserving extractions without mixing in the later
-`ModEngine` service-extraction phase.
-
-### 3. Improve archive extraction robustness
+### 2. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -57,7 +50,7 @@ Expected result:
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
 variants that remain unsupported.
 
-### 4. Define the stable 1.0 acceptance boundary
+### 3. Define the stable 1.0 acceptance boundary
 
 Reason:
 

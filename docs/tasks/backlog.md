@@ -101,6 +101,8 @@ These are known candidates from the current roadmap and docs.
 
 ### Plugin Intelligence
 
+- Repeat real-container activation/output verification when a user report,
+  release-specific regression check, or game-integration change makes it useful.
 - Detect missing masters.
 - Detect duplicate plugin names.
 - Detect disabled source mod with enabled plugin.

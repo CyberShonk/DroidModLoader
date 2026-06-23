@@ -10,14 +10,15 @@
 
 ## Current objective
 
-Finish real-container verification of game-aware plugin activation output and
-effective order. The active-profile startup hotfix and exploratory same-device
-storage benchmark are complete. The accepted 1.0 UI redesign remains outside
-this work.
+Finish the remaining `MainActivity.kt` responsibility extraction without
+changing user-visible behavior. Remove the obsolete v0.5.0 artifact repair
+feature first, then move reusable startup, configuration, dashboard refresh,
+logging, diagnostics, direct-folder, and state-projection responsibilities into
+focused classes.
 
-The bounded storage task is `docs/tasks/direct-storage-migration.md`. It excludes
-new game definitions, `DML_output`, LOOT, xEdit, INI recipes, and broad
-`ModEngine` extraction.
+The bounded task is `docs/tasks/main-activity-extraction.md`. The accepted 1.0
+UI redesign, broad `ModEngine` extraction, new features, and plugin-system
+redesign remain outside this work.
 
 ## Completed most recently
 
@@ -80,11 +81,9 @@ user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Run real game/container checks for the generated activation files and effective
-plugin order. Use valid plugins from actual game installations; disposable empty
-`.esm`/`.esp` fixtures only verify DML's file handling. Preserve the exploratory
-benchmark evidence described in `docs/benchmarks/direct-storage.md`; repeat the
-benchmark only if a publication-grade performance claim is needed.
+Remove the obsolete v0.5.0 artifact repair feature as the first focused commit,
+then continue the bounded extraction sequence in
+`docs/tasks/main-activity-extraction.md`.
 
 ## Current constraints
 
@@ -100,8 +99,9 @@ benchmark only if a publication-grade performance claim is needed.
 
 ## Known open work
 
-* Finish real-container game checks for activation files and effective plugin order.
-* Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
+* Finish the remaining `MainActivity.kt` responsibility extractions in bounded commits.
+* Keep real-container plugin verification as deferred regression work unless a
+  user report or release-specific check makes it necessary.
 * Treat broad `ModEngine.kt` service extraction as a separate later project.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
 * Continue improving beginner-facing Game Root and Data Folder wording.
@@ -110,9 +110,9 @@ benchmark only if a publication-grade performance claim is needed.
 
 ## Blockers
 
-Acceptance is blocked only on real-container plugin verification. The startup
-hotfix retest and exploratory device benchmark are complete. No public version
-change is part of this migration.
+No active storage or plugin-verification blocker remains. The immediate cleanup
+blocker is the unfinished `MainActivity` extraction. No public version change is
+part of this refactor.
 
 ## Private and public boundary
 
