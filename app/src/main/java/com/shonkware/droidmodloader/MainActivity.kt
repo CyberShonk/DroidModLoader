@@ -29,7 +29,6 @@ import java.io.File
 import com.shonkware.droidmodloader.ui.FullscreenPanel
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import android.os.Looper
-import java.util.concurrent.CountDownLatch
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiState
@@ -92,6 +91,10 @@ import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowContr
 import com.shonkware.droidmodloader.ui.workflow.AppDiagnosticInfo
 import com.shonkware.droidmodloader.ui.workflow.SupportReportCoordinator
 import com.shonkware.droidmodloader.ui.workflow.SupportReportEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionCoordinator
+import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.SecondScreenPluginCoordinator
+import com.shonkware.droidmodloader.ui.workflow.ActivityThreadRunner
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
@@ -105,7 +108,6 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "DroidModLoader"
     }
     private var secondScreenController: SecondScreenController? = null
-    private var secondScreenEnabled by mutableStateOf(false)
     private var setupComplete by mutableStateOf(false)
     private var activeProfileId by mutableStateOf<String?>(null)
     private var profileNameText by mutableStateOf("Default")
@@ -197,6 +199,12 @@ class MainActivity : ComponentActivity() {
     ) {
         directFolderSelectionCoordinator.refreshAccessState()
     }
+    private val activityThreadRunner by lazy {
+        ActivityThreadRunner(
+            isOnUiThread = { Looper.myLooper() == Looper.getMainLooper() },
+            postToUiThread = { action -> runOnUiThread(action) }
+        )
+    }
     private val sessionLogWriter by lazy {
         SessionLogWriter { getExternalFilesDir(null) }
     }
@@ -218,6 +226,33 @@ class MainActivity : ComponentActivity() {
                 }
             },
             appendLogFile = { line -> sessionLogWriter.append(line) }
+        )
+    }
+    private val profileContentInspectionCoordinator by lazy {
+        ProfileContentInspectionCoordinator(
+            engineProvider = {
+                profileScopedEngineFactory.create()?.let(::ProfileContentInspectionEngineAdapter)
+            },
+            selectedGameIdProvider = { selectedGameId },
+            runOnUiThread = { action -> runOnUiThread(action) },
+            showModPreview = { preview ->
+                selectedModFilePreview = preview
+                showModFilePreviewDialog = true
+                modFilePreviewFullscreen = false
+            },
+            showOverwriteResult = { result ->
+                overwriteEntries = result.entries
+                overwriteBaselineExists = result.baselineExists
+                overwriteMessage = result.message
+                showOverwriteDialog = true
+            },
+            updateBaselineState = { exists, message ->
+                overwriteBaselineExists = exists
+                overwriteMessage = message
+            },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) }
         )
     }
     private val supportReportCoordinator by lazy {
@@ -273,7 +308,7 @@ class MainActivity : ComponentActivity() {
 
     private val pluginActionWorkflowController by lazy {
         PluginActionWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             writeLoadOrderFiles = { pluginManagementWorkflow.writeLoadOrderFiles() },
             togglePluginEnabled = { normalizedPath ->
                 pluginManagementWorkflow.togglePluginEnabled(normalizedPath)
@@ -338,7 +373,7 @@ class MainActivity : ComponentActivity() {
     }
     private val installerWorkflowController by lazy {
         InstallerWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             finalizeInstallerInstall = {
                 pendingInstallerWorkflow.finalizePendingInstall()
             },
@@ -352,7 +387,7 @@ class MainActivity : ComponentActivity() {
     }
     private val profileWorkflowController by lazy {
         ProfileWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             completeFirstSetup = { profileManagementWorkflow.completeFirstSetup() },
             createAdditionalProfile = { profileManagementWorkflow.createAdditionalProfile() },
             switchActiveProfile = { profileId ->
@@ -408,7 +443,7 @@ class MainActivity : ComponentActivity() {
                 }
             },
             applyCreatedProfileUiState = { profiles, profile ->
-                runOnUiThreadBlocking {
+                activityThreadRunner.runOnUiThreadBlocking {
                     profileOptions = profiles
                     activeProfileId = profile.profileId
                     activeProfileName = profile.profileName
@@ -427,7 +462,7 @@ class MainActivity : ComponentActivity() {
                 }
             },
             applySwitchedProfileUiState = { profile ->
-                runOnUiThreadBlocking {
+                activityThreadRunner.runOnUiThreadBlocking {
                     activeProfileId = profile.profileId
                     activeProfileName = profile.profileName
                     applyProfileConfigUiState(
@@ -466,7 +501,7 @@ class MainActivity : ComponentActivity() {
                 }
             },
             applyDeletedProfileUiStateBlocking = { profiles, newActiveProfile ->
-                runOnUiThreadBlocking {
+                activityThreadRunner.runOnUiThreadBlocking {
                     profileOptions = profiles
                     activeProfileId = newActiveProfile?.profileId
                     activeProfileName = newActiveProfile?.profileName ?: "No profile"
@@ -524,26 +559,26 @@ class MainActivity : ComponentActivity() {
     }
     private val modActionWorkflowController by lazy {
         ModActionWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             onToggleModEnabled = { modId -> modManagementWorkflow.toggleModEnabled(modId) },
             onMoveModUp = { modId -> modManagementWorkflow.moveModUp(modId) },
             onMoveModDown = { modId -> modManagementWorkflow.moveModDown(modId) },
             onRequestDeleteMod = { mod -> showDeleteConfirmDialog(mod) },
-            onViewModFiles = { modId -> openModFilePreview(modId) },
+            onViewModFiles = { modId -> profileContentInspectionCoordinator.openModFilePreview(modId) },
             onApplyModOrder = { orderedModIds -> modManagementWorkflow.applyModOrder(orderedModIds) }
         )
     }
     private val archiveImportWorkflowController: ArchiveImportWorkflowController by lazy {
         ArchiveImportWorkflowController(
             appendLog = { message -> appendLog(message) },
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             handleImportedArchive = { uri -> archiveImportExecutionWorkflow.importArchive(uri) },
             showArchiveLibrarySummary = { developerDiagnosticsCoordinator.buildArchiveLibrarySummary() }
         )
     }
     private val folderPickerWorkflowController by lazy {
         FolderPickerWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             saveFirstSetupDataPath = { path ->
                 runOnUiThread {
                     setupTargetPathText = path
@@ -608,7 +643,7 @@ class MainActivity : ComponentActivity() {
     }
     private val deploymentActionWorkflowController by lazy {
         DeploymentActionWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             runDeploy = { deploymentExecutionWorkflow.deploy() },
             runForceFullRedeploy = { deploymentExecutionWorkflow.forceFullRedeploy() },
             buildDeploymentPlan = { developerDiagnosticsCoordinator.buildDeploymentPlanSummary() },
@@ -639,7 +674,7 @@ class MainActivity : ComponentActivity() {
     }
     private val deployRecoveryWorkflowController by lazy {
         DeployRecoveryWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             showRecoveryDetails = {
                 showDeployRecoveryDialog = true
             },
@@ -676,7 +711,7 @@ class MainActivity : ComponentActivity() {
     }
     private val developerToolsWorkflowController by lazy {
         DeveloperToolsWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             buildResolvedDataGraph = {
                 developerDiagnosticsCoordinator.buildResolvedDataGraphSummary()
             },
@@ -687,9 +722,9 @@ class MainActivity : ComponentActivity() {
     }
     private val overwriteActionWorkflowController by lazy {
         OverwriteActionWorkflowController(
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             openOverwriteFolderPanel = {
-                openOverwriteFolderPanel()
+                profileContentInspectionCoordinator.openOverwriteFolderPanel()
             },
             closeOverwriteFolderPanel = {
                 showOverwriteDialog = false
@@ -804,7 +839,7 @@ class MainActivity : ComponentActivity() {
         ArchiveBrowserWorkflow(
             preferences = archiveFolderPreferences,
             activeProfileIdProvider = { activeProfileId },
-            runInBackground = { task -> runInBackground(task) },
+            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             isOperationInProgress = { operationInProgress },
             isBrowserOpen = { fullscreenPanel == FullscreenPanel.ARCHIVES },
             scanFolder = { folderPath -> archiveFolderScanner.scan(folderPath) },
@@ -839,6 +874,17 @@ class MainActivity : ComponentActivity() {
                 archiveImportWorkflowController.handleArchivePath(sourcePath)
             },
             appendLog = { message -> appendLog(message) }
+        )
+    }
+
+    private val secondScreenPluginCoordinator by lazy {
+        SecondScreenPluginCoordinator(
+            controllerProvider = { secondScreenController },
+            pluginsProvider = { visiblePlugins },
+            activeProfileNameProvider = { activeProfileName },
+            appendLog = { message -> appendLog(message) },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
+            showToast = { message -> showToast(message) }
         )
     }
 
@@ -881,27 +927,17 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         directFolderSelectionCoordinator.refreshAccessState()
 
-        if (secondScreenEnabled) {
-            secondScreenController?.start()
-            updateSecondScreen()
-        }
+        secondScreenPluginCoordinator.onResume()
 
         archiveBrowserWorkflow.refreshIfOpen()
     }
 
     override fun onPause() {
-        secondScreenController?.stop()
+        secondScreenPluginCoordinator.onPause()
         super.onPause()
     }
 
-    private fun updateSecondScreen() {
-        if (!secondScreenEnabled) return
 
-        secondScreenController?.update(
-            plugins = visiblePlugins,
-            activeProfileName = activeProfileName
-        )
-    }
 
     private fun buildUiState(): DashboardUiState {
         return DashboardUiState(
@@ -940,7 +976,7 @@ class MainActivity : ComponentActivity() {
             selectedModFilePreview = selectedModFilePreview,
             showModFilePreviewDialog = showModFilePreviewDialog,
             modFilePreviewFullscreen = modFilePreviewFullscreen,
-            secondScreenEnabled = secondScreenEnabled,
+            secondScreenEnabled = secondScreenPluginCoordinator.enabled,
             fullscreenPanel = fullscreenPanel,
             overwriteEntries = overwriteEntries,
             showOverwriteDialog = showOverwriteDialog,
@@ -1021,8 +1057,8 @@ class MainActivity : ComponentActivity() {
             onSelectGame = { gameId ->
                 selectedGameId = gameId
                 loadSelectedGameConfigIntoUi()
-                runInBackground {
-                    ensureDataBaselineIfMissing("selected game changed")
+                activityThreadRunner.runInBackground {
+                    profileContentInspectionCoordinator.ensureDataBaselineIfMissing("selected game changed")
                     pluginSyncWorkflowController.syncWithNewEngineThenRefresh()
                 }
             },
@@ -1042,7 +1078,7 @@ class MainActivity : ComponentActivity() {
                 directFolderSelectionCoordinator.open(FolderPickMode.ActiveGameRootFolder)
             },
             onSaveSettings = {
-                runInBackground {
+                activityThreadRunner.runInBackground {
                     profileWorkflowController.saveSettings()
                 }
             },
@@ -1105,7 +1141,7 @@ class MainActivity : ComponentActivity() {
                 previewDialogActionWorkflowController.toggleModFilePreviewFullscreen()
             },
             onToggleSecondScreen = {
-                toggleSecondScreenPluginDisplay()
+                secondScreenPluginCoordinator.toggle()
             },
             onOpenModsFullscreen = {
                 fullscreenPanelActionWorkflowController.openModsFullscreen()
@@ -1185,14 +1221,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initializeComposeUi() {
-        runInBackground {
+        activityThreadRunner.runInBackground {
             loadSetupState()
             legacyProfileStorageMigrator.migrateIfNeeded()
             refreshGameOptions()
             loadSelectedGameConfigIntoUi()
             migratePrioritySpacingIfNeeded()
 
-            ensureDataBaselineIfMissing("startup")
+            profileContentInspectionCoordinator.ensureDataBaselineIfMissing("startup")
 
             val engine = profileScopedEngineFactory.create()
 
@@ -1205,11 +1241,7 @@ class MainActivity : ComponentActivity() {
 
         appendLog("UI ready.")
     }
-    private fun runInBackground(block: () -> Unit) {
-        Thread {
-            block()
-        }.start()
-    }
+
 
 
 
@@ -1248,7 +1280,7 @@ class MainActivity : ComponentActivity() {
             visiblePlugins = result.plugins
             visibleModContentIndexes = result.modContentIndexes
             summaryText = result.summaryText
-            updateSecondScreen()
+            secondScreenPluginCoordinator.refresh()
         }
 
         appendLog("Dashboard refreshed.")
@@ -1264,14 +1296,14 @@ class MainActivity : ComponentActivity() {
                             "Run Deploy afterward to remove its deployed files from the selected game Data folder."
                 )
                 .setPositiveButton("Delete") { _, _ ->
-                    runInBackground { modManagementWorkflow.deleteInstalledMod(mod.id) }
+                    activityThreadRunner.runInBackground { modManagementWorkflow.deleteInstalledMod(mod.id) }
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
     }
     private fun savePickedDataFolderToSelectedGameConfig(path: String) {
-        runOnUiThreadBlocking {
+        activityThreadRunner.runOnUiThreadBlocking {
             targetPathText = path
             selectedDataPathText = path
             dataPathReselectionRequired = false
@@ -1281,13 +1313,13 @@ class MainActivity : ComponentActivity() {
         saveSelectedGameConfigFromUi()
         profileManagementWorkflow.saveActiveProfileFromDashboard()
 
-        ensureDataBaselineIfMissing("target folder selected")
+        profileContentInspectionCoordinator.ensureDataBaselineIfMissing("target folder selected")
         refreshDashboard()
 
         appendLog("Saved direct Data folder path for $selectedGameId: $path")
     }
     private fun savePickedRootFolderToSelectedGameConfig(path: String) {
-        runOnUiThreadBlocking {
+        activityThreadRunner.runOnUiThreadBlocking {
             rootTargetPathText = path
             selectedRootPathText = path
             rootPathReselectionRequired = false
@@ -1390,7 +1422,7 @@ class MainActivity : ComponentActivity() {
         )
         result.recoveryLogMessage?.let(::appendLog)
 
-        runOnUiThreadBlocking {
+        activityThreadRunner.runOnUiThreadBlocking {
             setupComplete = result.setupState.setupComplete
             activeProfileId = result.setupState.activeProfileId
             activeProfileName = ProfileConfigUiMapper.activeProfileName(result.activeProfile)
@@ -1426,115 +1458,16 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
-    private fun openModFilePreview(modId: String) {
-        val engine = profileScopedEngineFactory.create() ?: return
-
-        val mod = engine.getCurrentMods().firstOrNull { it.id == modId }
-        if (mod == null) {
-            appendError("Could not open file preview. Mod not found: $modId")
-            return
-        }
-
-        try {
-            val preview = engine.buildModFilePreview(mod)
-
-            runOnUiThread {
-                selectedModFilePreview = preview
-                showModFilePreviewDialog = true
-                modFilePreviewFullscreen = false
-            }
-
-            appendLog("Opened file preview for mod: ${mod.name}")
-        } catch (e: Exception) {
-            appendError("Failed to build file preview for $modId: ${e.message}", e)
-        }
-    }
-
-    private fun toggleSecondScreenPluginDisplay() {
-        secondScreenEnabled = !secondScreenEnabled
-
-        if (secondScreenEnabled) {
-            secondScreenController?.start()
-            updateSecondScreen()
-            appendLog("Second screen plugin display enabled.")
-            lastOperationStatus = "Second screen plugin display enabled."
-            showToast("Second screen plugin display enabled.")
-        } else {
-            secondScreenController?.stop()
-            appendLog("Second screen plugin display disabled.")
-            lastOperationStatus = "Second screen plugin display disabled."
-            showToast("Second screen plugin display disabled.")
-        }
-    }
-
-    private fun openOverwriteFolderPanel() {
-        val engine = profileScopedEngineFactory.create() ?: return
-
-        try {
-            ensureDataBaselineIfMissing("opening overwrite folder")
-
-            val result = engine.scanOverwriteFiles(selectedGameId)
-
-            runOnUiThread {
-                overwriteEntries = result.entries
-                overwriteBaselineExists = result.baselineExists
-                overwriteMessage = result.message
-                showOverwriteDialog = true
-            }
-
-            appendLog("Opened overwrite folder panel. ${result.message}")
-        } catch (e: Exception) {
-            appendError("Failed to scan overwrite files: ${e.message}", e)
-        }
-    }
-    private fun ensureDataBaselineIfMissing(reason: String) {
-        val engine = profileScopedEngineFactory.create() ?: return
-
-        try {
-            appendLog(engine.getDeploymentTargetDebugSummary(selectedGameId))
-
-            if (engine.hasDataBaseline(selectedGameId)) {
-                appendLog("Data baseline already exists for $selectedGameId.")
-                return
-            }
-
-            val snapshot = engine.rebuildDataBaseline(selectedGameId)
-
-            runOnUiThread {
-                overwriteBaselineExists = true
-                overwriteMessage = "Indexed ${snapshot.files.size} existing Data folder files."
-            }
-
-            appendLog("Created Data baseline automatically for $selectedGameId.")
-            appendLog("Baseline reason: $reason")
-            appendLog("Baseline file count: ${snapshot.files.size}")
-
-            lastOperationStatus = "Indexed existing Data folder automatically."
-        } catch (e: Exception) {
-            appendError("Automatic Data baseline failed: ${e.message}", e)
-        }
-    }
 
 
 
-    private fun runOnUiThreadBlocking(action: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            action()
-            return
-        }
 
-        val latch = CountDownLatch(1)
 
-        runOnUiThread {
-            try {
-                action()
-            } finally {
-                latch.countDown()
-            }
-        }
 
-        latch.await()
-    }
+
+
+
+
 
 
 
