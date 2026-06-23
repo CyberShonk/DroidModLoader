@@ -67,20 +67,27 @@ import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserWorkflow
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DirectFolderSelectionCoordinator
 import com.shonkware.droidmodloader.ui.workflow.DeploymentActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.DashboardRefreshWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.DeploymentExecutionWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.DeployRecoveryWorkflow
 import com.shonkware.droidmodloader.ui.workflow.DeveloperToolsWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.DeveloperDiagnosticsCoordinator
+import com.shonkware.droidmodloader.ui.workflow.DeveloperDiagnosticsEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.OverwriteActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.FullscreenPanelActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowController
+import com.shonkware.droidmodloader.ui.workflow.AppDiagnosticInfo
+import com.shonkware.droidmodloader.ui.workflow.SupportReportCoordinator
+import com.shonkware.droidmodloader.ui.workflow.SupportReportEngineAdapter
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessPolicy
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
-import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
@@ -92,7 +99,6 @@ class MainActivity : ComponentActivity() {
     }
     private var secondScreenController: SecondScreenController? = null
     private var secondScreenEnabled by mutableStateOf(false)
-    private var folderPickMode by mutableStateOf(FolderPickMode.ActiveDataFolder)
     private var setupComplete by mutableStateOf(false)
     private var activeProfileId by mutableStateOf<String?>(null)
     private var profileNameText by mutableStateOf("Default")
@@ -126,10 +132,6 @@ class MainActivity : ComponentActivity() {
     private var dataPathReselectionRequired by mutableStateOf(false)
     private var rootPathReselectionRequired by mutableStateOf(false)
     private var realDeployEnabledState by mutableStateOf(false)
-    private var showDirectFolderBrowser by mutableStateOf(false)
-    private var directFolderBrowserTitle by mutableStateOf("Choose Folder")
-    private var directFolderBrowserRequiresWritable by mutableStateOf(true)
-    private var directFolderBrowserState by mutableStateOf(DirectFolderBrowserState())
     private var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
     private var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     private var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
@@ -149,7 +151,6 @@ class MainActivity : ComponentActivity() {
     private var deployRecoveryWarningText by mutableStateOf("")
     private var showDeployRecoveryDialog by mutableStateOf(false)
     private var showForceFullRedeployConfirmDialog by mutableStateOf(false)
-    private var allFilesAccessGranted by mutableStateOf(true)
     private val allFilesAccessManager by lazy {
         AllFilesAccessManager(applicationContext)
     }
@@ -160,10 +161,34 @@ class MainActivity : ComponentActivity() {
             pathValidator = directPathValidator
         )
     }
+    private val directFolderSelectionCoordinator by lazy {
+        DirectFolderSelectionCoordinator(
+            accessGrantedProvider = { allFilesAccessManager.isGranted() },
+            browser = directFolderBrowser,
+            pathValidator = directPathValidator,
+            currentPathProvider = { mode ->
+                when (mode) {
+                    FolderPickMode.FirstSetupDataFolder -> setupTargetPathText
+                    FolderPickMode.ActiveDataFolder -> targetPathText
+                    FolderPickMode.ActiveGameRootFolder -> rootTargetPathText
+                    FolderPickMode.NewProfileDataFolder -> newProfileDataPathText
+                        .takeUnless { it == DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED }
+                        .orEmpty()
+                    FolderPickMode.ArchiveLibraryFolder -> activeProfileId
+                        ?.let(archiveFolderPreferences::getSelectedFolderPath)
+                        .orEmpty()
+                }
+            },
+            requestAllFilesAccess = { requestAllFilesAccess() },
+            handlePickedFolder = { mode, path ->
+                folderPickerWorkflowController.handlePickedFolder(mode, path)
+            }
+        )
+    }
     private val allFilesAccessSettingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        refreshAllFilesAccessState()
+        directFolderSelectionCoordinator.refreshAccessState()
     }
     private val sessionLogWriter by lazy {
         SessionLogWriter { getExternalFilesDir(null) }
@@ -186,6 +211,27 @@ class MainActivity : ComponentActivity() {
                 }
             },
             appendLogFile = { line -> sessionLogWriter.append(line) }
+        )
+    }
+    private val supportReportCoordinator by lazy {
+        SupportReportCoordinator(
+            engineProvider = {
+                profileScopedEngineFactory.create()?.let(::SupportReportEngineAdapter)
+            },
+            diagnosticInfoProvider = {
+                val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                AppDiagnosticInfo(
+                    versionName = packageInfo.versionName ?: "unknown",
+                    versionCode = packageInfo.longVersionCode,
+                    packageName = packageName,
+                    androidVersion = android.os.Build.VERSION.RELEASE,
+                    deviceModel = android.os.Build.MODEL
+                )
+            },
+            lastOperationStatusProvider = { lastOperationStatus },
+            developerModeEnabledProvider = { developerModeEnabled },
+            currentLogTextProvider = { logText },
+            sessionLogWriter = sessionLogWriter
         )
     }
     private val pluginSynchronizationWorkflow by lazy {
@@ -254,7 +300,7 @@ class MainActivity : ComponentActivity() {
                         engine = engine,
                         syncPlugins = { syncPluginsFromCurrentState(engine) },
                         appendRoutingSummary = { mod ->
-                            appendInstalledModRoutingSummary(engine, mod)
+                            developerDiagnosticsCoordinator.appendInstalledModRoutingSummary(DeveloperDiagnosticsEngineAdapter(engine), mod)
                         }
                     )
                 }
@@ -485,7 +531,7 @@ class MainActivity : ComponentActivity() {
             appendLog = { message -> appendLog(message) },
             runInBackground = { task -> runInBackground(task) },
             handleImportedArchive = { uri -> archiveImportExecutionWorkflow.importArchive(uri) },
-            showArchiveLibrarySummary = { runArchiveLibraryDebugSummary() }
+            showArchiveLibrarySummary = { developerDiagnosticsCoordinator.buildArchiveLibrarySummary() }
         )
     }
     private val folderPickerWorkflowController by lazy {
@@ -553,8 +599,30 @@ class MainActivity : ComponentActivity() {
             runInBackground = { task -> runInBackground(task) },
             runDeploy = { deploymentExecutionWorkflow.deploy() },
             runForceFullRedeploy = { deploymentExecutionWorkflow.forceFullRedeploy() },
-            buildDeploymentPlan = { runDeploymentPlanDebugSummary() },
-            buildFullRedeployPlan = { runFullRedeployPlanDebugSummary() }
+            buildDeploymentPlan = { developerDiagnosticsCoordinator.buildDeploymentPlanSummary() },
+            buildFullRedeployPlan = { developerDiagnosticsCoordinator.buildFullRedeployPlanSummary() }
+        )
+    }
+    private val deployRecoveryWorkflow by lazy {
+        DeployRecoveryWorkflow(
+            operationInProgressProvider = { operationInProgress },
+            engineProvider = {
+                profileScopedEngineFactory.create()?.let(::DeployRecoveryEngineAdapter)
+            },
+            selectedGameIdProvider = { selectedGameId },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) },
+            beginOperation = { message -> beginOperation(message) },
+            finishOperation = { message -> finishOperation(message) },
+            failOperation = { message, throwable -> failOperation(message, throwable) },
+            updateWarningState = { warning, showDetails ->
+                runOnUiThread {
+                    deployRecoveryWarningText = warning
+                    showDeployRecoveryDialog = showDetails
+                }
+            },
+            updateLastOperationStatus = { status -> lastOperationStatus = status },
+            refreshDashboard = { refreshDashboard() }
         )
     }
     private val deployRecoveryWorkflowController by lazy {
@@ -572,18 +640,33 @@ class MainActivity : ComponentActivity() {
                 appendLog("Dismissed previous deploy warning for this session.")
             },
             viewLastDeployJournal = {
-                runLastDeployJournalDebugSummary()
+                deployRecoveryWorkflow.readLastJournalSummary()
             },
             markDeployRecoveryReviewed = {
-                markLastDeployJournalReviewed()
+                deployRecoveryWorkflow.markReviewed()
             }
+        )
+    }
+    private val developerDiagnosticsCoordinator by lazy {
+        DeveloperDiagnosticsCoordinator(
+            operationInProgressProvider = { operationInProgress },
+            engineProvider = {
+                profileScopedEngineFactory.create()?.let(::DeveloperDiagnosticsEngineAdapter)
+            },
+            selectedGameIdProvider = { selectedGameId },
+            appendLog = { message -> appendLog(message) },
+            appendError = { message, throwable -> appendError(message, throwable) },
+            beginOperation = { message -> beginOperation(message) },
+            finishOperation = { message -> finishOperation(message) },
+            failOperation = { message, throwable -> failOperation(message, throwable) },
+            refreshDashboard = { refreshDashboard() }
         )
     }
     private val developerToolsWorkflowController by lazy {
         DeveloperToolsWorkflowController(
             runInBackground = { task -> runInBackground(task) },
             buildResolvedDataGraph = {
-                runResolvedDataGraphDebugSummary()
+                developerDiagnosticsCoordinator.buildResolvedDataGraphSummary()
             },
             showArchiveLibrarySummary = {
                 archiveImportWorkflowController.requestArchiveLibrarySummary()
@@ -683,7 +766,7 @@ class MainActivity : ComponentActivity() {
             failOperation = { message, throwable -> failOperation(message, throwable) },
             syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
             appendInstalledModRoutingSummary = { engine, mod ->
-                appendInstalledModRoutingSummary(engine, mod)
+                developerDiagnosticsCoordinator.appendInstalledModRoutingSummary(DeveloperDiagnosticsEngineAdapter(engine), mod)
             },
             refreshDashboard = {
                 refreshDashboard()
@@ -765,7 +848,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        refreshAllFilesAccessState()
+        directFolderSelectionCoordinator.refreshAccessState()
 
         setContent {
             DmlTheme {
@@ -784,7 +867,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        refreshAllFilesAccessState()
+        directFolderSelectionCoordinator.refreshAccessState()
 
         if (secondScreenEnabled) {
             secondScreenController?.start()
@@ -860,11 +943,11 @@ class MainActivity : ComponentActivity() {
             showArchiveFolderSetupDialog = showArchiveFolderSetupDialog,
             archiveBrowserState = archiveBrowserState,
             allFilesAccessRequired = android.os.Build.VERSION.SDK_INT >= AllFilesAccessPolicy.ANDROID_11_API_LEVEL,
-            allFilesAccessGranted = allFilesAccessGranted,
-            showDirectFolderBrowser = showDirectFolderBrowser,
-            directFolderBrowserTitle = directFolderBrowserTitle,
-            directFolderBrowserRequiresWritable = directFolderBrowserRequiresWritable,
-            directFolderBrowserState = directFolderBrowserState
+            allFilesAccessGranted = directFolderSelectionCoordinator.allFilesAccessGranted,
+            showDirectFolderBrowser = directFolderSelectionCoordinator.showBrowser,
+            directFolderBrowserTitle = directFolderSelectionCoordinator.browserTitle,
+            directFolderBrowserRequiresWritable = directFolderSelectionCoordinator.browserRequiresWritable,
+            directFolderBrowserState = directFolderSelectionCoordinator.browserState
         )
     }
 
@@ -882,7 +965,7 @@ class MainActivity : ComponentActivity() {
             },
             onChooseArchiveFolder = {
                 showArchiveFolderSetupDialog = false
-                openDirectFolderBrowser(FolderPickMode.ArchiveLibraryFolder)
+                directFolderSelectionCoordinator.open(FolderPickMode.ArchiveLibraryFolder)
             },
             onDismissArchiveFolderSetup = {
                 showArchiveFolderSetupDialog = false
@@ -891,7 +974,7 @@ class MainActivity : ComponentActivity() {
                 archiveBrowserWorkflow.refresh()
             },
             onChangeArchiveFolder = {
-                openDirectFolderBrowser(FolderPickMode.ArchiveLibraryFolder)
+                directFolderSelectionCoordinator.open(FolderPickMode.ArchiveLibraryFolder)
             },
             onInstallArchiveFromFolder = { stableId ->
                 archiveBrowserWorkflow.installArchive(stableId)
@@ -935,7 +1018,7 @@ class MainActivity : ComponentActivity() {
                 realDeployEnabledState = enabled
             },
             onPickTargetFolder = {
-                openDirectFolderBrowser(
+                directFolderSelectionCoordinator.open(
                     if (setupComplete) {
                         FolderPickMode.ActiveDataFolder
                     } else {
@@ -944,7 +1027,7 @@ class MainActivity : ComponentActivity() {
                 )
             },
             onPickRootTargetFolder = {
-                openDirectFolderBrowser(FolderPickMode.ActiveGameRootFolder)
+                directFolderSelectionCoordinator.open(FolderPickMode.ActiveGameRootFolder)
             },
             onSaveSettings = {
                 runInBackground {
@@ -983,7 +1066,7 @@ class MainActivity : ComponentActivity() {
                 showProfileDialog = false
             },
             onPickNewProfileTargetFolder = {
-                openDirectFolderBrowser(FolderPickMode.NewProfileDataFolder)
+                directFolderSelectionCoordinator.open(FolderPickMode.NewProfileDataFolder)
             },
             onDeleteProfile = { profileId ->
                 profileWorkflowController.deleteProfile(profileId)
@@ -1074,18 +1157,16 @@ class MainActivity : ComponentActivity() {
                 requestAllFilesAccess()
             },
             onDirectFolderBrowserOpenPath = { path ->
-                directFolderBrowserState = directFolderBrowser.open(path)
+                directFolderSelectionCoordinator.openPath(path)
             },
             onDirectFolderBrowserNavigateUp = {
-                directFolderBrowserState = directFolderBrowser.navigateUp(
-                    directFolderBrowserState
-                )
+                directFolderSelectionCoordinator.navigateUp()
             },
             onDirectFolderBrowserSelectCurrent = {
-                selectCurrentDirectFolder()
+                directFolderSelectionCoordinator.selectCurrent()
             },
             onDirectFolderBrowserCancel = {
-                showDirectFolderBrowser = false
+                directFolderSelectionCoordinator.cancel()
             }
         )
 
@@ -1104,7 +1185,7 @@ class MainActivity : ComponentActivity() {
             val engine = profileScopedEngineFactory.create()
 
             if (engine != null) {
-                checkLastDeployJournalOnStartup(engine)
+                deployRecoveryWorkflow.checkStartup(DeployRecoveryEngineAdapter(engine))
             }
 
             pluginSyncWorkflowController.syncWithExistingEngineThenRefresh(engine)
@@ -1118,35 +1199,7 @@ class MainActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun checkLastDeployJournalOnStartup(engine: ModEngine) {
-        try {
-            val warning = engine.getDeploymentJournalStartupWarning(selectedGameId)
 
-            if (warning.isNullOrBlank()) {
-                runOnUiThread {
-                    deployRecoveryWarningText = ""
-                    showDeployRecoveryDialog = false
-                }
-                return
-            }
-
-            appendLog("----- Previous Deploy Journal Warning -----")
-            warning.lineSequence().forEach { line ->
-                appendLog(line)
-            }
-            appendLog("----- Previous Deploy Journal Warning End -----")
-
-            runOnUiThread {
-                deployRecoveryWarningText = warning
-                showDeployRecoveryDialog = false
-            }
-
-            lastOperationStatus = "Previous deploy may need review."
-
-        } catch (e: Exception) {
-            appendError("Failed to check previous deploy journal: ${e.message}", e)
-        }
-    }
 
     //log stuff
     private fun appendLog(message: String) {
@@ -1235,63 +1288,16 @@ class MainActivity : ComponentActivity() {
 
         appendLog("Saved direct Game Root path for $selectedGameId: $path")
     }
-    private fun buildDiagnosticSummary(): String {
-        val engine = profileScopedEngineFactory.create()
 
-        val mods = engine?.getCurrentMods() ?: emptyList()
-        val plugins = engine?.getCurrentPlugins() ?: emptyList()
-
-        val enabledMods = mods.count { it.enabled }
-        val enabledPlugins = plugins.count { it.enabled }
-
-        val packageInfo = packageManager.getPackageInfo(packageName, 0)
-        val versionName = packageInfo.versionName ?: "unknown"
-        val versionCode = packageInfo.longVersionCode
-
-        return buildString {
-            appendLine("=== Droid Mod Loader Diagnostic Summary ===")
-            appendLine()
-            appendLine("App Version: $versionName ($versionCode)")
-            appendLine("Display Version: $versionName")
-            appendLine("Package: $packageName")
-            appendLine("Android Version: ${android.os.Build.VERSION.RELEASE}")
-            appendLine("Device: ${android.os.Build.MODEL}")
-            appendLine()
-            appendLine("Installed Mods: ${mods.size}")
-            appendLine("Enabled Mods: $enabledMods")
-            appendLine("Plugins: ${plugins.size}")
-            appendLine("Enabled Plugins: $enabledPlugins")
-            appendLine("Last Operation Status: $lastOperationStatus")
-            appendLine()
-            appendLine("Developer Mode Enabled: $developerModeEnabled")
-            appendLine()
-            appendLine("Current Logs:")
-            appendLine(logText)
-        }
-    }
     private fun shareLogs() {
-        val summary = buildDiagnosticSummary()
-        sessionLogWriter.append("=== Diagnostic Snapshot ===\n$summary")
-
-        val externalBaseDir = getExternalFilesDir(null)
-        val logFileText = if (externalBaseDir != null) {
-            val logFile = File(File(externalBaseDir, "logs"), "session_log.txt")
-            if (logFile.exists()) logFile.readText() else "(no persistent log file)"
-        } else {
-            "(external files dir unavailable)"
-        }
-
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
-            putExtra(
-                Intent.EXTRA_TEXT,
-                summary + "\n\n=== Persistent Log File ===\n" + logFileText
-            )
+            putExtra(Intent.EXTRA_TEXT, supportReportCoordinator.buildShareText())
             type = "text/plain"
         }
-
         startActivity(Intent.createChooser(sendIntent, "Share Logs"))
     }
+
 
 
 
@@ -1620,217 +1626,19 @@ class MainActivity : ComponentActivity() {
         latch.await()
     }
 
-    private fun appendInstalledModRoutingSummary(
-        engine: ModEngine,
-        mod: Mod
-    ) {
-        try {
-            val index = engine.indexModContent(mod)
 
-            appendLog("Installed mod routing summary for ${mod.name}:")
-            appendLog("  Data files: ${index.dataFiles.size}")
-            appendLog("  Game root files: ${index.gameRootFiles.size}")
-            appendLog("  Manager-only files: ${index.managerOnlyFiles.size}")
-            appendLog("  Unknown files: ${index.unknownFiles.size}")
 
-            index.gameRootFiles.take(10).forEach { entry ->
-                appendLog("  ROOT: ${entry.normalizedPath}")
-            }
 
-            index.dataFiles.take(10).forEach { entry ->
-                appendLog("  DATA: ${entry.normalizedPath}")
-            }
-        } catch (e: Exception) {
-            appendError("Failed to build installed mod routing summary: ${e.message}", e)
-        }
-    }
 
-    private fun runResolvedDataGraphDebugSummary() {
-        if (operationInProgress) {
-            appendLog("Ignoring resolved graph request: operation already in progress.")
-            return
-        }
 
-        beginOperation("Building resolved data graph...")
 
-        try {
-            val engine = profileScopedEngineFactory.create()
-                ?: throw IllegalStateException("Could not create engine for active profile.")
 
-            val summary = engine.buildResolvedDataGraphDebugSummary()
 
-            appendLog("----- Resolved Data Graph Summary -----")
-            summary.lineSequence().forEach { line ->
-                appendLog(line)
-            }
-            appendLog("----- Resolved Data Graph Summary End -----")
-            appendLog("RESULT: PASS")
 
-            finishOperation("Resolved data graph built.")
-        } catch (e: Exception) {
-            appendError("Resolved data graph failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Resolved data graph failed: ${e.message}", e)
-        }
 
-        refreshDashboard()
-    }
 
-    private fun runDeploymentPlanDebugSummary() {
-        if (operationInProgress) {
-            appendLog("Ignoring deploy plan request: operation already in progress.")
-            return
-        }
 
-        beginOperation("Building deploy plan...")
 
-        try {
-            val engine = profileScopedEngineFactory.create()
-                ?: throw IllegalStateException("Could not create engine for active profile.")
-
-            val summary = engine.buildDeploymentPlanDebugSummary(selectedGameId)
-
-            appendLog("----- Deploy Plan Summary -----")
-            summary.lineSequence().forEach { line ->
-                appendLog(line)
-            }
-            appendLog("----- Deploy Plan Summary End -----")
-            appendLog("No files were changed.")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Deploy plan built.")
-        } catch (e: Exception) {
-            appendError("Deploy plan failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Deploy plan failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-    }
-
-    private fun runArchiveLibraryDebugSummary() {
-        if (operationInProgress) {
-            appendLog("Ignoring archive library summary request: operation already in progress.")
-            return
-        }
-
-        beginOperation("Building archive library summary...")
-
-        try {
-            val engine = profileScopedEngineFactory.create()
-                ?: throw IllegalStateException("Could not create engine for active profile.")
-
-            val summary = engine.buildDownloadedArchiveSummary()
-
-            appendLog("----- Archive Library Summary -----")
-            summary.lineSequence().forEach { line ->
-                appendLog(line)
-            }
-            appendLog("----- Archive Library Summary End -----")
-            appendLog("No files were changed.")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Archive library summary built.")
-        } catch (e: Exception) {
-            appendError("Archive library summary failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Archive library summary failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-    }
-
-    private fun markLastDeployJournalReviewed() {
-        val engine = profileScopedEngineFactory.create()
-        if (engine == null) {
-            appendError("Could not mark deploy journal reviewed: engine unavailable.")
-            return
-        }
-
-        try {
-            val changed = engine.markDeploymentJournalReviewed(selectedGameId)
-
-            if (changed) {
-                appendLog("Marked unfinished deploy journal as reviewed.")
-                lastOperationStatus = "Previous deploy warning reviewed."
-            } else {
-                appendLog("No unfinished deploy journal needed review.")
-            }
-
-            runOnUiThread {
-                deployRecoveryWarningText = ""
-                showDeployRecoveryDialog = false
-            }
-        } catch (e: Exception) {
-            appendError("Failed to mark deploy journal reviewed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-    }
-
-    private fun runLastDeployJournalDebugSummary() {
-        if (operationInProgress) {
-            appendLog("Ignoring deploy journal request: operation already in progress.")
-            return
-        }
-
-        beginOperation("Reading last deploy journal...")
-
-        try {
-            val engine = profileScopedEngineFactory.create()
-                ?: throw IllegalStateException("Could not create engine for active profile.")
-
-            appendLog("----- Last Deploy Journal -----")
-            engine.getDeploymentJournalDebugSummary(selectedGameId)
-                .lineSequence()
-                .forEach { line ->
-                    appendLog(line)
-                }
-            appendLog("----- Last Deploy Journal End -----")
-            appendLog("No files were changed.")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Deploy journal read.")
-        } catch (e: Exception) {
-            appendError("Failed to read deploy journal: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Deploy journal read failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-    }
-
-    private fun runFullRedeployPlanDebugSummary() {
-        if (operationInProgress) {
-            appendLog("Ignoring full redeploy plan request: operation already in progress.")
-            return
-        }
-
-        beginOperation("Building full redeploy plan...")
-
-        try {
-            val engine = profileScopedEngineFactory.create()
-                ?: throw IllegalStateException("Could not create engine for active profile.")
-
-            val summary = engine.buildFullRedeployPlanDebugSummary(selectedGameId)
-
-            appendLog("----- Full Redeploy Plan Summary -----")
-            summary.lineSequence().forEach { line ->
-                appendLog(line)
-            }
-            appendLog("----- Full Redeploy Plan Summary End -----")
-            appendLog("No files were changed.")
-            appendLog("RESULT: PASS")
-
-            finishOperation("Full redeploy plan built.")
-        } catch (e: Exception) {
-            appendError("Full redeploy plan failed: ${e.message}", e)
-            appendLog("RESULT: FAIL")
-            failOperation("Full redeploy plan failed: ${e.message}", e)
-        }
-
-        refreshDashboard()
-    }
 
     private fun applyDeploymentConfigUiState(state: DeploymentConfigUiState) {
         targetPathText = state.targetDataPath
@@ -1864,67 +1672,11 @@ class MainActivity : ComponentActivity() {
         )
         realDeployEnabledState = state.realDeployEnabled
     }
-    private fun openDirectFolderBrowser(mode: FolderPickMode) {
-        if (!allFilesAccessManager.isGranted()) {
-            refreshAllFilesAccessState()
-            requestAllFilesAccess()
-            return
-        }
 
-        folderPickMode = mode
-        directFolderBrowserRequiresWritable = mode != FolderPickMode.ArchiveLibraryFolder
-        directFolderBrowserTitle = when (mode) {
-            FolderPickMode.FirstSetupDataFolder,
-            FolderPickMode.ActiveDataFolder,
-            FolderPickMode.NewProfileDataFolder -> "Choose Data Folder"
-            FolderPickMode.ActiveGameRootFolder -> "Choose Game Root Folder"
-            FolderPickMode.ArchiveLibraryFolder -> "Choose Archive Library Folder"
-        }
 
-        val currentPath = when (mode) {
-            FolderPickMode.FirstSetupDataFolder -> setupTargetPathText
-            FolderPickMode.ActiveDataFolder -> targetPathText
-            FolderPickMode.ActiveGameRootFolder -> rootTargetPathText
-            FolderPickMode.NewProfileDataFolder -> newProfileDataPathText
-                .takeUnless { it == DeploymentConfigUiMapper.NO_DATA_FOLDER_SELECTED }
-                .orEmpty()
-            FolderPickMode.ArchiveLibraryFolder -> activeProfileId
-                ?.let(archiveFolderPreferences::getSelectedFolderPath)
-                .orEmpty()
-        }
 
-        directFolderBrowserState = if (currentPath.isBlank()) {
-            directFolderBrowser.openRoots()
-        } else {
-            directFolderBrowser.open(currentPath)
-        }
-        showDirectFolderBrowser = true
-    }
 
-    private fun selectCurrentDirectFolder() {
-        val currentPath = directFolderBrowserState.currentPath ?: return
-        val validation = directPathValidator.validateDirectory(
-            path = currentPath,
-            requireWritable = directFolderBrowserRequiresWritable
-        )
 
-        if (!validation.isValid || validation.canonicalPath == null) {
-            directFolderBrowserState = directFolderBrowserState.copy(
-                errorMessage = validation.message
-            )
-            return
-        }
-
-        showDirectFolderBrowser = false
-        folderPickerWorkflowController.handlePickedFolder(
-            mode = folderPickMode,
-            path = validation.canonicalPath
-        )
-    }
-
-    private fun refreshAllFilesAccessState() {
-        allFilesAccessGranted = allFilesAccessManager.isGranted()
-    }
 
     private fun requestAllFilesAccess() {
         val primary = allFilesAccessManager.appSpecificSettingsIntent() ?: return
