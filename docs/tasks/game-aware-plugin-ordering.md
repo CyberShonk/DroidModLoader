@@ -123,6 +123,18 @@ For each selectable game profile:
 11. Launch each game in the target container and confirm the enabled set and
     effective load order match DML.
 
+## Recorded Disposable-Folder Results — 2026-06-22
+
+- Skyrim LE produced enabled-only `plugins.txt` and complete-order
+  `loadorder.txt` without relying on timestamp ordering.
+- Fallout: New Vegas, Fallout 3, and Oblivion produced enabled-only
+  `plugins.txt` and strictly increasing timestamps in selected priority order.
+- Disabled plugins remained absent from activation output while retaining their
+  selected timestamp priority.
+- Reordering and reapplying changed timestamp order as expected.
+- Actual game/container consumption of the generated activation files and
+  effective load order remains to be verified.
+
 ## Files Likely Affected
 
 Verified current source areas:
@@ -158,5 +170,6 @@ Verified current source areas:
 - [x] Enabled state and profile isolation remain intact.
 - [x] Failures avoid partial state and restore prior timestamps where practical.
 - [x] JVM tests cover the rule matrix, formatting, ordering, and rollback paths.
-- [ ] Manual safe-folder and real-container checks are recorded.
+- [x] Manual safe-folder checks are recorded.
+- [ ] Real-container game checks are recorded.
 - [x] Documentation accurately describes current behavior.

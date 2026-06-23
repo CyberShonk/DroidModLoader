@@ -15,7 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Validate the direct-filesystem storage migration
+### 1. Finish direct-filesystem storage acceptance
 
 Requirement IDs:
 
@@ -31,12 +31,9 @@ Requirement IDs:
 
 Expected result:
 
-- Run the complete host JVM suite and assemble the debug APK.
-- Verify all-files permission onboarding and return-from-settings behavior.
-- Verify direct Data, Game Root, and Archive Library selection on Android.
-- Verify URI-only upgrades require reselection without losing unrelated profile state.
-- Verify archive import, deployment, rollback, scanning, repair, and timestamps use direct paths.
-- Confirm profile isolation with at least two profiles.
+- Confirm the active-profile name restores in the status area after restart.
+- Preserve the completed host, permission, folder, profile, archive, deployment,
+  rollback, and disposable-folder plugin checks.
 - Capture same-device SAF-baseline and direct-build benchmark results.
 
 Task definition: `docs/tasks/direct-storage-migration.md`.
@@ -53,10 +50,10 @@ Requirement IDs:
 
 Expected result:
 
-- Preserve the implemented per-game activation and ordering rules.
-- Verify Skyrim LE text ordering.
-- Verify timestamp ordering for Oblivion, Fallout 3, and Fallout: New Vegas.
-- Exercise missing-file and invalid-target failures without partial output.
+- Preserve the completed disposable-folder checks for Skyrim LE text ordering
+  and legacy-game timestamp ordering.
+- Launch each supported game in its target container and confirm the generated
+  activation output and effective order are consumed as intended.
 - Preserve profile-specific enabled state and order.
 
 Task definition: `docs/tasks/game-aware-plugin-ordering.md`.

@@ -6,10 +6,10 @@ Feature, refactor, safety, test, and documentation.
 
 ## Implementation Status
 
-The direct-storage code migration, focused JVM tests, deterministic fixtures, and
-benchmark protocol are implemented. Full host Gradle validation, debug APK
-assembly, Android runtime checks, and same-device benchmark measurements remain
-required before the task is complete.
+The direct-storage code migration, host Gradle validation, debug APK assembly,
+focused tests, and disposable-folder Android checks are complete. Same-device
+SAF-versus-direct benchmark measurements remain required before the task is
+complete.
 
 ## Requirement IDs
 
@@ -175,6 +175,30 @@ and write access.
 11. Run the benchmark protocol against the released SAF build and the migrated
     direct-path build on the same device and fixture.
 
+## Recorded Android Results — 2026-06-22
+
+Passed on disposable shared-storage folders:
+
+- all-files permission onboarding and return from the Android Settings screen;
+- direct Game Root, Data, and profile-specific Archive Library selection;
+- path and profile state persistence across restart;
+- two-profile isolation;
+- legacy URI reselection behavior without unrelated profile-state loss;
+- ZIP, 7Z, and RAR archive handling;
+- direct deployment, full redeploy, backup, and restoration of a pre-existing
+  unmanaged file; and
+- direct plugin scanning and timestamp mutation.
+
+A startup presentation defect was also found: the persisted active profile ID
+was restored, but the status card retained `No profile` until the same profile
+was selected again. The focused startup hotfix restores the profile name from
+the resolved active profile and requires one Android restart regression check.
+
+Regular deployment does not rewrite an externally changed target when the saved
+manifest and winning source hash are unchanged. Force Full Redeploy does rewrite
+the complete winning file set. No user-facing external-change scan is currently
+available.
+
 ## Likely Affected Structures
 
 - `AndroidManifest.xml`
@@ -197,9 +221,9 @@ and write access.
 - [x] Existing URI-only profiles require safe reselection.
 - [x] Deployment and archive workflows no longer use SAF.
 - [x] Production `DocumentFile`/tree-URI code and dependency are removed.
-- [ ] Required automated tests pass.
-- [ ] Debug APK assembles.
-- [ ] Manual Android checks pass.
+- [x] Required automated tests pass.
+- [x] Debug APK assembles.
+- [x] Manual disposable-folder Android checks pass.
 - [x] Benchmark procedure and deterministic fixtures are recorded.
 - [ ] Same-device SAF-baseline and direct-build results are captured.
 

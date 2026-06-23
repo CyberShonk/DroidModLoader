@@ -3,13 +3,13 @@
 * **Mode:** Active development after the `v0.6.0-beta` release.
 * **Public version:** `v0.6.0-beta`
 * **Minimum Android version:** Android 11 / API 30
-* **Implementation baseline:** `3480a14` (`fix: apply plugin configuration by game`)
+* **Reviewed migration baseline:** `23f5fa3` (`build: require Android 11 for direct storage`)
 * **Storage direction:** one all-files direct-filesystem backend for production shared-storage work.
 
 ## Current objective
 
-Complete host and Android validation of the direct-storage migration, then finish
-runtime verification of game-aware plugin activation and legacy timestamp order.
+Complete the active-profile startup hotfix, capture the same-device storage
+benchmark, and finish real-container verification of game-aware plugin output.
 The accepted 1.0 UI redesign remains outside this work.
 
 The bounded storage task is `docs/tasks/direct-storage-migration.md`. It excludes
@@ -41,36 +41,43 @@ Game-aware plugin activation and ordering is also implemented in source:
 
 ## Current validation record
 
-Verified while preparing the migration:
+Verified on the live development machine:
 
 ```text
 git diff --check — passed
 ./tools/check-docs.sh — passed
-focused Kotlin compilation and direct-storage smoke checks — passed
-benchmark fixture and summarizer smoke checks — passed
+./tools/check-project.sh — passed
+./gradlew testDebugUnitTest — passed
+./gradlew assembleDebug — passed
 ```
 
-`./tools/check-project.sh` reached the Gradle test step but could not download
-Gradle 9.5 because `services.gradle.org` could not be resolved in the validation
-environment. The JVM suite did not start, so this is not recorded as a test pass
-or failure.
+Recorded Android 11+ disposable-folder checks passed for:
+
+* all-files permission onboarding and return from Settings;
+* direct Game Root, Data, and Archive Library selection and persistence;
+* profile-isolated paths and state;
+* ZIP, 7Z, and RAR archive handling;
+* direct deployment, full redeploy, backup, and restoration;
+* Skyrim text-file plugin ordering; and
+* Oblivion, Fallout 3, and Fallout: New Vegas timestamp ordering.
+
+Regular incremental deployment intentionally follows the saved deployment
+manifest and does not repair an externally edited deployed file when the plan is
+otherwise unchanged. Force Full Redeploy rewrites the winning file set. No
+user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Run the authoritative host checks against the reviewed migration:
+Validate the active-profile startup hotfix on Android:
 
-```bash
-git diff --check
-./tools/check-docs.sh
-./tools/check-project.sh
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
-```
+1. select a profile;
+2. force-stop DML;
+3. relaunch it; and
+4. confirm the status area immediately shows the persisted profile name.
 
-Then perform disposable-folder Android checks for permission flow, direct folder
-selection, legacy-profile reselection, archive import, deployment, rollback,
-profile isolation, and plugin ordering. Finally, collect the same-device benchmark
-results described in `docs/benchmarks/direct-storage.md`.
+Then collect the same-device SAF-baseline versus direct-build benchmark results
+from `docs/benchmarks/direct-storage.md` and run real game/container checks for
+the generated activation files and effective plugin order.
 
 ## Current constraints
 
@@ -86,9 +93,9 @@ results described in `docs/benchmarks/direct-storage.md`.
 
 ## Known open work
 
-* Finish host and manual validation of the direct-storage migration.
+* Confirm the active-profile status hotfix on Android after restart.
 * Capture SAF-baseline versus direct-build deployment benchmark results.
-* Finish manual game checks for game-aware plugin activation and timestamp order.
+* Finish real-container game checks for activation files and effective plugin order.
 * Continue the remaining `MainActivity.kt` responsibility extractions in bounded commits.
 * Treat broad `ModEngine.kt` service extraction as a separate later project.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
@@ -98,9 +105,9 @@ results described in `docs/benchmarks/direct-storage.md`.
 
 ## Blockers
 
-Acceptance is blocked on the host Gradle suite, debug APK assembly, disposable
-Android runtime checks, and device benchmark capture. No public version change is
-part of this migration.
+Acceptance is blocked on the startup hotfix retest, device benchmark capture, and
+real-container plugin verification. No public version change is part of this
+migration.
 
 ## Private and public boundary
 
