@@ -6,7 +6,6 @@ import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRecord
-import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRepository
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
@@ -21,6 +20,7 @@ import com.shonkware.droidmodloader.engine.overwrite.OverwriteScanResult
 import com.shonkware.droidmodloader.engine.plugins.PluginApplicationResult
 import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraph
 import com.shonkware.droidmodloader.engine.service.DeploymentService
+import com.shonkware.droidmodloader.engine.service.DownloadedArchiveService
 import com.shonkware.droidmodloader.engine.service.ModInspectionService
 import com.shonkware.droidmodloader.engine.service.ModLibraryService
 import com.shonkware.droidmodloader.engine.service.PluginManagementService
@@ -52,10 +52,6 @@ class ModEngine(
         pluginsTxtFile = pluginsTxtFile,
         loadorderTxtFile = loadorderTxtFile
     )
-    private val downloadedArchiveRepository = DownloadedArchiveRepository(
-        archiveLibraryDir = archiveLibraryDir,
-        archiveListFile = downloadedArchiveListFile
-    )
     private val deploymentService = DeploymentService(
         appFilesDir = appContext.filesDir,
         tempDir = tempDir,
@@ -79,6 +75,10 @@ class ModEngine(
         isValidTargetPath = deploymentService::validateTargetDataPath,
         effectiveManifestFile = deploymentService::effectiveDataManifestFile,
         targetScopedFileName = deploymentService::targetScopedFileName
+    )
+    private val downloadedArchiveService = DownloadedArchiveService(
+        archiveLibraryDir = archiveLibraryDir,
+        downloadedArchiveListFile = downloadedArchiveListFile
     )
     private val pluginManagementService = PluginManagementService(
         pluginListFile = pluginListFile,
@@ -226,31 +226,19 @@ class ModEngine(
         originalDisplayName: String,
         sourcePath: String? = null,
         sourceUrl: String? = null
-    ): DownloadedArchiveRecord {
-        return downloadedArchiveRepository.registerArchive(
-            archiveFile = archiveFile,
-            originalDisplayName = originalDisplayName,
-            sourcePath = sourcePath,
-            sourceUrl = sourceUrl
-        )
-    }
-    fun getDownloadedArchives(): List<DownloadedArchiveRecord> {
-        return downloadedArchiveRepository.load()
-    }
-    fun getDownloadedArchiveById(archiveId: String?): DownloadedArchiveRecord? {
-        return downloadedArchiveRepository.findById(archiveId)
-    }
-    fun markDownloadedArchiveInstalled(
-        archiveId: String?,
-        installedModId: String
-    ) {
-        downloadedArchiveRepository.markInstalled(
-            archiveId = archiveId,
-            installedModId = installedModId
-        )
-    }
-    fun buildDownloadedArchiveSummary(): String {
-        return downloadedArchiveRepository.buildSummary()
-    }
+    ): DownloadedArchiveRecord = downloadedArchiveService.registerDownloadedArchive(
+        archiveFile = archiveFile,
+        originalDisplayName = originalDisplayName,
+        sourcePath = sourcePath,
+        sourceUrl = sourceUrl
+    )
+    fun getDownloadedArchives(): List<DownloadedArchiveRecord> =
+        downloadedArchiveService.getDownloadedArchives()
+    fun getDownloadedArchiveById(archiveId: String?): DownloadedArchiveRecord? =
+        downloadedArchiveService.getDownloadedArchiveById(archiveId)
+    fun markDownloadedArchiveInstalled(archiveId: String?, installedModId: String) =
+        downloadedArchiveService.markDownloadedArchiveInstalled(archiveId, installedModId)
+    fun buildDownloadedArchiveSummary(): String =
+        downloadedArchiveService.buildDownloadedArchiveSummary()
 
 }
