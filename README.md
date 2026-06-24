@@ -51,7 +51,7 @@ It is not just an archive extractor. The goal is to build a real Android mod man
 This project is mainly for:
 
 * people modding Bethesda games on Android
-* GameNative users
+* GameNative, Winlator, GameHub Lite, and BannerHub users
 * Android handheld users
 * people testing Windows game containers on ARM devices
 * Bethesda modders who want cleaner mobile tools
