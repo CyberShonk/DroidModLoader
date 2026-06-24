@@ -13,6 +13,7 @@ Use this when planning changes so work does not get shoved into the wrong file.
 | File              | Responsibility                                                                                                              |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `MainActivity.kt` | Android lifecycle, Activity Result launchers, Compose attachment, platform UI launches, and top-level dependency wiring. |
+| `engine/ModEngine.kt` | Stable profile-scoped engine facade and service wiring. |
 
 ## UI
 
@@ -43,6 +44,7 @@ UI rules:
 
 | Folder                   | Responsibility                                                  |
 |--------------------------|-----------------------------------------------------------------|
+| `engine/service/`        | Focused mod-library, plugin, deployment, inspection, and archive-history services behind `ModEngine` |
 | `engine/install/`        | Archive analysis, installer layout detection, FOMOD/BAIN basics |
 | `engine/index/`          | Mod file indexing, file previews, file tree summaries           |
 | `engine/plugins/`        | Plugin discovery, plugin state, game plugin rules               |
@@ -79,7 +81,6 @@ These files/areas should be reduced over time:
 
 | Target               | Reason                                                                     |
 |----------------------|----------------------------------------------------------------------------|
-| `ModEngine.kt`       | Should be split into focused services over time                            |
 | Large UI composables | Should be broken into reusable components when they become hard to read    |
 | Deployment code      | Planning, preflight, journal, execution, and recovery must remain separate |
 
@@ -91,12 +92,15 @@ Use these rules when deciding where code belongs:
 |---------------------------|--------------------------------------------------------|
 | Dashboard layout          | Focused `ui/*Components.kt` files or `ui/MainScreen.kt` |
 | Theme color/shape changes | `ui/theme/DmlTheme.kt`                                 |
+| Mod/archive installation  | `engine/service/ModLibraryService.kt` plus `engine/install/` |
 | Mod import behavior       | `engine/install/`                                      |
 | File indexing             | `engine/index/`                                        |
+| Plugin orchestration      | `engine/service/PluginManagementService.kt`             |
 | Plugin discovery/output   | `engine/plugins/`                                      |
 | Profile state             | `engine/profile/`                                      |
 | Conflict winner logic     | `engine/resolve/`                                      |
 | Deployment plan           | `engine/deploy/plan/`                                  |
+| Deployment orchestration  | `engine/service/DeploymentService.kt`                   |
 | Deployment execution      | `engine/deploy/`                                       |
 | Recovery/journal          | `engine/deploy/journal/`                               |
 | Path safety               | `engine/util/` or rules-specific helpers               |

@@ -15,23 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Execute the bounded ModEngine service extraction
-
-Reason:
-
-`ModEngine.kt` still owns too many engine responsibilities. It should be split
-through a separate patch-driven structural task rather than mixed with feature
-or integration work.
-
-Expected result:
-
-- Keep `ModEngine` as the stable facade used by current workflow adapters.
-- Extract mod-library, plugin, deployment, inspection, and downloaded-archive
-  responsibilities into focused internal services.
-- Preserve behavior and profile isolation through small validated commits.
-- Follow `docs/tasks/mod-engine-service-extraction.md`.
-
-### 2. Improve archive extraction robustness
+### 1. Improve archive extraction robustness
 
 Requirement IDs:
 
@@ -40,9 +24,11 @@ Requirement IDs:
 Expected result:
 
 Improve ZIP, 7Z, and RAR compatibility and provide clearer failures for archive
-variants that remain unsupported.
+variants that remain unsupported. The user should implement this behavior with
+guided design, terminology, tests, and review rather than receiving a complete
+feature patch by default.
 
-### 3. Define the stable 1.0 acceptance boundary
+### 2. Define the stable 1.0 acceptance boundary
 
 Reason:
 
@@ -56,3 +42,11 @@ Expected result:
   as core, staged pre-1.0, or post-1.0.
 - Record the accepted scope in the roadmap and decision log before expanding the
   active implementation list.
+
+### 3. Preserve extracted architecture during normal development
+
+Expected result:
+
+Keep `MainActivity` as the Android composition root and `ModEngine` as the stable
+engine facade. Add behavior to the focused workflow or engine service that owns
+it rather than growing either facade back into a multi-domain implementation.

@@ -96,6 +96,7 @@ It should handle:
 
 | Package                             | Purpose                                                |
 |-------------------------------------|--------------------------------------------------------|
+| engine/service/                     | Internal domain services behind the `ModEngine` facade |
 | engine/install/                     | Archive reading, install layout analysis, FOMOD basics |
 | engine/index/                       | Mod file indexing and file summaries                   |
 | engine/plugins/                     | Plugin discovery, game rules, output building, and timestamp ordering |
@@ -106,6 +107,26 @@ It should handle:
 | engine/deploy/journal/              | Deployment journal and recovery state                  |
 | engine/diagnostics or related logic | Human-readable app diagnostics                         |
 | engine/util/                        | Path and logging helpers                               |
+
+## ModEngine Facade and Services
+
+`ModEngine.kt` is the stable profile-scoped facade used by existing workflow
+adapters. It constructs and delegates to focused internal services:
+
+- `ModLibraryService` — installed mods, state, scanning/resolution, installation,
+  priorities, uninstall/reset, and content-index entry points.
+- `PluginManagementService` — plugin discovery, persistence, ordering, Data scan,
+  and game-specific activation/output.
+- `DeploymentService` — configuration, target validation, planning, preflight,
+  deployment/full redeploy, target-scoped files/backups, and journals.
+- `ModInspectionService` — resolved graph/debug state, previews, overwrite scans,
+  baselines, and inspection indexes.
+- `DownloadedArchiveService` — archive-library history, lookup, installation
+  marking, and summaries.
+
+The services depend on existing repositories, planners, scanners, resolvers, and
+managers. They do not depend on UI classes or hold a reference back to
+`ModEngine`.
 
 ## Plugin Activation and Ordering Flow
 
@@ -125,8 +146,8 @@ Responsibilities are separated as follows:
   files and removes stale `loadorder.txt` output for timestamp-based games.
 - `PluginConfigurationApplier.kt` coordinates timestamp application and output
   replacement, restoring timestamps if output replacement fails.
-- `ModEngine.kt` resolves the active game's writable direct or simulated Data
-  target before output changes.
+- `DeploymentService` resolves the active game's writable direct or simulated
+  Data target, while `PluginManagementService` applies game-aware output.
 - `PluginManagementWorkflow.kt` preserves the existing one-time refresh fallback
   and reports the selected game and applied ordering mechanism.
 
@@ -197,7 +218,7 @@ Do not let architecture docs become fictional. If the code changes, update the d
 
 ## Known Cleanup Targets
 
-- ModEngine.kt is large and should eventually be split into smaller services.
+- Extracted engine-service boundaries should remain cohesive as behavior grows.
 - Deployment planning, preflight, journal, and recovery should remain separate concepts.
 - Release APKs should not be committed.
 

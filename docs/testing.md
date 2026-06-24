@@ -166,6 +166,12 @@ Start tests around dangerous logic first.
 
 Activity extraction coverage includes state projection, startup ordering, profile/session coordination, selected-folder persistence, dashboard refresh application, operation reporting, diagnostics, and thread execution.
 
+Engine service-extraction coverage includes mod-library state and ordering,
+plugin persistence/output coordination, deployment configuration/planning,
+resolved-view and baseline inspection, and downloaded-archive history. The
+`ModEngine` facade keeps its prior public method surface and is exercised through
+existing workflow-adapter tests plus focused service tests.
+
 These tests run without an Android device. The exact test-file list is derived
 from source rather than duplicated as a hand-maintained table here.
 

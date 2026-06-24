@@ -2,9 +2,10 @@
 
 ## Status
 
-Accepted structural task for the merged `f451672` baseline. This task preserves
-current behavior and keeps `ModEngine` as the public engine facade while moving
-cohesive responsibilities into focused internal services.
+Implemented structural task for the merged `f451672` baseline. `ModEngine`
+remains the public engine facade while cohesive responsibilities live in focused
+internal services. Acceptance requires the isolated validator and Android smoke
+checks before merge.
 
 ## Goal
 
@@ -15,7 +16,7 @@ facade that delegates to focused services for:
 2. plugin discovery, persistence, ordering, and output;
 3. deployment planning, execution, preflight, target identity, and journal work;
 4. resolved-view inspection, file previews, overwrite scans, baselines, and
-   index rebuilds; and
+   inspection indexes; and
 5. downloaded-archive history.
 
 A **facade** is a stable entry point that preserves the current method surface
@@ -37,7 +38,7 @@ No requirement is expanded by this task.
 
 ## Verified baseline responsibilities
 
-`ModEngine.kt` currently owns all of the following:
+Before extraction, `ModEngine.kt` owned all of the following:
 
 - installed-mod discovery, state persistence, uninstall, and priority
   normalization;
@@ -51,11 +52,26 @@ No requirement is expanded by this task.
 - plugin discovery, saved state, game-specific output, timestamp ordering, Data
   folder discovery, and plugin priorities;
 - resolved-data graph construction, content indexes, file previews, overwrite
-  scans, Data baselines, target identity summaries, and file-index rebuilds.
+  scans, Data baselines, target identity summaries, and file-index operations.
 
 The class is constructed only through `ProfileScopedEngineFactory`, and current
 production callers use the `ModEngine` method surface through focused UI workflow
 adapters. No JVM test currently instantiates `ModEngine` directly.
+
+## Implemented ownership
+
+- `ModLibraryService` owns installed-mod state, scanning/resolution, installation,
+  priorities, uninstall/reset, and content/index entry points.
+- `PluginManagementService` owns discovery, saved plugin state, ordering, Data
+  scanning, and game-aware output application.
+- `DeploymentService` owns deployment configuration, direct-path validation,
+  planning, preflight, execution, full redeploy, target-scoped manifests and
+  backups, and deployment journals.
+- `ModInspectionService` owns resolved graph construction, file previews,
+  overwrite scans, Data baselines, and inspection indexes.
+- `DownloadedArchiveService` owns archive-history registration, lookup,
+  installation marking, and summaries.
+- `ModEngine` owns facade construction and delegation only.
 
 ## Dependency direction
 
@@ -109,7 +125,7 @@ journal handling.
 ### Commit 5 — inspection service
 
 Extract resolved graph/debug output, file previews, overwrite scans, Data
-baseline handling, deployment-target debug summaries, and index rebuilds.
+baseline handling, and inspection indexing.
 
 ### Commit 6 — downloaded archive service
 

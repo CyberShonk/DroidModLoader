@@ -10,20 +10,30 @@
 
 ## Current objective
 
-Execute the bounded `ModEngine.kt` service extraction defined in
-`docs/tasks/mod-engine-service-extraction.md`. Keep `ModEngine` as the stable
-facade while moving cohesive engine domains into internal services.
+The bounded `ModEngine.kt` service extraction is implemented. `ModEngine`
+remains the stable facade used by current workflow adapters while focused
+internal services own mod-library, plugin, deployment, inspection, and
+archive-history behavior.
 
-The long-running `MainActivity.kt` responsibility extraction is complete: the
-activity now owns Android lifecycle, Activity Result registration, Compose
-attachment, platform dialogs/intents, and top-level dependency wiring while
-focused state, workflow, reporting, storage-selection, startup, and diagnostic
-classes own reusable behavior.
-
-Normal integrations, bug fixes, and feature additions remain separate from the
-structural `ModEngine` work. The accepted 1.0 UI redesign is still out of scope.
+The next normal coding task is archive extraction robustness. Integrations, bug
+fixes, and feature additions should return to user-written implementation with
+guided review; complete generated patches remain appropriate only for tedious,
+pre-scoped structural work. The accepted 1.0 UI redesign is still out of scope.
 
 ## Completed most recently
+
+The `ModEngine` service extraction:
+
+* preserved the public `ModEngine` method surface as a facade;
+* moved mod state, scanning, resolution, installation, priority, and uninstall
+  behavior into `ModLibraryService`;
+* moved plugin discovery, persistence, ordering, and output application into
+  `PluginManagementService`;
+* moved deployment configuration, planning, preflight, execution, target-scoped
+  manifests/backups, and journals into `DeploymentService`;
+* moved resolved-view diagnostics, previews, overwrite scans, baselines, and
+  file-index inspection into `ModInspectionService`; and
+* moved downloaded-archive history into `DownloadedArchiveService`.
 
 The final `MainActivity` extraction:
 
@@ -100,8 +110,9 @@ user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Begin the reviewed `ModEngine` service-extraction series with the mod-library
-service, preserving the public facade and validating every intermediate commit.
+Validate the complete service-extraction series in an isolated worktree,
+perform the Android smoke checklist, merge it, and then begin a separately
+scoped user-written archive-robustness change.
 
 ## Current constraints
 
@@ -117,8 +128,6 @@ service, preserving the public facade and validating every intermediate commit.
 
 ## Known open work
 
-* Execute the bounded `ModEngine.kt` service extraction as a patch-driven
-  structural project.
 * Keep real-container plugin verification as deferred regression work unless a
   user report or release-specific check makes it necessary.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
@@ -128,9 +137,10 @@ service, preserving the public facade and validating every intermediate commit.
 
 ## Blockers
 
-No active storage, plugin-verification, or `MainActivity` extraction blocker
-remains. The `ModEngine` extraction boundary is documented and implementation is
-ready to begin. No public version change is part of this structural work.
+No active storage, plugin-verification, `MainActivity`, or `ModEngine`
+structural blocker remains in source. Acceptance still requires the full local
+validator and Android smoke checks before merge. No public version change is
+part of this structural work.
 
 ## Private and public boundary
 
@@ -140,7 +150,6 @@ Private experiments, unpublished research, credentials, signing material, and pr
 
 ## Parking lot
 
-* `ModEngine.kt` service extraction
 * broader archive-format hardening
 * additional game-specific validation
 * expanded deterministic workflow tooling
