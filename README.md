@@ -45,7 +45,7 @@
   ·
   <a href="docs/user-guide.md"><strong>User Guide</strong></a>
   ·
-  <a href="https://discord.gg/Q9dM262KRc"><strong>Discord</strong></a>
+  <a href="https://discord.gg/wJnKUD64Nz"><strong>Discord</strong></a>
   ·
   <a href="ROADMAP.md"><strong>Roadmap</strong></a>
 </p>
