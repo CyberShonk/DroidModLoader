@@ -23,6 +23,7 @@ class GamePluginRules {
             "oblivion" -> oblivionRules()
             "fallout_3" -> fallout3Rules()
             "fallout_nv" -> falloutNvRules()
+            "ttw" -> ttwRules()
             "fallout_4" -> fallout4Rules()
             else -> emptyList()
         }
@@ -86,6 +87,36 @@ class GamePluginRules {
             OfficialPluginRule("MercenaryPack.esm", "official_dlc", 8, locked = false, defaultEnabled = true),
             OfficialPluginRule("TribalPack.esm", "official_dlc", 9, locked = false, defaultEnabled = true),
             OfficialPluginRule("CaravanPack.esm", "official_dlc", 10, locked = false, defaultEnabled = true)
+        )
+    }
+
+    private fun ttwRules(): List<OfficialPluginRule> {
+        return listOf(
+            // Fallout: New Vegas and its required DLC masters.
+            OfficialPluginRule("FalloutNV.esm", "base_game", 1, locked = true, defaultEnabled = true),
+            OfficialPluginRule("DeadMoney.esm", "official_dlc", 2, locked = true, defaultEnabled = true),
+            OfficialPluginRule("HonestHearts.esm", "official_dlc", 3, locked = true, defaultEnabled = true),
+            OfficialPluginRule("OldWorldBlues.esm", "official_dlc", 4, locked = true, defaultEnabled = true),
+            OfficialPluginRule("LonesomeRoad.esm", "official_dlc", 5, locked = true, defaultEnabled = true),
+            OfficialPluginRule("GunRunnersArsenal.esm", "official_dlc", 6, locked = true, defaultEnabled = true),
+
+            // Fallout 3 and its required DLC masters.
+            OfficialPluginRule("Fallout3.esm", "base_game", 7, locked = true, defaultEnabled = true),
+            OfficialPluginRule("Anchorage.esm", "official_dlc", 8, locked = true, defaultEnabled = true),
+            OfficialPluginRule("ThePitt.esm", "official_dlc", 9, locked = true, defaultEnabled = true),
+            OfficialPluginRule("BrokenSteel.esm", "official_dlc", 10, locked = true, defaultEnabled = true),
+            OfficialPluginRule("PointLookout.esm", "official_dlc", 11, locked = true, defaultEnabled = true),
+            OfficialPluginRule("Zeta.esm", "official_dlc", 12, locked = true, defaultEnabled = true),
+
+            // TTW requires the complete Courier's Stash master set.
+            OfficialPluginRule("CaravanPack.esm", "official_dlc", 13, locked = true, defaultEnabled = true),
+            OfficialPluginRule("ClassicPack.esm", "official_dlc", 14, locked = true, defaultEnabled = true),
+            OfficialPluginRule("MercenaryPack.esm", "official_dlc", 15, locked = true, defaultEnabled = true),
+            OfficialPluginRule("TribalPack.esm", "official_dlc", 16, locked = true, defaultEnabled = true),
+
+            // Core TTW plugins.
+            OfficialPluginRule("TaleOfTwoWastelands.esm", "ttw_core", 17, locked = true, defaultEnabled = true),
+            OfficialPluginRule("YUPTTW.esm", "ttw_core", 18, locked = true, defaultEnabled = true)
         )
     }
 

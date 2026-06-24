@@ -29,7 +29,8 @@ class GamePluginLoadOrderRules {
 
             "oblivion",
             "fallout_3",
-            "fallout_nv" -> GamePluginLoadOrderRule(
+            "fallout_nv",
+            "ttw" -> GamePluginLoadOrderRule(
                 gameId = gameId,
                 mechanism = PluginLoadOrderMechanism.FILE_TIMESTAMPS,
                 pluginsTxtMembership = PluginListMembership.ENABLED_ONLY,

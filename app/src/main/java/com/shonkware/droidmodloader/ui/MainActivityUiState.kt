@@ -111,7 +111,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var summaryText by mutableStateOf("Loading...")
     override var visibleMods by mutableStateOf<List<Mod>>(emptyList())
     override var visiblePlugins by mutableStateOf<List<PluginEntry>>(emptyList())
-    override var gameOptions by mutableStateOf(listOf("skyrim_le", "fallout_nv"))
+    override var gameOptions by mutableStateOf(listOf("skyrim_le", "oblivion", "fallout_3", "fallout_nv", "ttw"))
     override var selectedGameId by mutableStateOf("skyrim_le")
     override var targetPathText by mutableStateOf("")
     override var selectedDataPathText by mutableStateOf("No folder selected")

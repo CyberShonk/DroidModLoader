@@ -14,7 +14,12 @@ class GamePluginLoadOrderRulesTest {
             rules.require("skyrim_le").mechanism
         )
 
-        listOf("oblivion", "fallout_3", "fallout_nv").forEach { gameId ->
+        listOf(
+            "oblivion",
+            "fallout_3",
+            "fallout_nv",
+            "ttw"
+        ).forEach { gameId ->
             assertEquals(
                 PluginLoadOrderMechanism.FILE_TIMESTAMPS,
                 rules.require(gameId).mechanism
@@ -26,23 +31,36 @@ class GamePluginLoadOrderRulesTest {
     fun skyrimWritesCompleteLoadorderFile() {
         val rule = rules.require("skyrim_le")
 
-        assertEquals(PluginListMembership.ENABLED_ONLY, rule.pluginsTxtMembership)
-        assertEquals(PluginListMembership.COMPLETE_ORDER, rule.loadorderTxtMembership)
+        assertEquals(
+            PluginListMembership.ENABLED_ONLY,
+            rule.pluginsTxtMembership
+        )
+        assertEquals(
+            PluginListMembership.COMPLETE_ORDER,
+            rule.loadorderTxtMembership
+        )
     }
 
     @Test
-    fun legacyTimestampGamesDoNotDeclareLoadorderFile() {
-        listOf("oblivion", "fallout_3", "fallout_nv").forEach { gameId ->
+    fun timestampGamesDoNotDeclareLoadorderFile() {
+        listOf(
+            "oblivion",
+            "fallout_3",
+            "fallout_nv",
+            "ttw"
+        ).forEach { gameId ->
             val rule = rules.require(gameId)
 
-            assertEquals(PluginListMembership.ENABLED_ONLY, rule.pluginsTxtMembership)
+            assertEquals(
+                PluginListMembership.ENABLED_ONLY,
+                rule.pluginsTxtMembership
+            )
             assertNull(rule.loadorderTxtMembership)
         }
     }
 
     @Test
-    fun fallout4AndTtwAreNotCurrentOutputRules() {
+    fun fallout4IsNotCurrentOutputRule() {
         assertNull(rules.find("fallout_4"))
-        assertNull(rules.find("ttw"))
     }
 }

@@ -7,7 +7,8 @@ internal object GameCatalog {
         "skyrim_le",
         "oblivion",
         "fallout_3",
-        "fallout_nv"
+        "fallout_nv",
+        "ttw"
     )
 
     fun displayName(gameId: String): String {
@@ -16,6 +17,7 @@ internal object GameCatalog {
             "oblivion" -> "Oblivion"
             "fallout_3" -> "Fallout 3"
             "fallout_nv" -> "Fallout New Vegas"
+            "ttw" -> "Tale Of Two Wastelands"
             "fallout_4" -> "Fallout 4"
             else -> gameId
         }
