@@ -15,7 +15,7 @@ Only work on one focused coding task at a time. Before coding:
 
 ## Active Priorities
 
-### 1. Define the ModEngine service-extraction boundary
+### 1. Execute the bounded ModEngine service extraction
 
 Reason:
 
@@ -25,11 +25,11 @@ or integration work.
 
 Expected result:
 
-- Inventory current `ModEngine` responsibilities and call sites.
-- Identify coherent service boundaries and dependency direction.
-- Preserve behavior and public interfaces during extraction where practical.
-- Define small commit boundaries, focused tests, manual checks, and explicit
-  exclusions before changing engine code.
+- Keep `ModEngine` as the stable facade used by current workflow adapters.
+- Extract mod-library, plugin, deployment, inspection, and downloaded-archive
+  responsibilities into focused internal services.
+- Preserve behavior and profile isolation through small validated commits.
+- Follow `docs/tasks/mod-engine-service-extraction.md`.
 
 ### 2. Improve archive extraction robustness
 

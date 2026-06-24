@@ -10,7 +10,10 @@
 
 ## Current objective
 
-Define the bounded `ModEngine.kt` service-extraction task before moving code.
+Execute the bounded `ModEngine.kt` service extraction defined in
+`docs/tasks/mod-engine-service-extraction.md`. Keep `ModEngine` as the stable
+facade while moving cohesive engine domains into internal services.
+
 The long-running `MainActivity.kt` responsibility extraction is complete: the
 activity now owns Android lifecycle, Activity Result registration, Compose
 attachment, platform dialogs/intents, and top-level dependency wiring while
@@ -97,9 +100,8 @@ user-facing external-change scan is currently exposed.
 
 ## Next safe action
 
-Review and validate the completed `MainActivity` extraction series, then create a
-separate bounded task definition for `ModEngine.kt` service extraction before
-moving any engine responsibility.
+Begin the reviewed `ModEngine` service-extraction series with the mod-library
+service, preserving the public facade and validating every intermediate commit.
 
 ## Current constraints
 
@@ -115,8 +117,8 @@ moving any engine responsibility.
 
 ## Known open work
 
-* Define and execute broad `ModEngine.kt` service extraction as a separate,
-  patch-driven structural project.
+* Execute the bounded `ModEngine.kt` service extraction as a patch-driven
+  structural project.
 * Keep real-container plugin verification as deferred regression work unless a
   user report or release-specific check makes it necessary.
 * Improve 7Z and RAR extraction compatibility and failure reporting.
@@ -127,8 +129,8 @@ moving any engine responsibility.
 ## Blockers
 
 No active storage, plugin-verification, or `MainActivity` extraction blocker
-remains. `ModEngine` extraction has not started and must receive its own bounded
-task definition. No public version change is part of this structural work.
+remains. The `ModEngine` extraction boundary is documented and implementation is
+ready to begin. No public version change is part of this structural work.
 
 ## Private and public boundary
 
