@@ -25,6 +25,7 @@ import com.shonkware.droidmodloader.engine.service.ModInspectionService
 import com.shonkware.droidmodloader.engine.service.ModLibraryService
 import com.shonkware.droidmodloader.engine.service.PluginManagementService
 import java.io.File
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryResult
 
 class ModEngine(
     private val appContext: Context,
@@ -118,6 +119,7 @@ class ModEngine(
         enabled: Boolean = true,
         sourceType: String
     ): Mod = modLibraryService.registerExistingInstalledFolderWithRecord(modDir, priority, enabled, sourceType)
+
     fun loadInstalledModRecord(mod: Mod): InstalledModRecord? =
         modLibraryService.loadInstalledModRecord(mod)
     fun loadInstalledModRecords(mods: List<Mod>): Map<String, InstalledModRecord> =
@@ -240,5 +242,7 @@ class ModEngine(
         downloadedArchiveService.markDownloadedArchiveInstalled(archiveId, installedModId)
     fun buildDownloadedArchiveSummary(): String =
         downloadedArchiveService.buildDownloadedArchiveSummary()
-
+    fun recoverInterruptedInstallReplacements():
+            List<InstallReplacementRecoveryResult> =
+        modLibraryService.recoverInterruptedInstallReplacements()
 }

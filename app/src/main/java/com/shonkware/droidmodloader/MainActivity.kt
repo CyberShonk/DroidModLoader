@@ -92,6 +92,8 @@ import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
 
 class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActivityUiState() {
 
@@ -880,6 +882,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         )
     }
 
+    private val installReplacementStartupWorkflow by lazy {
+        InstallReplacementStartupWorkflow(
+            appendLog = operationReporter::appendLog,
+            appendError = { message ->
+                operationReporter.appendError(message)
+            }
+        )
+    }
+
     private val appStartupCoordinator by lazy {
         AppStartupCoordinator(
             runInBackground = activityThreadRunner::runInBackground,
@@ -899,7 +910,15 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             },
             createRuntime = profileScopedEngineFactory::create,
             checkRecovery = { engine ->
-                deployRecoveryWorkflow.checkStartup(DeployRecoveryEngineAdapter(engine))
+                installReplacementStartupWorkflow.checkStartup(
+                    InstallReplacementRecoveryEngineAdapter(
+                        engine
+                    )
+                )
+
+                deployRecoveryWorkflow.checkStartup(
+                    DeployRecoveryEngineAdapter(engine)
+                )
             },
             synchronizePluginsAndRefresh = pluginSyncWorkflowController::syncWithExistingEngineThenRefresh,
             appendLog = operationReporter::appendLog

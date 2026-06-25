@@ -21,6 +21,8 @@ import com.shonkware.droidmodloader.engine.model.ModFile
 import com.shonkware.droidmodloader.engine.model.ModType
 import com.shonkware.droidmodloader.engine.rules.DeployFileClassifier
 import java.io.File
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecovery
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryResult
 
 internal class ModLibraryService(
     private val tempDir: File,
@@ -46,6 +48,9 @@ internal class ModLibraryService(
         tempDir = tempDir,
         modsDir = modsDir
     )
+
+    private val installReplacementRecovery =
+        InstallReplacementRecovery()
 
     fun buildModFromInstalledFolder(
         modDir: File,
@@ -147,6 +152,11 @@ internal class ModLibraryService(
                 enabled = true
             )
         }
+    }
+
+    fun recoverInterruptedInstallReplacements():
+            List<InstallReplacementRecoveryResult> {
+        return installReplacementRecovery.recoverAll(modsDir)
     }
 
 

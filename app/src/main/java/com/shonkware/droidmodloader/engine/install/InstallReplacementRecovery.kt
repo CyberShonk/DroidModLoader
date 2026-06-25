@@ -3,14 +3,14 @@ package com.shonkware.droidmodloader.engine.install
 import java.io.File
 import java.io.IOException
 
-internal enum class InstallReplacementRecoveryAction {
+enum class InstallReplacementRecoveryAction {
     DISCARDED_STAGED_INSTALL,
     RESTORED_PREVIOUS_INSTALL,
     COMPLETED_PROMOTED_INSTALL,
     CLEARED_STALE_TRANSACTION
 }
 
-internal data class InstallReplacementRecoveryResult(
+data class InstallReplacementRecoveryResult(
     val transactionFileName: String,
     val action: InstallReplacementRecoveryAction?,
     val failureMessage: String?
