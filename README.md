@@ -144,9 +144,6 @@ Useful bug reports include the Android device and version, the game and
 compatibility environment, the selected folders, installed mods, reproduction
 steps, and any relevant screenshots or logs.
 
-Special thanks to Deno and his Discord community for testing, troubleshooting,
-and shared Android modding knowledge.
-
 Project support links: [Ko-fi](https://ko-fi.com/D1D81ZHV4E) ·
 [Patreon](https://patreon.com/SeanBottoms)
 
