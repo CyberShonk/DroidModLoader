@@ -10,8 +10,22 @@ import java.util.Locale
 class ArchiveEntryWriter internal constructor(
     private val outputDir: File,
     private val limits: ExtractionLimits,
-    private val debugLog: (String) -> Unit
+    private val debugLog: (String) -> Unit,
+    private val usableSpaceBytes: (File) -> Long?
 ) {
+    internal constructor(
+        outputDir: File,
+        limits: ExtractionLimits,
+        debugLog: (String) -> Unit
+    ) : this(
+        outputDir = outputDir,
+        limits = limits,
+        debugLog = debugLog,
+        usableSpaceBytes = { path ->
+            path.usableSpace.takeIf { it > 0L }
+        }
+    )
+
     constructor(
         outputDir: File,
         limits: ExtractionLimits = ExtractionLimits()
@@ -20,6 +34,9 @@ class ArchiveEntryWriter internal constructor(
         limits = limits,
         debugLog = { message ->
             Log.d(TAG, message)
+        },
+        usableSpaceBytes = { path ->
+            path.usableSpace.takeIf { it > 0L }
         }
     )
 
@@ -32,6 +49,8 @@ class ArchiveEntryWriter internal constructor(
 
     private var acceptedEntryCount = 0
     private var totalBytesWritten = 0L
+    private var estimatedUsableSpaceBytes: Long? = null
+    private var bytesWrittenSinceSpaceCheck = 0L
 
     fun writeDirectory(rawEntryName: String) {
         val entry = resolveEntryOrNull(rawEntryName)
@@ -83,6 +102,11 @@ class ArchiveEntryWriter internal constructor(
                             entry.relativePath
             )
         }
+
+        ensureUsableSpace(
+            additionalBytes = 0L,
+            forceRefresh = true
+        )
 
         try {
             entry.outputFile.outputStream().use { output ->
@@ -291,6 +315,57 @@ class ArchiveEntryWriter internal constructor(
         }
     }
 
+    private fun ensureUsableSpace(
+        additionalBytes: Long,
+        forceRefresh: Boolean = false
+    ) {
+        val shouldRefresh =
+            forceRefresh ||
+                    estimatedUsableSpaceBytes == null ||
+                    bytesWrittenSinceSpaceCheck >=
+                    limits.spaceCheckIntervalBytes
+
+        if (shouldRefresh) {
+            estimatedUsableSpaceBytes =
+                usableSpaceBytes(spaceProbePath())
+
+            bytesWrittenSinceSpaceCheck = 0L
+        }
+
+        val availableBytes =
+            estimatedUsableSpaceBytes ?: return
+
+        val availableAfterHeadroom =
+            availableBytes - limits.minimumFreeSpaceBytes
+
+        if (
+            availableAfterHeadroom < 0L ||
+            additionalBytes > availableAfterHeadroom
+        ) {
+            throw ArchiveReadException(
+                code =
+                    ArchiveReadFailureCode
+                        .INSUFFICIENT_STORAGE,
+                message =
+                    "Not enough free storage remains to extract " +
+                            "the archive safely."
+            )
+        }
+    }
+
+    private fun spaceProbePath(): File {
+        var candidate: File? = outputDir
+
+        while (
+            candidate != null &&
+            !candidate.exists()
+        ) {
+            candidate = candidate.parentFile
+        }
+
+        return candidate ?: outputDir
+    }
+
     private fun ioFailure(
         message: String,
         cause: Throwable? = null
@@ -383,6 +458,9 @@ class ArchiveEntryWriter internal constructor(
                                 "extraction limit."
                 )
             }
+            ensureUsableSpace(
+                additionalBytes = additionalBytes
+            )
         }
 
         private fun recordWrittenBytes(
@@ -390,6 +468,13 @@ class ArchiveEntryWriter internal constructor(
         ) {
             fileBytesWritten += byteCount
             totalBytesWritten += byteCount
+
+            estimatedUsableSpaceBytes =
+                estimatedUsableSpaceBytes
+                    ?.minus(byteCount)
+                    ?.coerceAtLeast(0L)
+
+            bytesWrittenSinceSpaceCheck += byteCount
         }
     }
 }

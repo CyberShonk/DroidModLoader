@@ -332,18 +332,124 @@ class ArchiveEntryWriterTest {
         }
     }
 
+    @Test
+    fun `insufficient storage is rejected before creating the file`() {
+        withFixture("insufficient-storage") { fixture ->
+            val writer = fixture.writer(
+                limits = limits(
+                    minimumFreeSpaceBytes = 5,
+                    spaceCheckIntervalBytes = 4
+                ),
+                usableSpaceBytes = { 4L }
+            )
+
+            val failure = expectReadFailure {
+                writer.writeFile("example.bin") {
+                    it.write(byteArrayOf(1))
+                }
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode.INSUFFICIENT_STORAGE,
+                failure.code
+            )
+            assertFalse(
+                File(
+                    fixture.outputDir,
+                    "example.bin"
+                ).exists()
+            )
+        }
+    }
+
+    @Test
+    fun `space is rechecked during a large file write`() {
+        withFixture("space-recheck") { fixture ->
+            val probeResults =
+                java.util.ArrayDeque<Long>().apply {
+                    add(10L)
+                    add(3L)
+                }
+
+            val writer = fixture.writer(
+                limits = limits(
+                    maxFileBytes = 20,
+                    maxTotalBytes = 20,
+                    minimumFreeSpaceBytes = 2,
+                    spaceCheckIntervalBytes = 4
+                ),
+                usableSpaceBytes = {
+                    if (probeResults.isEmpty()) {
+                        3L
+                    } else {
+                        probeResults.removeFirst()
+                    }
+                }
+            )
+
+            val failure = expectReadFailure {
+                writer.writeFile("large.bin") { output ->
+                    output.write(
+                        byteArrayOf(1, 2, 3, 4)
+                    )
+                    output.write(
+                        byteArrayOf(5, 6, 7, 8)
+                    )
+                }
+            }
+
+            assertEquals(
+                ArchiveReadFailureCode.INSUFFICIENT_STORAGE,
+                failure.code
+            )
+            assertFalse(
+                File(
+                    fixture.outputDir,
+                    "large.bin"
+                ).exists()
+            )
+        }
+    }
+
+    @Test
+    fun `unavailable usable space information does not block extraction`() {
+        withFixture("unknown-space") { fixture ->
+            val writer = fixture.writer(
+                usableSpaceBytes = { null }
+            )
+
+            writer.writeFile("example.bin") {
+                it.write(byteArrayOf(1, 2, 3))
+            }
+
+            assertEquals(
+                3L,
+                File(
+                    fixture.outputDir,
+                    "example.bin"
+                ).length()
+            )
+        }
+    }
+
     private fun limits(
         maxEntries: Int = 100,
         maxFileBytes: Long = 100,
         maxTotalBytes: Long = 1_000,
-        maxRelativePathCharacters: Int = 100
+        maxRelativePathCharacters: Int = 100,
+        minimumFreeSpaceBytes: Long = 0,
+        spaceCheckIntervalBytes: Long = 100
     ): ExtractionLimits {
         return ExtractionLimits(
             maxEntries = maxEntries,
             maxFileBytes = maxFileBytes,
             maxTotalBytes = maxTotalBytes,
             maxRelativePathCharacters =
-                maxRelativePathCharacters
+                maxRelativePathCharacters,
+            minimumFreeSpaceBytes =
+                minimumFreeSpaceBytes,
+            spaceCheckIntervalBytes =
+                spaceCheckIntervalBytes
         )
     }
 
@@ -392,12 +498,16 @@ class ArchiveEntryWriterTest {
     ) {
         fun writer(
             limits: ExtractionLimits =
-                ExtractionLimits()
+                ExtractionLimits(),
+            usableSpaceBytes: (File) -> Long? = {
+                Long.MAX_VALUE
+            }
         ): ArchiveEntryWriter {
             return ArchiveEntryWriter(
                 outputDir = outputDir,
                 limits = limits,
-                debugLog = {}
+                debugLog = {},
+                usableSpaceBytes = usableSpaceBytes
             )
         }
     }
