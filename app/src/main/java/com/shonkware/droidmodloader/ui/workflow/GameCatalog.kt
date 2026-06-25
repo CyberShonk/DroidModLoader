@@ -17,7 +17,7 @@ internal object GameCatalog {
             "oblivion" -> "Oblivion"
             "fallout_3" -> "Fallout 3"
             "fallout_nv" -> "Fallout New Vegas"
-            "ttw" -> "Tale Of Two Wastelands"
+            "ttw" -> "Tale of Two Wastelands"
             "fallout_4" -> "Fallout 4"
             else -> gameId
         }

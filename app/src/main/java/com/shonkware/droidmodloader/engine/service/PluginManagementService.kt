@@ -160,6 +160,7 @@ internal class PluginManagementService(
                 sourceModName = when (rule?.sourceType) {
                     "base_game" -> "Base Game"
                     "official_dlc" -> "Official DLC"
+                    "ttw_core" -> "TTW Core"
                     else -> "Unmanaged Data Folder"
                 },
                 enabled = rule?.defaultEnabled ?: false,
