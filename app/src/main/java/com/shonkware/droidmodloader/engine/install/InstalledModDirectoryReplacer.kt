@@ -9,12 +9,18 @@ import java.nio.file.StandardCopyOption
 class InstalledModDirectoryReplacer internal constructor(
     private val operations: InstalledModDirectoryOperations,
     private val replacementId: () -> String,
-    private val cleanupWarning: (String) -> Unit
-) {
+    private val cleanupWarning: (String) -> Unit,
+    private val transactionStore:
+    InstallReplacementTransactionStore
+)  {
     constructor() : this(
         operations = DefaultInstalledModDirectoryOperations,
-        replacementId = { System.currentTimeMillis().toString() },
-        cleanupWarning = {}
+        replacementId = {
+            System.currentTimeMillis().toString()
+        },
+        cleanupWarning = {},
+        transactionStore =
+            InstallReplacementTransactionStore()
     )
 
     fun replace(
@@ -23,27 +29,80 @@ class InstalledModDirectoryReplacer internal constructor(
     ): File {
         requireValidPaths(stagedDir, finalDir)
 
+        val modsDir = requireNotNull(finalDir.parentFile)
+        val id = replacementId()
         val backupDir = File(
-            requireNotNull(finalDir.parentFile),
-            "_dml_backup_${finalDir.name}_${replacementId()}"
+            modsDir,
+            "_dml_backup_${finalDir.name}_$id"
         )
 
         if (backupDir.exists()) {
             throw IOException(
-                "Replacement backup already exists: ${backupDir.absolutePath}"
+                "Replacement backup already exists: " +
+                        backupDir.absolutePath
             )
         }
 
         val hadExistingInstall = finalDir.exists()
+        var transaction =
+            InstallReplacementTransaction(
+                id = id,
+                state =
+                    InstallReplacementState.PREPARED,
+                finalDirectoryName = finalDir.name,
+                stagedDirectoryName = stagedDir.name,
+                backupDirectoryName = backupDir.name,
+                hadExistingInstall = hadExistingInstall
+            )
+        val transactionFile =
+            transactionStore.create(
+                modsDir = modsDir,
+                transaction = transaction
+            )
 
         if (hadExistingInstall) {
             try {
                 operations.move(finalDir, backupDir)
             } catch (exception: Exception) {
+                deleteTransactionOrSuppress(
+                    transactionFile = transactionFile,
+                    primaryFailure = exception
+                )
+
                 throw IOException(
-                    "Could not preserve the existing installed mod before replacement.",
+                    "Could not preserve the existing installed mod " +
+                            "before replacement.",
                     exception
                 )
+            }
+
+            transaction = transaction.withState(
+                InstallReplacementState.BACKUP_CREATED
+            )
+
+            try {
+                transactionStore.update(
+                    transactionFile = transactionFile,
+                    transaction = transaction
+                )
+            } catch (exception: Exception) {
+                val failure = IOException(
+                    "The existing mod was backed up, but DML " +
+                            "could not record the replacement state.",
+                    exception
+                )
+
+                try {
+                    operations.move(backupDir, finalDir)
+                    deleteTransactionOrSuppress(
+                        transactionFile = transactionFile,
+                        primaryFailure = failure
+                    )
+                } catch (restoreFailure: Exception) {
+                    failure.addSuppressed(restoreFailure)
+                }
+
+                throw failure
             }
         }
 
@@ -51,6 +110,11 @@ class InstalledModDirectoryReplacer internal constructor(
             operations.move(stagedDir, finalDir)
         } catch (promotionFailure: Exception) {
             if (!hadExistingInstall) {
+                deleteTransactionOrSuppress(
+                    transactionFile = transactionFile,
+                    primaryFailure = promotionFailure
+                )
+
                 throw IOException(
                     "Could not promote the staged mod installation.",
                     promotionFailure
@@ -60,11 +124,37 @@ class InstalledModDirectoryReplacer internal constructor(
             restoreBackupAfterPromotionFailure(
                 finalDir = finalDir,
                 backupDir = backupDir,
+                transactionFile = transactionFile,
                 promotionFailure = promotionFailure
             )
         }
 
-        cleanupBackupAfterSuccessfulReplacement(backupDir)
+        transaction = transaction.withState(
+            InstallReplacementState.PROMOTED
+        )
+
+        try {
+            transactionStore.update(
+                transactionFile = transactionFile,
+                transaction = transaction
+            )
+        } catch (exception: Exception) {
+            throw IOException(
+                "The replacement was promoted, but DML could not " +
+                        "record its completed state. The transaction " +
+                        "was retained for recovery.",
+                exception
+            )
+        }
+
+        val backupRemoved =
+            cleanupBackupAfterSuccessfulReplacement(
+                backupDir = backupDir
+            )
+
+        if (backupRemoved) {
+            transactionStore.delete(transactionFile)
+        }
 
         return finalDir
     }
@@ -113,6 +203,7 @@ class InstalledModDirectoryReplacer internal constructor(
     private fun restoreBackupAfterPromotionFailure(
         finalDir: File,
         backupDir: File,
+        transactionFile: File,
         promotionFailure: Exception
     ): Nothing {
         val rollbackFailures = mutableListOf<Exception>()
@@ -151,6 +242,10 @@ class InstalledModDirectoryReplacer internal constructor(
             rollbackFailures.forEach(exception::addSuppressed)
             throw exception
         }
+        deleteTransactionOrSuppress(
+            transactionFile = transactionFile,
+            primaryFailure = promotionFailure
+        )
 
         throw IOException(
             "Could not promote the staged mod. The prior installation was restored.",
@@ -160,9 +255,9 @@ class InstalledModDirectoryReplacer internal constructor(
 
     private fun cleanupBackupAfterSuccessfulReplacement(
         backupDir: File
-    ) {
+    ): Boolean{
         if (!backupDir.exists()) {
-            return
+            return true
         }
 
         val warning = try {
@@ -181,6 +276,21 @@ class InstalledModDirectoryReplacer internal constructor(
             runCatching {
                 cleanupWarning(warning)
             }
+
+            return false
+        }
+
+        return true
+    }
+
+    private fun deleteTransactionOrSuppress(
+        transactionFile: File,
+        primaryFailure: Throwable
+    ) {
+        try {
+            transactionStore.delete(transactionFile)
+        } catch (cleanupFailure: Exception) {
+            primaryFailure.addSuppressed(cleanupFailure)
         }
     }
 }

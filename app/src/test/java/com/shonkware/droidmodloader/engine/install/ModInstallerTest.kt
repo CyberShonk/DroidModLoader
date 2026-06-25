@@ -39,14 +39,7 @@ class ModInstallerTest {
                 "new",
                 File(finalDir, "marker.txt").readText()
             )
-            assertTrue(
-                fixture.modsDir.listFiles()
-                    .orEmpty()
-                    .none {
-                        it.name.startsWith("_installing_") ||
-                                it.name.startsWith("_dml_backup_")
-                    }
-            )
+            assertNoInstallWorkDirectories(fixture.modsDir)
             assertTrue(
                 fixture.tempDir.listFiles()
                     .orEmpty()
@@ -85,14 +78,7 @@ class ModInstallerTest {
                 "old",
                 File(finalDir, "marker.txt").readText()
             )
-            assertTrue(
-                fixture.modsDir.listFiles()
-                    .orEmpty()
-                    .none {
-                        it.name.startsWith("_installing_") ||
-                                it.name.startsWith("_dml_backup_")
-                    }
-            )
+            assertNoInstallWorkDirectories(fixture.modsDir)
             assertTrue(
                 fixture.tempDir.listFiles()
                     .orEmpty()
@@ -121,7 +107,9 @@ class ModInstallerTest {
             val replacer = InstalledModDirectoryReplacer(
                 operations = operations,
                 replacementId = { "backup" },
-                cleanupWarning = {}
+                cleanupWarning = {},
+                transactionStore =
+                    InstallReplacementTransactionStore()
             )
             val installer = installer(
                 fixture = fixture,
@@ -147,13 +135,7 @@ class ModInstallerTest {
                 File(finalDir, "marker.txt").readText()
             )
             assertFalse(stagedDir.exists())
-            assertTrue(
-                fixture.modsDir.listFiles()
-                    .orEmpty()
-                    .none {
-                        it.name.startsWith("_dml_backup_")
-                    }
-            )
+            assertNoInstallWorkDirectories(fixture.modsDir)
             assertTrue(
                 fixture.tempDir.listFiles()
                     .orEmpty()
@@ -169,7 +151,9 @@ class ModInstallerTest {
             InstalledModDirectoryReplacer(
                 operations = TestDirectoryOperations(),
                 replacementId = { "backup" },
-                cleanupWarning = {}
+                cleanupWarning = {},
+                transactionStore =
+                    InstallReplacementTransactionStore()
             )
     ): ModInstaller {
         return ModInstaller(
@@ -191,6 +175,22 @@ class ModInstallerTest {
             check(mkdirs())
             File(this, "marker.txt").writeText(marker)
         }
+    }
+
+    private fun assertNoInstallWorkDirectories(
+        modsDir: File
+    ) {
+        assertTrue(
+            modsDir.listFiles()
+                .orEmpty()
+                .none { child ->
+                    child.name.startsWith("_installing_") ||
+                            child.name.startsWith("_dml_backup_") ||
+                            child.name.startsWith(
+                                "_dml_transaction_"
+                            )
+                }
+        )
     }
 
     private fun withFixture(
@@ -224,10 +224,14 @@ class ModInstallerTest {
         }
     }
 
-    private fun expectIOException(action: () -> Unit): IOException {
+    private fun expectIOException(
+        action: () -> Unit
+    ): IOException {
         try {
             action()
-            throw AssertionError("Expected IOException")
+            throw AssertionError(
+                "Expected IOException"
+            )
         } catch (exception: IOException) {
             return exception
         }
@@ -261,7 +265,9 @@ class ModInstallerTest {
             }
         }
 
-        override fun deleteRecursively(target: File): Boolean {
+        override fun deleteRecursively(
+            target: File
+        ): Boolean {
             return target.deleteRecursively()
         }
     }
@@ -279,7 +285,9 @@ class ModInstallerTest {
                 source.canonicalFile == stagedDir.canonicalFile &&
                 target.canonicalFile == finalDir.canonicalFile
             ) {
-                throw IOException("Forced promotion failure")
+                throw IOException(
+                    "Forced promotion failure"
+                )
             }
 
             super.move(source, target)

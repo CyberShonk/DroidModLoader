@@ -28,6 +28,7 @@ class InstalledModDirectoryReplacerTest {
             assertEquals("new", File(finalDir, "marker.txt").readText())
             assertFalse(stagedDir.exists())
             assertTrue(findBackups(root).isEmpty())
+            assertTrue(findTransactions(root).isEmpty())
         }
     }
 
@@ -51,6 +52,7 @@ class InstalledModDirectoryReplacerTest {
             assertEquals("new", File(finalDir, "marker.txt").readText())
             assertFalse(stagedDir.exists())
             assertTrue(findBackups(root).isEmpty())
+            assertTrue(findTransactions(root).isEmpty())
         }
     }
 
@@ -87,6 +89,7 @@ class InstalledModDirectoryReplacerTest {
             assertEquals("old", File(finalDir, "marker.txt").readText())
             assertTrue(stagedDir.exists())
             assertTrue(findBackups(root).isEmpty())
+            assertTrue(findTransactions(root).isEmpty())
         }
     }
 
@@ -123,6 +126,7 @@ class InstalledModDirectoryReplacerTest {
             assertEquals("old", File(finalDir, "marker.txt").readText())
             assertTrue(stagedDir.exists())
             assertTrue(findBackups(root).isEmpty())
+            assertTrue(findTransactions(root).isEmpty())
         }
     }
 
@@ -167,7 +171,22 @@ class InstalledModDirectoryReplacerTest {
             assertTrue(stagedDir.exists())
 
             val backup = findBackups(root).single()
-            assertEquals("old", File(backup, "marker.txt").readText())
+            assertEquals(
+                "old",
+                File(backup, "marker.txt").readText()
+            )
+
+            val transactionFile =
+                findTransactions(root).single()
+
+            val transaction =
+                InstallReplacementTransactionStore()
+                    .load(transactionFile)
+
+            assertEquals(
+                InstallReplacementState.BACKUP_CREATED,
+                transaction.state
+            )
         }
     }
 
@@ -202,16 +221,35 @@ class InstalledModDirectoryReplacerTest {
             assertFalse(stagedDir.exists())
 
             val backup = findBackups(root).single()
-            assertEquals("old", File(backup, "marker.txt").readText())
+            assertEquals(
+                "old",
+                File(backup, "marker.txt").readText()
+            )
             assertEquals(1, warnings.size)
+
+            val transactionFile =
+                findTransactions(root).single()
+
+            val transaction =
+                InstallReplacementTransactionStore()
+                    .load(transactionFile)
+
+            assertEquals(
+                InstallReplacementState.PROMOTED,
+                transaction.state
+            )
         }
     }
 
     @Test
     fun `staged and final directories must share the same parent`() {
         withRoot("different-parents") { root ->
-            val stagedParent = File(root, "staging").apply { mkdirs() }
-            val finalParent = File(root, "mods").apply { mkdirs() }
+            val stagedParent = File(root, "staging").apply {
+                check(mkdirs())
+            }
+            val finalParent = File(root, "mods").apply {
+                check(mkdirs())
+            }
             val stagedDir = createModDirectory(
                 root = stagedParent,
                 name = "_installing_example",
@@ -231,18 +269,38 @@ class InstalledModDirectoryReplacerTest {
             )
             assertTrue(stagedDir.exists())
             assertFalse(finalDir.exists())
+            assertTrue(findTransactions(finalParent).isEmpty())
         }
     }
 
     private fun replacer(
-        operations: InstalledModDirectoryOperations = TestOperations(),
+        operations: InstalledModDirectoryOperations =
+            DefaultInstalledModDirectoryOperations,
         cleanupWarning: (String) -> Unit = {}
     ): InstalledModDirectoryReplacer {
         return InstalledModDirectoryReplacer(
             operations = operations,
             replacementId = { "test" },
-            cleanupWarning = cleanupWarning
+            cleanupWarning = cleanupWarning,
+            transactionStore =
+                InstallReplacementTransactionStore()
         )
+    }
+
+    private fun findTransactions(
+        modsDir: File
+    ): List<File> {
+        return modsDir.listFiles()
+            .orEmpty()
+            .filter { file ->
+                file.isFile &&
+                        file.name.startsWith(
+                            "_dml_transaction_"
+                        ) &&
+                        file.name.endsWith(
+                            ".properties"
+                        )
+            }
     }
 
     private fun createModDirectory(
@@ -256,10 +314,14 @@ class InstalledModDirectoryReplacerTest {
         }
     }
 
-    private fun findBackups(root: File): List<File> {
+    private fun findBackups(
+        root: File
+    ): List<File> {
         return root.listFiles()
             .orEmpty()
-            .filter { it.name.startsWith("_dml_backup_") }
+            .filter {
+                it.name.startsWith("_dml_backup_")
+            }
     }
 
     private fun withRoot(
@@ -277,18 +339,28 @@ class InstalledModDirectoryReplacerTest {
         }
     }
 
-    private fun expectIOException(action: () -> Unit): IOException {
+    private fun expectIOException(
+        action: () -> Unit
+    ): IOException {
         try {
             action()
-            throw AssertionError("Expected IOException")
+            throw AssertionError(
+                "Expected IOException"
+            )
         } catch (exception: IOException) {
             return exception
         }
     }
 
     private class TestOperations(
-        private val failMove: (File, File) -> Boolean = { _, _ -> false },
-        private val failDelete: (File) -> Boolean = { false }
+        private val failMove: (File, File) -> Boolean = {
+                _,
+                _ ->
+            false
+        },
+        private val failDelete: (File) -> Boolean = {
+            false
+        }
     ) : InstalledModDirectoryOperations {
         override fun move(
             source: File,
@@ -296,7 +368,8 @@ class InstalledModDirectoryReplacerTest {
         ) {
             if (failMove(source, target)) {
                 throw IOException(
-                    "Forced move failure: ${source.name} -> ${target.name}"
+                    "Forced move failure: " +
+                            "${source.name} -> ${target.name}"
                 )
             }
 
@@ -314,7 +387,9 @@ class InstalledModDirectoryReplacerTest {
             }
         }
 
-        override fun deleteRecursively(target: File): Boolean {
+        override fun deleteRecursively(
+            target: File
+        ): Boolean {
             if (failDelete(target)) {
                 return false
             }

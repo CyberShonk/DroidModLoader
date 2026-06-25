@@ -104,11 +104,15 @@ class PreparedArchiveInstallerTest {
                 stagedDir = stagedDir,
                 finalDir = finalDir
             )
-            val replacer = InstalledModDirectoryReplacer(
-                operations = operations,
-                replacementId = { "backup" },
-                cleanupWarning = {}
-            )
+            val replacer =
+                InstalledModDirectoryReplacer(
+                    operations = operations,
+                    replacementId = { "test" },
+                    cleanupWarning = {},
+                    transactionStore =
+                        InstallReplacementTransactionStore()
+                )
+
             val installer = installer(
                 fixture = fixture,
                 directoryReplacer = replacer
@@ -227,7 +231,9 @@ class PreparedArchiveInstallerTest {
             InstalledModDirectoryReplacer(
                 operations = TestDirectoryOperations(),
                 replacementId = { "backup" },
-                cleanupWarning = {}
+                cleanupWarning = {},
+                transactionStore =
+                    InstallReplacementTransactionStore()
             )
     ): PreparedArchiveInstaller {
         return PreparedArchiveInstaller(
@@ -323,7 +329,8 @@ class PreparedArchiveInstallerTest {
                 .orEmpty()
                 .none { child ->
                     child.name.startsWith("_installing_") ||
-                            child.name.startsWith("_dml_backup_")
+                            child.name.startsWith("_dml_backup_") ||
+                            child.name.startsWith("_dml_transaction_")
                 }
         )
     }
