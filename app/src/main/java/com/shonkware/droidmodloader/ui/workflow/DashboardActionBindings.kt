@@ -28,7 +28,9 @@ internal class DashboardActionBindings(
     private val loadSelectedGameConfigIntoUi: () -> Unit,
     private val shareLogs: () -> Unit,
     private val requestAllFilesAccess: () -> Unit,
-    private val appendLog: (String) -> Unit
+    private val appendLog: (String) -> Unit,
+    private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow,
+
 ) {
     fun build(): DashboardActions {
         return DashboardActions(
@@ -150,7 +152,9 @@ internal class DashboardActionBindings(
             onDirectFolderBrowserOpenPath = directFolderSelectionCoordinator::openPath,
             onDirectFolderBrowserNavigateUp = directFolderSelectionCoordinator::navigateUp,
             onDirectFolderBrowserSelectCurrent = directFolderSelectionCoordinator::selectCurrent,
-            onDirectFolderBrowserCancel = directFolderSelectionCoordinator::cancel
+            onDirectFolderBrowserCancel = directFolderSelectionCoordinator::cancel,
+            onCancelArchiveImport =
+                archiveImportExecutionWorkflow::cancelImport,
         )
     }
 }

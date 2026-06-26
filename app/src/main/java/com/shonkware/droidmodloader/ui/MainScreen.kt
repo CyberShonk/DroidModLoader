@@ -85,7 +85,8 @@ data class DashboardUiState(
     val showDirectFolderBrowser: Boolean = false,
     val directFolderBrowserTitle: String = "Choose Folder",
     val directFolderBrowserRequiresWritable: Boolean = false,
-    val directFolderBrowserState: DirectFolderBrowserState = DirectFolderBrowserState()
+    val directFolderBrowserState: DirectFolderBrowserState = DirectFolderBrowserState(),
+    val archiveImportInProgress: Boolean,
 )
 
 data class DashboardActions(
@@ -169,7 +170,9 @@ data class DashboardActions(
     val onDirectFolderBrowserOpenPath: (String) -> Unit = {},
     val onDirectFolderBrowserNavigateUp: () -> Unit = {},
     val onDirectFolderBrowserSelectCurrent: () -> Unit = {},
-    val onDirectFolderBrowserCancel: () -> Unit = {}
+    val onDirectFolderBrowserCancel: () -> Unit = {},
+    val onCancelArchiveImport: () -> Unit,
+
 )
 
 @Composable
@@ -382,14 +385,25 @@ fun DroidModLoaderScreen(
         FullscreenPanel.ARCHIVES -> {
             ArchiveLibraryPanelDialog(
                 state = state.archiveBrowserState,
-                operationInProgress = state.operationInProgress,
+                operationInProgress =
+                    state.operationInProgress,
+                archiveImportInProgress =
+                    state.archiveImportInProgress,
                 searchText = archiveSearchText,
                 listState = archiveListState,
-                onSearchTextChanged = { archiveSearchText = it },
-                onRefresh = actions.onRefreshArchiveFolder,
-                onChangeFolder = actions.onChangeArchiveFolder,
-                onInstallArchive = actions.onInstallArchiveFromFolder,
-                onClose = actions.onCloseFullscreenPanel
+                onSearchTextChanged = {
+                    archiveSearchText = it
+                },
+                onRefresh =
+                    actions.onRefreshArchiveFolder,
+                onChangeFolder =
+                    actions.onChangeArchiveFolder,
+                onInstallArchive =
+                    actions.onInstallArchiveFromFolder,
+                onCancelArchiveImport =
+                    actions.onCancelArchiveImport,
+                onClose =
+                    actions.onCloseFullscreenPanel
             )
         }
 

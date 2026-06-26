@@ -73,12 +73,14 @@ fun ArchiveFolderSetupDialog(
 fun ArchiveLibraryPanelDialog(
     state: ArchiveBrowserUiState,
     operationInProgress: Boolean,
+    archiveImportInProgress: Boolean,
     searchText: String,
     listState: LazyListState,
     onSearchTextChanged: (String) -> Unit,
     onRefresh: () -> Unit,
     onChangeFolder: () -> Unit,
     onInstallArchive: (String) -> Unit,
+    onCancelArchiveImport: () -> Unit,
     onClose: () -> Unit
 ) {
     val filteredItems = remember(state.items, searchText) {
@@ -99,8 +101,14 @@ fun ArchiveLibraryPanelDialog(
     val controlsEnabled = !operationInProgress && !state.isLoading
 
     Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        onDismissRequest = {
+            if (!archiveImportInProgress) {
+                onClose()
+            }
+        },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
     ) {
         Card(
             modifier = Modifier
@@ -157,8 +165,16 @@ fun ArchiveLibraryPanelDialog(
                             Text("Folder")
                         }
 
-                        Button(onClick = onClose) {
-                            Text("Close")
+                        if (archiveImportInProgress) {
+                            TextButton(
+                                onClick = onCancelArchiveImport
+                            ) {
+                                Text("Cancel Import")
+                            }
+                        } else {
+                            Button(onClick = onClose) {
+                                Text("Close")
+                            }
                         }
                     }
                 }

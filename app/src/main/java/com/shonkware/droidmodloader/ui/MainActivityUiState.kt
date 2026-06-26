@@ -52,6 +52,7 @@ interface MainActivityUiState {
     var rootPathReselectionRequired: Boolean
     var realDeployEnabledState: Boolean
     var pendingArchiveInstall: PreparedArchiveInstall?
+    var archiveImportInProgress: Boolean
     var pendingInstallerArchiveRecordId: String?
     var pendingInstallerSelectedOptionIds: Set<String>
     var showInstallerDialog: Boolean
@@ -121,6 +122,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var rootPathReselectionRequired by mutableStateOf(false)
     override var realDeployEnabledState by mutableStateOf(false)
     override var pendingArchiveInstall by mutableStateOf<PreparedArchiveInstall?>(null)
+    override var archiveImportInProgress by mutableStateOf(false)
     override var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     override var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
     override var showInstallerDialog by mutableStateOf(false)
@@ -198,7 +200,8 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             showDirectFolderBrowser = directFolderState.showBrowser,
             directFolderBrowserTitle = directFolderState.browserTitle,
             directFolderBrowserRequiresWritable = directFolderState.browserRequiresWritable,
-            directFolderBrowserState = directFolderState.browserState
+            directFolderBrowserState = directFolderState.browserState,
+            archiveImportInProgress = archiveImportInProgress,
         )
     }
 }

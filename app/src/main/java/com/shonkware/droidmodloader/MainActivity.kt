@@ -94,6 +94,7 @@ import com.shonkware.droidmodloader.engine.storage.DirectStorageRootProvider
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
+import com.shonkware.droidmodloader.ui.workflow.ArchiveImportEngineAdapter
 
 class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActivityUiState() {
 
@@ -766,25 +767,85 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
 
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow by lazy {
         ArchiveImportExecutionWorkflow(
-            operationInProgressProvider = { operationInProgress },
-            beginOperation = { message -> operationReporter.beginOperation(message) },
-            createEngine = { profileScopedEngineFactory.create() },
-            archiveImportFileStore = archiveImportFileStore,
-            showInstallerChoices = { prepared, archiveRecordId ->
+            operationInProgressProvider = {
+                operationInProgress
+            },
+            beginOperation = { message ->
+                operationReporter.beginOperation(message)
+            },
+            createEngine = {
+                profileScopedEngineFactory
+                    .create()
+                    ?.let { engine ->
+                        ArchiveImportEngineAdapter(
+                            engine = engine,
+                            syncPluginsFromCurrentState = {
+                                syncPluginsFromCurrentState(
+                                    engine
+                                )
+                            },
+                            appendRoutingSummary = { mod ->
+                                developerDiagnosticsCoordinator
+                                    .appendInstalledModRoutingSummary(
+                                        DeveloperDiagnosticsEngineAdapter(
+                                            engine
+                                        ),
+                                        mod
+                                    )
+                            }
+                        )
+                    }
+            },
+            archiveImportFileStore =
+                archiveImportFileStore,
+            showInstallerChoices = {
+                    prepared,
+                    archiveRecordId ->
                 runOnUiThread {
                     pendingArchiveInstall = prepared
-                    pendingInstallerArchiveRecordId = archiveRecordId
-                    pendingInstallerSelectedOptionIds = prepared.plan.defaultSelectedOptionIds
+                    pendingInstallerArchiveRecordId =
+                        archiveRecordId
+                    pendingInstallerSelectedOptionIds =
+                        prepared.plan
+                            .defaultSelectedOptionIds
                     showInstallerDialog = true
                     installerDialogFullscreen = false
                 }
             },
-            appendLog = { message -> operationReporter.appendLog(message) },
-            finishOperation = { message -> operationReporter.finishOperation(message) },
-            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
-            syncPluginsFromCurrentState = { engine -> syncPluginsFromCurrentState(engine) },
-            appendInstalledModRoutingSummary = { engine, mod ->
-                developerDiagnosticsCoordinator.appendInstalledModRoutingSummary(DeveloperDiagnosticsEngineAdapter(engine), mod)
+            appendLog = { message ->
+                operationReporter.appendLog(message)
+            },
+            appendError = {
+                    message,
+                    throwable ->
+                operationReporter.appendError(
+                    message,
+                    throwable
+                )
+            },
+            finishOperation = { message ->
+                operationReporter.finishOperation(message)
+            },
+            cancelOperation = { message ->
+                operationReporter.cancelOperation(message)
+            },
+            failOperation = {
+                    message,
+                    throwable ->
+                operationReporter.failOperation(
+                    message,
+                    throwable
+                )
+            },
+            updateLastOperationStatus = { status ->
+                runOnUiThread {
+                    lastOperationStatus = status
+                }
+            },
+            updateArchiveImportInProgress = { active ->
+                runOnUiThread {
+                    archiveImportInProgress = active
+                }
             },
             refreshDashboard = {
                 dashboardRefreshCoordinator.refresh()
@@ -957,7 +1018,9 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             loadSelectedGameConfigIntoUi = profileSessionCoordinator::loadSelectedGameConfigIntoUi,
             shareLogs = ::shareLogs,
             requestAllFilesAccess = ::requestAllFilesAccess,
-            appendLog = operationReporter::appendLog
+            appendLog = operationReporter::appendLog,
+            archiveImportExecutionWorkflow =
+                archiveImportExecutionWorkflow,
         )
     }
 
