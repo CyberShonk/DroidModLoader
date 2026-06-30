@@ -1,7 +1,35 @@
+import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+val versionProperties = Properties().apply {
+    rootProject
+        .file("version.properties")
+        .inputStream()
+        .use { input ->
+            load(input)
+        }
+}
+
+val dmlVersionName =
+    versionProperties
+        .getProperty("VERSION_NAME")
+        ?.takeIf { it.matches(Regex("""^v\d+\.\d+\.\d+(?:-beta)?$""")) }
+        ?: error(
+            "VERSION_NAME must use a value such as " +
+                    "v0.7.0-beta or v1.0.0."
+        )
+
+val dmlVersionCode =
+    versionProperties
+        .getProperty("VERSION_CODE")
+        ?.toIntOrNull()
+        ?.takeIf { it > 0 }
+        ?: error(
+            "VERSION_CODE must be a positive integer."
+        )
 
 android {
     namespace = "com.shonkware.droidmodloader"
@@ -16,8 +44,8 @@ android {
         minSdk = 30
         //noinspection OldTargetApi
         targetSdk = 36
-        versionCode = 2
-        versionName = "v0.6.0-beta"
+        versionCode = dmlVersionCode
+        versionName = dmlVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,6 +65,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

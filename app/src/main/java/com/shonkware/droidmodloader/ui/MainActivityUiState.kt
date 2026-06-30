@@ -12,6 +12,7 @@ import com.shonkware.droidmodloader.engine.model.PluginEntry
 import com.shonkware.droidmodloader.engine.overwrite.OverwriteEntry
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
+import com.shonkware.droidmodloader.BuildConfig
 
 /**
  * Activity-scoped Compose state. This keeps mutable UI state and its immutable
@@ -149,7 +150,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     ): DashboardUiState {
         return DashboardUiState(
             appName = "Droid Mod Loader",
-            versionLabel = "Version 0.6.0 Beta",
+            versionLabel = BuildConfig.VERSION_NAME,
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
             summaryText = summaryText,
