@@ -68,6 +68,14 @@ for prior public releases.
 - Droid Mod Loader remains beta software. Back up important game folders before
   testing deployment.
 
+## Locked future UI direction
+
+The UI, responsive-layout, interaction, accessibility, and theme direction for the planned `v0.9.0-beta` overhaul is finalized as **Quiet Workbench**.
+
+The accepted direction uses Home, Mods, Plugins, and Deploy as the primary workspaces; a responsive H-to-E game/profile/deployment context; Adaptive Neutral as the first-launch theme; and Red Carbon as the Developer's Choice theme. See [`docs/ui-ux.md`](docs/ui-ux.md).
+
+This is design documentation only. It does not describe behavior included in `v0.7.0-beta`, and broad `v0.9.0-beta` implementation has not started.
+
 ## Next priorities
 
 1. Monitor `v0.7.0-beta` reports and fix release-blocking regressions only.
@@ -77,4 +85,4 @@ for prior public releases.
 
 ## Last updated
 
-2026-06-29
+2026-06-30

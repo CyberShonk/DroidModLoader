@@ -64,6 +64,12 @@ Keep `MainActivity` as the Android composition root and `ModEngine` as the stabl
 engine facade. Add behavior to the focused workflow, service, repository, or
 engine component that owns it.
 
+## Locked future design reference
+
+Quiet Workbench is the accepted design reference for the planned `v0.9.0-beta` interface. It does not replace the current scoped `v0.8.0-beta` work and must not be described as current released behavior.
+
+When UI implementation is scheduled, scope tasks from `docs/ui-ux.md` and preserve its locked hierarchy, state meanings, themes, accessibility boundaries, and safety behavior.
+
 ## Last updated
 
-2026-06-29
+2026-06-30

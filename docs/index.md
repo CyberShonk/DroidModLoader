@@ -18,6 +18,7 @@ release records for Droid Mod Loader.
 | Document | Purpose |
 |---|---|
 | [Vision](vision.md) | Defines the product direction |
+| [UI/UX Direction](ui-ux.md) | Defines the accepted Quiet Workbench interface and theme system for `v0.9.0-beta` |
 | [Requirements](requirements.md) | Records required behavior |
 | [Architecture](architecture.md) | Explains the current project structure |
 | [Source Map](architecture/source-map.md) | Maps source areas to their responsibilities |

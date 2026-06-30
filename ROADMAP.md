@@ -159,7 +159,7 @@ Primary scope:
 - apply the profile-first Home, Mods, Plugins, and Deploy navigation model
 - improve portrait, landscape, and larger-screen behavior
 - apply progressive disclosure so routine actions stay clear
-- prepare the Red Carbon default visual direction without delaying core correctness for decorative polish
+- implement the Quiet Workbench UI system, using Adaptive Neutral as the first-launch theme and Red Carbon as the Developer's Choice theme, without delaying core correctness for decorative polish
 
 The installer goal is common-case support with safe failure. Complete scripted FOMOD compatibility is not required for stable 1.0.
 
@@ -360,3 +360,22 @@ For the release candidate:
 - keep release notes limited to behavior present in the tested APK
 - replace `Unreleased` and pending test notes only after final validation
 - update the Nexus Mods page whenever the public DML version changes
+
+## Quiet Workbench UI/UX Direction
+
+Quiet Workbench is the accepted UI system for the planned `v0.9.0-beta` complete-core-workflow phase.
+
+Locked direction:
+
+- Home, Mods, Plugins, and Deploy remain the primary destinations.
+- Narrow layouts use bottom navigation; wide layouts use a navigation rail and persistent details pane where space allows.
+- Game, profile, and deployment state use the responsive H-to-E persistent-context pattern.
+- Lists use flat, moderately dense rows with progressive disclosure instead of card-per-item layouts.
+- Conflict, deployment, recovery, warning, and generated-file states use explicit text and symbols; color is reinforcement only.
+- Adaptive Neutral is the first-launch theme.
+- Capital Wasteland, Deep Ink, Warm Workshop, Adaptive Neutral, and Red Carbon ship as the planned theme set.
+- Red Carbon carries the secondary label Developer's Choice and has no special behavior.
+- Theme choice is global, applies immediately, restores with settings, and starts with OLED-black disabled.
+- Reduced motion, higher contrast, larger controls, haptics, and enhanced status explanations are planned accessibility settings.
+
+The detailed implementation boundary is [`docs/ui-ux.md`](docs/ui-ux.md). Exact spacing and color tokens may be calibrated for accessibility and device constraints without changing the locked hierarchy, workflows, state meanings, theme identities, or safety behavior.

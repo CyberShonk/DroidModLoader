@@ -119,6 +119,7 @@ a stable 1.0 release.
 See [Current Status](CURRENT_STATUS.md),
 [Current Priorities](docs/tasks/current-priorities.md), and the
 [Roadmap](ROADMAP.md) for details.
+- [UI/UX Direction](docs/ui-ux.md)
 
 ## Get started
 

@@ -337,3 +337,17 @@ Related: REQ-MOD-001, REQ-MOD-002, REQ-MOD-005,
 `engine/install/InstallReplacementTransaction.kt`,
 `engine/install/InstallReplacementRecovery.kt`,
 `ui/workflow/ArchiveImportExecutionWorkflow.kt`.
+
+## 2026-06-30 - Adopt Quiet Workbench for v0.9.0
+
+Status: Accepted.
+
+Decision: Quiet Workbench is the locked UI and interaction system for the planned `v0.9.0-beta` overhaul. Use Home, Mods, Plugins, and Deploy as the primary workspaces; responsive bottom navigation or navigation rail; the H-to-E persistent game/profile/deployment context; and progressive disclosure for detailed or advanced actions.
+
+Adaptive Neutral is the first-launch theme. The planned bundled themes are Capital Wasteland, Deep Ink, Warm Workshop, Adaptive Neutral, and Red Carbon. Red Carbon is labeled Developer's Choice and remains functionally identical to other themes.
+
+Reason: A completed design review resolved the remaining navigation, responsive-layout, state, conflict, recovery, accessibility, and theming questions. One accepted system prevents conflicting implementation choices.
+
+Result: Future `v0.9.0-beta` UI work must follow `docs/ui-ux.md`. Implementation may calibrate spacing and color tokens for accessibility and device constraints, but must preserve the locked hierarchy, workflows, state meanings, theme identities, and safety behavior.
+
+Related: `docs/ui-ux.md`, `ROADMAP.md`, REQ-UI-003 through REQ-UI-008.

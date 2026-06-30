@@ -487,6 +487,90 @@ Done when:
 - developer mode can reveal them
 - recovery tools remain available outside developer mode
 
+### REQ-UI-003: Quiet Workbench Navigation and Responsive Layout
+
+Status: Planned
+
+The planned `v0.9.0-beta` interface must use Home, Mods, Plugins, and Deploy as its primary workspaces. Narrow layouts use bottom navigation. Wide layouts use a navigation rail and a persistent details pane where width allows. Layout selection depends on available width rather than device category.
+
+Done when:
+
+- the four primary workspaces remain consistent across supported window sizes;
+- normal tasks work in portrait, landscape, and wider layouts;
+- narrow details open full screen and wide details use a persistent pane where practical; and
+- advanced tools do not displace the routine navigation.
+
+### REQ-UI-004: Persistent Game, Profile, and Deployment Context
+
+Status: Planned
+
+Game, profile, and deployment state must remain visible through the responsive H-to-E context pattern.
+
+Done when:
+
+- the expanded state shows the full game name, explicit profile control, and separate deployment-status control;
+- the collapsed sticky state preserves distinct accessible tap targets;
+- the full game name remains visible whenever it fits;
+- Blocked, Failed, and Interrupted states show the problem and one direct action; and
+- reduced-motion mode changes context state without animation.
+
+### REQ-UI-005: Conflict-Transparent Mod and Plugin Workspaces
+
+Status: Planned
+
+Mods and Plugins must use compact, touch-safe rows with explicit enable controls, priority, state indicators, responsive details, and precise reordering.
+
+Done when:
+
+- mod rows distinguish overwrites, overwritten files, INI/configuration presence, warnings, and fully overwritten state;
+- sections can be created, renamed, reordered, collapsed, and reviewed for hidden warnings;
+- plugin rows show numeric priority and dependency-aware activation;
+- only the switch changes enabled state; and
+- conflict and file details explain winners, providers, and priority order without relying on color alone.
+
+### REQ-UI-006: Theme System
+
+Status: Planned
+
+Droid Mod Loader must provide Capital Wasteland, Deep Ink, Warm Workshop, Adaptive Neutral, and Red Carbon themes.
+
+Done when:
+
+- Adaptive Neutral is selected on first launch without a forced setup chooser;
+- theme choice is global and restored with settings;
+- changes apply immediately without restart;
+- OLED-black is disabled initially and available only where compatible;
+- Red Carbon is labeled Developer's Choice; and
+- themes do not change behavior, state meaning, motion rules, or access privileges.
+
+### REQ-UI-007: Accessible Status and Motion
+
+Status: Planned
+
+Status must use text plus a consistent icon or shape. Color may reinforce meaning but cannot carry it alone.
+
+Done when:
+
+- controls provide accessible labels and approximately 48 dp touch targets;
+- Android font scaling and long-text layouts remain usable;
+- reduced motion, higher contrast, larger controls, haptics, and enhanced status explanations are available;
+- each empty, loading, error, unavailable, blocked, and interrupted state explains one clear next action; and
+- motion is functional rather than decorative.
+
+### REQ-UI-008: Safe Actions, Undo, and Recovery Visibility
+
+Status: Planned
+
+Routine reversible actions should use Undo. Permanent deletion, recovery abandonment, profile reset, and unrecoverable clearing require confirmation. Recovery remains user-facing and blocks unsafe new deployment.
+
+Done when:
+
+- disabling or routine removal offers Undo where practical;
+- destructive actions clearly identify their target and consequence;
+- recovery actions are reachable outside developer mode;
+- no interface claims rollback unless a verified rollback system exists; and
+- developer simulations remain isolated from real user data.
+
 ## 10. Branding and Asset Requirements
 
 ### REQ-ASSET-001: Handmade Asset Sources Are Preserved

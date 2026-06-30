@@ -108,6 +108,14 @@ Normal users should see the basic path first:
 
 Advanced tools should be available, but not forced onto new users.
 
+## Interaction Direction
+
+Droid Mod Loader's planned interface system is Quiet Workbench: calm, moderately dense, conflict-transparent, responsive, and designed for touch use without copying a desktop mod manager layout.
+
+The normal workflow stays centered on Home, Mods, Plugins, and Deploy. Game, profile, and deployment state remain visible through a responsive persistent-context pattern. Routine actions use progressive disclosure, while warnings, recovery, diagnostics, and destructive actions remain explicit.
+
+Adaptive Neutral is the first-launch theme. The full planned theme set is Capital Wasteland, Deep Ink, Warm Workshop, Adaptive Neutral, and Red Carbon. Presentation never changes safety behavior or state meaning.
+
 ## What Droid Mod Loader Is Not
 
 Droid Mod Loader is not:
