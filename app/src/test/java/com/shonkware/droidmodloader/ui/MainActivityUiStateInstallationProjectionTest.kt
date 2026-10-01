@@ -2,9 +2,14 @@ package com.shonkware.droidmodloader.ui
 
 import com.shonkware.droidmodloader.attention.AppAttentionId
 import com.shonkware.droidmodloader.attention.AppAttentionKind
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryAction
+import com.shonkware.droidmodloader.engine.install.InstallReplacementRecoveryResult
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngine
+import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -99,6 +104,155 @@ class MainActivityUiStateInstallationProjectionTest {
 
         assertTrue(project(state).appAttention.isEmpty())
         assertFalse(project(state).deployRecoveryAttentionRequired)
+    }
+
+    @Test
+    fun `install recovery attention remains scoped to the evaluated profile and game`() {
+        val state = MutableMainActivityUiState().apply {
+            setupComplete = true
+            activeProfileId = "profile-a"
+            selectedGameId = "fallout_nv"
+        }
+        state.updateInstallRecoveryAttention("profile-a", "fallout_nv", true)
+        val attention = project(state).appAttention.single()
+
+        assertEquals(AppAttentionKind.INSTALL_RECOVERY, attention.kind)
+        assertEquals("install_recovery:profile-a:fallout_nv", attention.id.value)
+
+        state.dismissedAttentionIds = setOf(attention.id)
+        assertEquals(listOf(attention), project(state).appAttention)
+
+        state.activeProfileId = "profile-b"
+        assertTrue(project(state).appAttention.isEmpty())
+
+        state.activeProfileId = "profile-a"
+        state.selectedGameId = "skyrim_le"
+        assertTrue(project(state).appAttention.isEmpty())
+
+        state.selectedGameId = "fallout_nv"
+        assertEquals(listOf(attention), project(state).appAttention)
+    }
+
+    @Test
+    fun `clean recovery evaluation clears the stored signal scope and session dismissal`() {
+        val state = MutableMainActivityUiState().apply {
+            setupComplete = true
+            activeProfileId = "profile-a"
+            selectedGameId = "fallout_nv"
+        }
+        val engine = object : InstallReplacementRecoveryEngine {
+            var action: InstallReplacementRecoveryAction? = null
+
+            override fun recoverInterruptedInstallReplacements() = listOf(
+                InstallReplacementRecoveryResult("transaction.properties", action, null)
+            )
+        }
+        val workflow = InstallReplacementStartupWorkflow(
+            appendLog = {},
+            appendError = {},
+            onInstallRecoveryAttention = state::updateInstallRecoveryAttention
+        )
+        workflow.checkStartup(engine, "profile-a", "fallout_nv")
+        assertTrue(state.installRecoveryAttentionRequired)
+        assertEquals("profile-a", state.installRecoveryAttentionProfileId)
+        assertEquals("fallout_nv", state.installRecoveryAttentionGameId)
+        val attentionId = project(state).appAttention.single().id
+        state.dismissedAttentionIds = setOf(attentionId)
+        state.suppressedAttentionPromptIds = setOf(attentionId)
+
+        // A clean result still clears A's stored condition after switching away from A.
+        state.activeProfileId = "profile-b"
+        engine.action = InstallReplacementRecoveryAction.RESTORED_PREVIOUS_INSTALL
+        workflow.checkStartup(engine, "profile-a", "fallout_nv")
+
+        assertFalse(state.installRecoveryAttentionRequired)
+        assertNull(state.installRecoveryAttentionProfileId)
+        assertNull(state.installRecoveryAttentionGameId)
+        assertTrue(state.dismissedAttentionIds.isEmpty())
+        assertTrue(state.suppressedAttentionPromptIds.isEmpty())
+        state.activeProfileId = "profile-a"
+        assertTrue(project(state).appAttention.isEmpty())
+    }
+
+    @Test
+    fun `queued result for old scope cannot overwrite current scope recovery attention`() {
+        val newScopes = listOf("profile-b" to "fallout_nv", "profile-a" to "skyrim_le")
+        for ((profileId, gameId) in newScopes) {
+            for (lateRequiresAttention in listOf(false, true)) {
+                val state = MutableMainActivityUiState().apply {
+                    setupComplete = true
+                    activeProfileId = "profile-a"
+                    selectedGameId = "fallout_nv"
+                }
+                state.updateInstallRecoveryAttention("profile-a", "fallout_nv", true)
+                val oldId = project(state).appAttention.single().id
+                val queuedPublication = {
+                    state.updateInstallRecoveryAttention("profile-a", "fallout_nv", lateRequiresAttention)
+                }
+
+                state.activeProfileId = profileId
+                state.selectedGameId = gameId
+                state.updateInstallRecoveryAttention(profileId, gameId, true)
+                val currentAttention = project(state).appAttention
+                val currentId = currentAttention.single().id
+                state.dismissedAttentionIds = setOf(oldId, currentId)
+                state.suppressedAttentionPromptIds = setOf(oldId, currentId)
+
+                queuedPublication()
+
+                assertTrue(state.installRecoveryAttentionRequired)
+                assertEquals(profileId, state.installRecoveryAttentionProfileId)
+                assertEquals(gameId, state.installRecoveryAttentionGameId)
+                assertEquals(currentAttention, project(state).appAttention)
+                val expectedDismissals = if (lateRequiresAttention) {
+                    setOf(oldId, currentId)
+                } else {
+                    setOf(currentId)
+                }
+                assertEquals(expectedDismissals, state.dismissedAttentionIds)
+                assertEquals(expectedDismissals, state.suppressedAttentionPromptIds)
+            }
+        }
+    }
+
+    @Test
+    fun `install recovery attention requires both stored scope identities`() {
+        val state = MutableMainActivityUiState().apply {
+            setupComplete = true
+            activeProfileId = "profile-a"
+            selectedGameId = "fallout_nv"
+            installRecoveryAttentionRequired = true
+        }
+
+        assertTrue(project(state).appAttention.isEmpty())
+
+        state.installRecoveryAttentionProfileId = "profile-a"
+        assertTrue(project(state).appAttention.isEmpty())
+
+        state.installRecoveryAttentionProfileId = null
+        state.installRecoveryAttentionGameId = "fallout_nv"
+        assertTrue(project(state).appAttention.isEmpty())
+    }
+
+    @Test
+    fun `another profile install recovery does not change existing attention kinds`() {
+        val state = MutableMainActivityUiState().apply {
+            setupComplete = true
+            activeProfileId = "profile-b"
+            selectedGameId = "fallout_nv"
+            rootPathReselectionRequired = true
+            deployRecoveryAttentionRequired = true
+            deployRecoveryAttentionProfileId = "profile-b"
+            deployRecoveryAttentionGameId = "fallout_nv"
+        }
+        val originalAttention = project(state).appAttention
+
+        state.installRecoveryAttentionRequired = true
+        state.installRecoveryAttentionProfileId = "profile-a"
+        state.installRecoveryAttentionGameId = "fallout_nv"
+
+        assertEquals(2, originalAttention.size)
+        assertEquals(originalAttention, project(state).appAttention)
     }
 
     @Test

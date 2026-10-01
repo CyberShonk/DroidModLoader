@@ -53,6 +53,21 @@ internal object AppAttentionPresentationMapper {
                     automaticPrompt = false
                 )
             }
+
+            AppAttentionKind.INSTALL_RECOVERY -> {
+                AppAttentionPresentation(
+                    title = "Install recovery needs review",
+                    message = "Droid Mod Loader could not automatically recover an " +
+                        "interrupted mod installation. Review the state before relying on " +
+                        "the affected installation.",
+                    primaryAction = null,
+                    primaryActionLabel = null,
+                    secondaryAction = null,
+                    secondaryActionLabel = null,
+                    dismissibleForSession = true,
+                    automaticPrompt = false
+                )
+            }
         }
     }
 }

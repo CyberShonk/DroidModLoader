@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.shonkware.droidmodloader.attention.AppAttentionId
+import com.shonkware.droidmodloader.attention.AppAttentionIds
+import com.shonkware.droidmodloader.attention.AppAttentionKind
 import com.shonkware.droidmodloader.attention.AppAttentionProjectionInput
 import com.shonkware.droidmodloader.attention.AppAttentionProjector
 import com.shonkware.droidmodloader.engine.flags.ModFlag
@@ -79,6 +81,9 @@ interface MainActivityUiState {
     var deployRecoveryAttentionRequired: Boolean
     var deployRecoveryAttentionProfileId: String?
     var deployRecoveryAttentionGameId: String?
+    var installRecoveryAttentionRequired: Boolean
+    var installRecoveryAttentionProfileId: String?
+    var installRecoveryAttentionGameId: String?
     var dismissedAttentionIds: Set<AppAttentionId>
     var suppressedAttentionPromptIds: Set<AppAttentionId>
     var showDeployRecoveryDialog: Boolean
@@ -155,6 +160,9 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var deployRecoveryAttentionRequired by mutableStateOf(false)
     override var deployRecoveryAttentionProfileId by mutableStateOf<String?>(null)
     override var deployRecoveryAttentionGameId by mutableStateOf<String?>(null)
+    override var installRecoveryAttentionRequired by mutableStateOf(false)
+    override var installRecoveryAttentionProfileId by mutableStateOf<String?>(null)
+    override var installRecoveryAttentionGameId by mutableStateOf<String?>(null)
     override var dismissedAttentionIds by mutableStateOf<Set<AppAttentionId>>(emptySet())
     override var suppressedAttentionPromptIds by mutableStateOf<Set<AppAttentionId>>(emptySet())
     override var showDeployRecoveryDialog by mutableStateOf(false)
@@ -169,6 +177,10 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             deployRecoveryAttentionRequired &&
                 deployRecoveryAttentionProfileId == activeProfileId &&
                 deployRecoveryAttentionGameId == selectedGameId
+        val installRecoveryRequiredForCurrentProfile =
+            installRecoveryAttentionRequired &&
+                installRecoveryAttentionProfileId == activeProfileId &&
+                installRecoveryAttentionGameId == selectedGameId
         val appAttention = AppAttentionProjector.project(
             AppAttentionProjectionInput(
                 profileSessionReady = setupComplete && activeProfileId != null,
@@ -176,7 +188,9 @@ internal class MutableMainActivityUiState : MainActivityUiState {
                 selectedGameId = selectedGameId,
                 gameInstallationReselectionRequired =
                     dataPathReselectionRequired || rootPathReselectionRequired,
-                deployRecoveryRequired = deployRecoveryRequiredForCurrentProfile
+                deployRecoveryRequired = deployRecoveryRequiredForCurrentProfile,
+                installRecoveryRequiresAttention =
+                    installRecoveryRequiredForCurrentProfile
             )
         )
 
@@ -264,4 +278,25 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             archiveImportInProgress = archiveImportInProgress,
         )
     }
+}
+
+internal fun MainActivityUiState.updateInstallRecoveryAttention(
+    profileId: String?,
+    gameId: String,
+    requiresAttention: Boolean
+) {
+    if (!requiresAttention && profileId != null && gameId.isNotBlank()) {
+        val attentionId = AppAttentionIds.scoped(AppAttentionKind.INSTALL_RECOVERY, profileId, gameId)
+        dismissedAttentionIds = dismissedAttentionIds - attentionId
+        suppressedAttentionPromptIds = suppressedAttentionPromptIds - attentionId
+    }
+
+    val matchesActiveScope = profileId == activeProfileId && gameId == selectedGameId
+    val matchesStoredScope =
+        profileId == installRecoveryAttentionProfileId && gameId == installRecoveryAttentionGameId
+    if (!matchesActiveScope && !matchesStoredScope) return
+
+    installRecoveryAttentionRequired = requiresAttention
+    installRecoveryAttentionProfileId = profileId.takeIf { requiresAttention }
+    installRecoveryAttentionGameId = gameId.takeIf { requiresAttention }
 }

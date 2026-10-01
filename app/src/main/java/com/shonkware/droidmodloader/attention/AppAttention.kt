@@ -18,7 +18,8 @@ internal object AppAttentionIds {
 
 enum class AppAttentionKind {
     GAME_INSTALLATION_RESELECTION,
-    DEPLOY_RECOVERY
+    DEPLOY_RECOVERY,
+    INSTALL_RECOVERY
 }
 
 enum class AppAttentionSeverity(

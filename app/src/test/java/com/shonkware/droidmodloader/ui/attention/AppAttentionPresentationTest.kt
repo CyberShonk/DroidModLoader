@@ -50,6 +50,20 @@ class AppAttentionPresentationTest {
         assertTrue(presentation.dismissibleForSession)
     }
 
+    @Test
+    fun `install recovery attention has no actions and is session dismissible`() {
+        val presentation = AppAttentionPresentationMapper.map(
+            attention(kind = AppAttentionKind.INSTALL_RECOVERY)
+        )
+
+        assertNull(presentation.primaryActionLabel)
+        assertNull(presentation.primaryAction)
+        assertNull(presentation.secondaryAction)
+        assertNull(presentation.secondaryActionLabel)
+        assertFalse(presentation.automaticPrompt)
+        assertTrue(presentation.dismissibleForSession)
+    }
+
     private fun attention(
         kind: AppAttentionKind,
         vararg actions: AppAttentionAction

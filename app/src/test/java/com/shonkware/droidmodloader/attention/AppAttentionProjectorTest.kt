@@ -11,7 +11,8 @@ class AppAttentionProjectorTest {
             profileSessionReady = false,
             activeProfileId = null,
             gameInstallationReselectionRequired = true,
-            deployRecoveryRequired = true
+            deployRecoveryRequired = true,
+            installRecoveryRequiresAttention = true
         )
 
         assertTrue(result.isEmpty())
@@ -62,6 +63,51 @@ class AppAttentionProjectorTest {
     }
 
     @Test
+    fun `install recovery produces one scoped warning without actions`() {
+        val result = project(installRecoveryRequiresAttention = true)
+
+        assertEquals(1, result.size)
+        assertEquals(AppAttentionKind.INSTALL_RECOVERY, result.single().kind)
+        assertEquals(
+            "install_recovery:profile-a:fallout_nv",
+            result.single().id.value
+        )
+        assertEquals(AppAttentionSeverity.WARNING, result.single().severity)
+        assertTrue(result.single().actions.isEmpty())
+    }
+
+    @Test
+    fun `all three attention kinds coexist in deterministic order`() {
+        val result = project(
+            gameInstallationReselectionRequired = true,
+            deployRecoveryRequired = true,
+            installRecoveryRequiresAttention = true
+        )
+
+        assertEquals(3, result.size)
+        assertEquals(
+            listOf(
+                AppAttentionKind.DEPLOY_RECOVERY,
+                AppAttentionKind.GAME_INSTALLATION_RESELECTION,
+                AppAttentionKind.INSTALL_RECOVERY
+            ),
+            result.map { it.kind }
+        )
+        assertEquals(
+            project(
+                gameInstallationReselectionRequired = true,
+                deployRecoveryRequired = true
+            ),
+            result.filter { it.kind != AppAttentionKind.INSTALL_RECOVERY }
+        )
+    }
+
+    @Test
+    fun `clean install recovery produces no attention`() {
+        assertTrue(project(installRecoveryRequiresAttention = false).isEmpty())
+    }
+
+    @Test
     fun `attention identity is scoped to profile and game`() {
         val first = project(
             activeProfileId = "profile-a",
@@ -88,7 +134,8 @@ class AppAttentionProjectorTest {
         activeProfileId: String? = "profile-a",
         selectedGameId: String = "fallout_nv",
         gameInstallationReselectionRequired: Boolean = false,
-        deployRecoveryRequired: Boolean = false
+        deployRecoveryRequired: Boolean = false,
+        installRecoveryRequiresAttention: Boolean = false
     ): List<AppAttention> {
         return AppAttentionProjector.project(
             AppAttentionProjectionInput(
@@ -96,7 +143,8 @@ class AppAttentionProjectorTest {
                 activeProfileId = activeProfileId,
                 selectedGameId = selectedGameId,
                 gameInstallationReselectionRequired = gameInstallationReselectionRequired,
-                deployRecoveryRequired = deployRecoveryRequired
+                deployRecoveryRequired = deployRecoveryRequired,
+                installRecoveryRequiresAttention = installRecoveryRequiresAttention
             )
         )
     }

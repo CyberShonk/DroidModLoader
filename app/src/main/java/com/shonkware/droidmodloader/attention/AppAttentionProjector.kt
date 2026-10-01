@@ -5,7 +5,8 @@ internal data class AppAttentionProjectionInput(
     val activeProfileId: String?,
     val selectedGameId: String,
     val gameInstallationReselectionRequired: Boolean,
-    val deployRecoveryRequired: Boolean
+    val deployRecoveryRequired: Boolean,
+    val installRecoveryRequiresAttention: Boolean
 )
 
 internal object AppAttentionProjector {
@@ -17,6 +18,21 @@ internal object AppAttentionProjector {
         }
 
         val attention = mutableListOf<AppAttention>()
+        if (input.installRecoveryRequiresAttention) {
+            attention.add(
+                AppAttention(
+                    id = AppAttentionIds.scoped(
+                        AppAttentionKind.INSTALL_RECOVERY,
+                        profileId,
+                        gameId
+                    ),
+                    kind = AppAttentionKind.INSTALL_RECOVERY,
+                    severity = AppAttentionSeverity.WARNING,
+                    actions = emptyList()
+                )
+            )
+        }
+
         if (input.deployRecoveryRequired) {
             attention.add(
                 AppAttention(
@@ -61,6 +77,7 @@ internal object AppAttentionProjector {
         return when (kind) {
             AppAttentionKind.DEPLOY_RECOVERY -> 0
             AppAttentionKind.GAME_INSTALLATION_RESELECTION -> 1
+            AppAttentionKind.INSTALL_RECOVERY -> 2
         }
     }
 }

@@ -10,7 +10,9 @@ internal interface InstallReplacementRecoveryEngine {
 }
 
 internal class InstallReplacementRecoveryEngineAdapter(
-    private val engine: ModEngine
+    val engine: ModEngine,
+    val profileId: String?,
+    val gameId: String
 ) : InstallReplacementRecoveryEngine {
     override fun recoverInterruptedInstallReplacements():
             List<InstallReplacementRecoveryResult> {
@@ -20,11 +22,33 @@ internal class InstallReplacementRecoveryEngineAdapter(
 
 internal class InstallReplacementStartupWorkflow(
     private val appendLog: (String) -> Unit,
-    private val appendError: (String) -> Unit
+    private val appendError: (String) -> Unit,
+    private val onInstallRecoveryAttention: (
+        profileId: String?,
+        gameId: String,
+        requiresAttention: Boolean
+    ) -> Unit,
+    private val postToUiThread: ((() -> Unit) -> Unit) = { action -> action() }
 ) {
+    private data class RecoveryScope(
+        val profileId: String?,
+        val gameId: String
+    )
+
+    private val evaluationLock = Any()
+    private val newestEvaluationByScope = mutableMapOf<RecoveryScope, Any>()
+
     fun checkStartup(
-        engine: InstallReplacementRecoveryEngine
+        engine: InstallReplacementRecoveryEngine,
+        profileId: String?,
+        gameId: String
     ) {
+        val scope = RecoveryScope(profileId, gameId)
+        val evaluation = Any()
+        synchronized(evaluationLock) {
+            newestEvaluationByScope[scope] = evaluation
+        }
+
         val results = try {
             engine.recoverInterruptedInstallReplacements()
         } catch (exception: Exception) {
@@ -40,6 +64,18 @@ internal class InstallReplacementStartupWorkflow(
 
         results.forEach { result ->
             reportResult(result)
+        }
+        val requiresAttention = results.any { it.action == null }
+        postToUiThread {
+            synchronized(evaluationLock) {
+                if (newestEvaluationByScope[scope] === evaluation) {
+                    onInstallRecoveryAttention(
+                        scope.profileId,
+                        scope.gameId,
+                        requiresAttention
+                    )
+                }
+            }
         }
     }
 

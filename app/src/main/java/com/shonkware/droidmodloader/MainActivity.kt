@@ -18,6 +18,7 @@ import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.deploy.GameInstallationResolver
 import com.shonkware.droidmodloader.ui.MainActivityUiState
 import com.shonkware.droidmodloader.ui.MutableMainActivityUiState
+import com.shonkware.droidmodloader.ui.updateInstallRecoveryAttention
 import com.shonkware.droidmodloader.ui.DirectFolderSelectionUiState
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
 import com.shonkware.droidmodloader.ui.FullscreenPanel
@@ -501,11 +502,11 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             saveSelectedGameConfigFromUi = { profileSessionCoordinator.saveSelectedGameConfigFromUi() },
             loadSelectedGameConfigIntoUi = { profileSessionCoordinator.loadSelectedGameConfigIntoUi() },
             recoverActiveProfile = {
-                profileScopedEngineFactory.create()?.let { engine ->
+                createInstallReplacementRecoveryEngine()?.let { recoveryEngine ->
                     installReplacementStartupWorkflow.checkStartup(
-                        InstallReplacementRecoveryEngineAdapter(
-                            engine
-                        )
+                        recoveryEngine,
+                        profileId = recoveryEngine.profileId,
+                        gameId = recoveryEngine.gameId
                     )
                 }
             },
@@ -1010,12 +1011,42 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
         )
     }
 
+    private fun createInstallReplacementRecoveryEngine(): InstallReplacementRecoveryEngineAdapter? {
+        lateinit var createEngine: () -> InstallReplacementRecoveryEngineAdapter?
+        activityThreadRunner.runOnUiThreadBlocking {
+            val profileId = activeProfileId
+            val gameId = selectedGameId
+            val factory = ProfileScopedEngineFactory(
+                appContext = applicationContext,
+                externalFilesDirProvider = { getExternalFilesDir(null) },
+                profileStoragePaths = ProfileStoragePaths(
+                    filesDir = filesDir,
+                    activeProfileIdProvider = { profileId },
+                    selectedGameIdProvider = { gameId }
+                ),
+                selectedGameIdProvider = { gameId },
+                appendError = { message -> operationReporter.appendError(message) }
+            )
+            createEngine = {
+                factory.create()?.let { engine ->
+                    InstallReplacementRecoveryEngineAdapter(engine, profileId, gameId)
+                }
+            }
+        }
+        // Keep filesystem work off the UI thread, using the captured profile/game throughout.
+        return createEngine()
+    }
+
     private val installReplacementStartupWorkflow by lazy {
         InstallReplacementStartupWorkflow(
             appendLog = operationReporter::appendLog,
             appendError = { message ->
                 operationReporter.appendError(message)
-            }
+            },
+            onInstallRecoveryAttention = { profileId, gameId, requiresAttention ->
+                updateInstallRecoveryAttention(profileId, gameId, requiresAttention)
+            },
+            postToUiThread = { action -> runOnUiThread(action) }
         )
     }
 
@@ -1036,19 +1067,21 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             ensureDataBaseline = {
                 profileContentInspectionCoordinator.ensureDataBaselineIfMissing("startup")
             },
-            createRuntime = profileScopedEngineFactory::create,
-            checkRecovery = { engine ->
+            createRuntime = ::createInstallReplacementRecoveryEngine,
+            checkRecovery = { recoveryEngine ->
                 installReplacementStartupWorkflow.checkStartup(
-                    InstallReplacementRecoveryEngineAdapter(
-                        engine
-                    )
+                    recoveryEngine,
+                    profileId = recoveryEngine.profileId,
+                    gameId = recoveryEngine.gameId
                 )
 
                 deployRecoveryWorkflow.checkStartup(
-                    DeployRecoveryEngineAdapter(engine)
+                    DeployRecoveryEngineAdapter(recoveryEngine.engine)
                 )
             },
-            synchronizePluginsAndRefresh = pluginSyncWorkflowController::syncWithExistingEngineThenRefresh,
+            synchronizePluginsAndRefresh = { recoveryEngine ->
+                pluginSyncWorkflowController.syncWithExistingEngineThenRefresh(recoveryEngine?.engine)
+            },
             appendLog = operationReporter::appendLog
         )
     }
