@@ -36,6 +36,3 @@ keystore.properties
 private-notes/
 /dist/
 /nexus-upload/
-
-
-.project-context-private/
