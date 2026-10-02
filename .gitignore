@@ -18,6 +18,7 @@ local.properties
 *.aab
 # Android/Gradle build output
 .gradle/
+/.android/
 build/
 app/build/
 # Signing/private files
