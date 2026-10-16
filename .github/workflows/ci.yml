@@ -36,3 +36,13 @@ jobs:
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
+
+      - name: Verify debug build receipts
+        run: python3 tools/check-apk-receipts.py app/build/outputs/apk/debug/*.apk
+
+      - name: Retain debug build receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-receipts
+          path: app/build/outputs/apk/debug/*.receipt.json
+          if-no-files-found: error
