@@ -10,7 +10,6 @@ internal class OperationStatusController {
         return OperationStatusStart(
             activeText = text,
             statusText = text,
-            toastText = text,
             logText = "OPERATION START: $text"
         )
     }
@@ -23,7 +22,6 @@ internal class OperationStatusController {
 
         return OperationStatusEnd(
             statusText = completedText,
-            toastText = successText,
             logText = "OPERATION END: $completedText"
         )
     }
@@ -42,7 +40,6 @@ internal class OperationStatusController {
 
         return OperationStatusEnd(
             statusText = cancelledText,
-            toastText = message,
             logText =
                 "OPERATION CANCELLED: $cancelledText"
         )
@@ -56,7 +53,6 @@ internal class OperationStatusController {
 
         return OperationStatusEnd(
             statusText = failedText,
-            toastText = message,
             logText = "OPERATION FAILED: $failedText"
         )
     }
@@ -65,12 +61,10 @@ internal class OperationStatusController {
 internal data class OperationStatusStart(
     val activeText: String,
     val statusText: String,
-    val toastText: String,
     val logText: String
 )
 
 internal data class OperationStatusEnd(
     val statusText: String,
-    val toastText: String,
     val logText: String
 )

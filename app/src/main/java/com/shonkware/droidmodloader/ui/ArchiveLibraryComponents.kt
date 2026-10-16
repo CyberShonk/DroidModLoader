@@ -81,7 +81,8 @@ fun ArchiveLibraryPanelDialog(
     onChangeFolder: () -> Unit,
     onInstallArchive: (String) -> Unit,
     onCancelArchiveImport: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    lastOperationStatus: String = ""
 ) {
     val filteredItems = remember(state.items, searchText) {
         val query = searchText.trim()
@@ -177,6 +178,13 @@ fun ArchiveLibraryPanelDialog(
                             }
                         }
                     }
+                }
+
+                if (lastOperationStatus.isNotBlank()) {
+                    Text(
+                        text = lastOperationStatus,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 if (state.isLoading) {

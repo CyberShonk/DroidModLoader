@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Changed
 
+- Operation feedback now stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status.
 - Physical deployment preflight distinguishes Data and Game Root, validates a bounded game marker set, rejects targets for the wrong game or targets with their roles reversed, and checks that both selected paths belong to the same installation.
 - Target diagnostics report the selected target role, canonical path, validation result, and structured findings.
 - A clean Fallout New Vegas target remains valid for an initial Tale of Two Wastelands deployment.
@@ -32,6 +33,8 @@ This file records release changes visible to users and known limitations.
 - Returning to a previously used deployment target does not automatically verify every physical managed file against changes made outside DML.
 
 ## v0.7.0-beta - 2026-06-29
+
+See the [release notes](notes/v0.7.0-beta.md) for installation and upgrade guidance.
 
 ### Added
 
@@ -96,8 +99,6 @@ This file records release changes visible to users and known limitations.
 - Existing profiles and unrelated managed state are retained by the migration.
   Legacy URI based Game Root, `Data`, or Archive Library selections require
   explicit reselection as direct filesystem paths.
-- Final upgrade validation from the public `v0.6.0-beta` APK is required before
-  this release is published.
 
 ## v0.6.0-beta - 2026-06-16
 

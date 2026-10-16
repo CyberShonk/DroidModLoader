@@ -8,7 +8,6 @@ internal class OperationReporter(
     private val updateOperationInProgress: (Boolean) -> Unit,
     private val updateActiveOperationText: (String) -> Unit,
     private val updateLastOperationStatus: (String) -> Unit,
-    private val showToast: (String) -> Unit,
     private val debugLog: (String) -> Unit,
     private val errorLog: (String, Throwable?) -> Unit,
     private val appendLogFile: (String) -> Unit
@@ -45,7 +44,6 @@ internal class OperationReporter(
             updateLastOperationStatus(status.statusText)
         }
 
-        showToast(status.toastText)
         appendLog(status.logText)
     }
 
@@ -58,7 +56,6 @@ internal class OperationReporter(
             updateLastOperationStatus(status.statusText)
         }
 
-        showToast(status.toastText)
         appendLog(status.logText)
     }
 
@@ -74,7 +71,6 @@ internal class OperationReporter(
             )
         }
 
-        showToast(status.toastText)
         appendLog(status.logText)
     }
 
@@ -87,7 +83,6 @@ internal class OperationReporter(
             updateLastOperationStatus(status.statusText)
         }
 
-        showToast(status.toastText)
         appendError(status.logText, throwable)
     }
 

@@ -17,7 +17,6 @@ class OperationReporterTest {
         assertTrue(state.operationInProgress)
         assertEquals("Deploying...", state.activeOperationText)
         assertEquals("Deploying...", state.lastOperationStatus)
-        assertEquals(listOf("Deploying..."), state.toasts)
         assertTrue(state.logText.contains("OPERATION START: Deploying..."))
 
         reporter.finishOperation("Deploy complete.")
@@ -29,8 +28,14 @@ class OperationReporterTest {
                 Regex("""Deploy complete\. \(\d+ ms\)""")
             )
         )
-        assertEquals(listOf("Deploying...", "Deploy complete."), state.toasts)
         assertTrue(state.logText.contains("OPERATION END: Deploy complete."))
+
+        val completedStatus = state.lastOperationStatus
+        reporter.appendLog("Dashboard refreshed.")
+
+        assertEquals(completedStatus, state.lastOperationStatus)
+        assertTrue(state.logText.contains("OPERATION END: $completedStatus"))
+        assertTrue(state.fileLines.any { it.contains("OPERATION END: $completedStatus") })
     }
 
     @Test
@@ -51,6 +56,7 @@ class OperationReporterTest {
         )
         assertTrue(state.logText.contains("ERROR: OPERATION FAILED: Testing failed."))
         assertEquals(failure, state.errorThrowable)
+        assertTrue(state.errorLines.single().contains("OPERATION FAILED: ${state.lastOperationStatus}"))
         assertTrue(state.fileLines.last().contains("IllegalStateException: broken"))
     }
 
@@ -84,6 +90,7 @@ class OperationReporterTest {
                         "Installer cancelled."
             )
         )
+        assertTrue(state.fileLines.last().contains("OPERATION CANCELLED: ${state.lastOperationStatus}"))
         assertTrue(state.errorLines.isEmpty())
         assertEquals(
             null,
@@ -99,7 +106,6 @@ class OperationReporterTest {
             updateOperationInProgress = { state.operationInProgress = it },
             updateActiveOperationText = { state.activeOperationText = it },
             updateLastOperationStatus = { state.lastOperationStatus = it },
-            showToast = { state.toasts += it },
             debugLog = { state.debugLines += it },
             errorLog = { line, throwable ->
                 state.errorLines += line
@@ -114,7 +120,6 @@ class OperationReporterTest {
         var operationInProgress = false
         var activeOperationText = ""
         var lastOperationStatus = "Ready."
-        val toasts = mutableListOf<String>()
         val debugLines = mutableListOf<String>()
         val errorLines = mutableListOf<String>()
         val fileLines = mutableListOf<String>()

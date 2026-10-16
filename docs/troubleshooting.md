@@ -1,5 +1,8 @@
 # Droid Mod Loader Troubleshooting
 
+These steps apply to `v0.7.0-beta`. See the [changelog](../releases/changelog.md)
+for changes in other versions.
+
 ## DML cannot use my game folder
 
 Check these first:
@@ -15,18 +18,12 @@ all files access.
 
 ## The deployment target is rejected
 
-DML distinguishes Data and Game Root and checks game markers before physical
-deployment.
+Confirm that the selected path exists, is a folder, and can be read and written
+by DML. Check both Data and Game Root where the setup uses them.
 
-A target can be rejected because it:
-
-- belongs to another supported game;
-- uses the wrong target role;
-- is a broad storage parent instead of a game folder;
-- cannot be read or written safely; or
-- does not match the selected Data/Game Root installation pair.
-
-Stop and select the intended folders rather than bypassing the warning.
+Folder validation is limited in this release. Do not rely on a writable folder
+alone to prove that you selected the intended game installation. Stop and select
+the intended folders rather than bypassing a warning.
 
 ## A mod imports but does not appear in the game
 

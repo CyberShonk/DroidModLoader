@@ -451,7 +451,8 @@ fun DroidModLoaderScreen(
                 onCancelArchiveImport =
                     actions.onCancelArchiveImport,
                 onClose =
-                    actions.onCloseFullscreenPanel
+                    actions.onCloseFullscreenPanel,
+                lastOperationStatus = state.lastOperationStatus
             )
         }
 
@@ -499,7 +500,8 @@ fun DroidModLoaderScreen(
             onToggleOption = actions.onToggleInstallerOption,
             onConfirm = actions.onConfirmInstaller,
             onCancel = actions.onCancelInstaller,
-            onToggleFullscreen = {}
+            onToggleFullscreen = {},
+            lastOperationStatus = state.lastOperationStatus
         )
     }
 
