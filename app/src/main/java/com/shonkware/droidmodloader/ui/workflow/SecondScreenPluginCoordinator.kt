@@ -11,8 +11,7 @@ internal class SecondScreenPluginCoordinator(
     private val pluginsProvider: () -> List<PluginEntry>,
     private val activeProfileNameProvider: () -> String,
     private val appendLog: (String) -> Unit,
-    private val updateLastOperationStatus: (String) -> Unit,
-    private val showToast: (String) -> Unit
+    private val updateLastOperationStatus: (String) -> Unit
 ) {
     var enabled by mutableStateOf(false)
         private set
@@ -48,6 +47,5 @@ internal class SecondScreenPluginCoordinator(
 
         appendLog(status)
         updateLastOperationStatus(status)
-        showToast(status)
     }
 }

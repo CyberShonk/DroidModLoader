@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.content.ActivityNotFoundException
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -181,7 +180,6 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             updateOperationInProgress = { operationInProgress = it },
             updateActiveOperationText = { activeOperationText = it },
             updateLastOperationStatus = { lastOperationStatus = it },
-            showToast = { message -> showToast(message) },
             debugLog = { line -> Log.d(TAG, line) },
             errorLog = { line, throwable ->
                 if (throwable == null) {
@@ -973,8 +971,7 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             pluginsProvider = { visiblePlugins },
             activeProfileNameProvider = { activeProfileName },
             appendLog = { message -> operationReporter.appendLog(message) },
-            updateLastOperationStatus = { status -> lastOperationStatus = status },
-            showToast = { message -> showToast(message) }
+            updateLastOperationStatus = { status -> lastOperationStatus = status }
         )
     }
 
@@ -1225,13 +1222,6 @@ class MainActivity : ComponentActivity(), MainActivityUiState by MutableMainActi
             engine = PluginSynchronizationEngineAdapter(engine),
             selectedGameId = selectedGameId
         )
-    }
-
-
-    private fun showToast(message: String) {
-        runOnUiThread {
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-        }
     }
 
 

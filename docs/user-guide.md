@@ -3,6 +3,9 @@
 Droid Mod Loader manages mod archives, installed mods, profiles, plugin state,
 and physical deployment for supported Bethesda games on Android.
 
+This guide covers `v0.7.0-beta`. See the [changelog](../releases/changelog.md)
+for changes in other versions.
+
 ## Before you begin
 
 DML requires Android 11 or newer for its shared storage workflow. Grant **Allow
@@ -27,13 +30,10 @@ Vegas.
 A physical setup uses a game `Data` folder and, where required, a Game Root.
 DML stores direct filesystem paths for the active profile.
 
-Physical deployment preflight distinguishes Data and Game Root, checks a bounded
-set of game executable and master markers, rejects folders that are obviously too
-broad or use the wrong target role, and checks that the selected Data and Game
-Root belong to the same installation.
+Select the folders for the intended game installation. Folder validation is
+limited in this release, so check the paths before deploying.
 
-Tale of Two Wastelands uses a Fallout: New Vegas target. A clean Fallout: New
-Vegas installation can be selected before TTW files are present.
+Tale of Two Wastelands uses a Fallout: New Vegas target.
 
 Do not select unrelated storage roots as deployment targets.
 
@@ -50,9 +50,8 @@ The Archive Library supports search, refresh, folder switching, and installed
 archive history for the active profile.
 
 Archive format is identified from file content rather than filename extension.
-ZIP and supported 7z/RAR variants enter the normal installer flow. Unsupported or
-unrecognized variants are rejected before they are registered as an installable
-managed archive.
+ZIP and supported 7z/RAR variants enter the normal installer flow. Detection
+does not mean every variant can be installed; see the limitations below.
 
 ## 4. Install and manage mods
 
@@ -86,8 +85,8 @@ target.
 DML builds a deployment plan before writing. The plan can contain additions,
 updates, removals of previously managed files, backups, and blocked operations.
 
-Physical deployment uses state for each target so deployment history for one
-selected folder is not treated as the state of a different folder.
+Deployment manifests are stored separately for each target. A saved manifest
+does not verify changes made to physical files outside DML.
 
 DML does not intentionally delete unrelated unmanaged files. Review warnings and
 planned removals before deployment.
@@ -111,5 +110,5 @@ another risky deployment operation.
 - RAR archives protected by a password, encrypted RAR archives, and multipart RAR archives are not supported.
 - Some uncommon 7z compression or encryption variants may be unsupported.
 - Android can block access to another application's protected private storage.
-- Guidance for game folder selection and the target marker matrix for each distribution are still limited.
+- Game folder validation and guidance are limited. Check that Data and Game Root belong to the intended installation.
 - Returning to a previously used target does not automatically prove that every physical managed file is unchanged outside DML; use recovery tools when target state is uncertain.

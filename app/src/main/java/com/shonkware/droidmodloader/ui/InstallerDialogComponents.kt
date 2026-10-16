@@ -38,7 +38,8 @@ fun InstallerChoiceDialog(
     onToggleOption: (String) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
-    onToggleFullscreen: () -> Unit
+    onToggleFullscreen: () -> Unit,
+    lastOperationStatus: String = ""
 ) {
     Dialog(
         onDismissRequest = onCancel,
@@ -64,6 +65,13 @@ fun InstallerChoiceDialog(
 
                 Text("Archive: ${prepared.archiveName}")
                 Text("Installer type: ${prepared.plan.installerType}")
+
+                if (lastOperationStatus.isNotBlank()) {
+                    Text(
+                        text = lastOperationStatus,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
                 prepared.plan.warnings.forEach { warning ->
                     Text(

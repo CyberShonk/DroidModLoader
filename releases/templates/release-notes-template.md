@@ -38,18 +38,3 @@ This release improves deployment safety, diagnostics, and general app behavior.
 
 - Back up important game folders before testing deployment features.
 - Existing users should review their selected game target before deploying.
-
-## Test Notes
-
-Tested:
-
-- [ ] Fresh install
-- [ ] Upgrade install
-- [ ] Target selection
-- [ ] Mod import
-- [ ] Plugin scan
-- [ ] Plugin export
-- [ ] Deployment plan
-- [ ] Safe folder deployment
-- [ ] Diagnostics
-- [ ] Recovery warning behavior
