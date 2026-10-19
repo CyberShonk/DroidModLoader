@@ -465,17 +465,16 @@ internal class ArchiveImportExecutionWorkflow(
     }
 
     fun cancelImport() {
-        val cancellationController =
-            activeCancellationController.get()
-
-        if (cancellationController == null) {
+        if (!cancelActiveImport()) {
             appendLog(
                 "Ignoring archive import cancellation request: " +
-                        "no archive import is active."
+                    "no archive import is active."
             )
-            return
         }
+    }
 
+    fun cancelActiveImport(): Boolean {
+        val cancellationController = activeCancellationController.get() ?: return false
         cancellationController.cancel()
 
         updateLastOperationStatus(
@@ -484,6 +483,7 @@ internal class ArchiveImportExecutionWorkflow(
         appendLog(
             "Archive import cancellation requested."
         )
+        return true
     }
 
     private fun handleArchiveFailure(

@@ -13,6 +13,7 @@ class SecondScreenController(
     private val displayManager =
         context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 
+    private var started = false
     private var presentation: SecondScreenPluginPresentation? = null
     private var latestPlugins: List<PluginEntry> = emptyList()
     private var latestProfileName: String = "No profile"
@@ -35,6 +36,8 @@ class SecondScreenController(
     }
 
     fun start() {
+        if (started) return
+        started = true
         displayManager.registerDisplayListener(
             displayListener,
             Handler(Looper.getMainLooper())
@@ -44,7 +47,10 @@ class SecondScreenController(
     }
 
     fun stop() {
-        displayManager.unregisterDisplayListener(displayListener)
+        if (started) {
+            displayManager.unregisterDisplayListener(displayListener)
+            started = false
+        }
         dismiss()
     }
 
@@ -62,6 +68,7 @@ class SecondScreenController(
     }
 
     private fun showIfAvailable() {
+        if (!started) return
         val display = findSecondaryDisplay() ?: return
 
         if (presentation?.display?.displayId == display.displayId && presentation?.isShowing == true) {

@@ -78,6 +78,38 @@ class ArchiveImportExecutionWorkflowTest {
     }
 
     @Test
+    fun activeOnlyCancellationDoesNotCreateIdleEngineOrChangeStatus() {
+        val harness = WorkflowHarness(FakeArchiveImportEngine())
+
+        assertFalse(harness.workflow.cancelActiveImport())
+
+        assertEquals(0, harness.engineCreationCount)
+        assertTrue(harness.statuses.isEmpty())
+        assertTrue(harness.logs.isEmpty())
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+    }
+
+    @Test
+    fun activeOnlyCancellationSignalsPreparationWithoutStartingAnotherEngine() {
+        val engine = FakeArchiveImportEngine()
+        lateinit var harness: WorkflowHarness
+        engine.beforePrepareCompletes = { signal ->
+            assertTrue(harness.workflow.cancelActiveImport())
+            signal.throwIfCancellationRequested()
+        }
+        harness = WorkflowHarness(engine)
+
+        harness.workflow.importArchive(harness.sourceArchive)
+
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(listOf("Archive import cancelled."), harness.cancelMessages)
+        assertTrue(harness.failures.isEmpty())
+        assertFalse(engine.finalizeCalled)
+        assertTrue(engine.registeredArchiveFile?.exists() == true)
+        assertFalse(harness.workflow.cancelActiveImport())
+    }
+
+    @Test
     fun cancellationDuringPreparationKeepsRegisteredArchive() {
         val engine = FakeArchiveImportEngine()
         lateinit var harness: WorkflowHarness
@@ -463,6 +495,7 @@ class ArchiveImportExecutionWorkflowTest {
             ).listFiles()?.toList().orEmpty()
         }
 
+        var engineCreationCount = 0
         val workflow =
             ArchiveImportExecutionWorkflow(
                 operationInProgressProvider = {
@@ -472,6 +505,7 @@ class ArchiveImportExecutionWorkflowTest {
                     beginMessages.add(message)
                 },
                 createEngine = {
+                    engineCreationCount++
                     engine
                 },
                 archiveImportFileStore =

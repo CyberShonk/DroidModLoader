@@ -6,7 +6,6 @@ internal class DashboardRefreshCoordinator(
     private val state: MainActivityUiState,
     private val buildResult: () -> DashboardRefreshResult?,
     private val runOnUiThread: (() -> Unit) -> Unit,
-    private val refreshSecondScreen: () -> Unit,
     private val appendLog: (String) -> Unit
 ) {
     fun refresh() {
@@ -17,7 +16,6 @@ internal class DashboardRefreshCoordinator(
             state.visibleModContentIndexes = result.modContentIndexes
             state.visibleModFlags = result.modFlags
             state.summaryText = result.summaryText
-            refreshSecondScreen()
         }
         appendLog("Dashboard refreshed.")
     }

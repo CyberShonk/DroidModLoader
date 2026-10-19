@@ -27,13 +27,13 @@ internal class DashboardActionBindings(
     private val profileContentInspectionCoordinator: ProfileContentInspectionCoordinator,
     private val pluginSyncWorkflowController: PluginSyncWorkflowController,
     private val loadSelectedGameConfigIntoUi: () -> Unit,
-    private val shareLogs: () -> Unit,
-    private val requestAllFilesAccess: () -> Unit,
     private val appendLog: (String) -> Unit,
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow,
 
 ) {
-    fun build(): DashboardActions {
+    // Do not store Activity callbacks on this binder: its background action
+    // closures capture the binder and can outlive the originating Activity.
+    fun build(shareLogs: () -> Unit, requestAllFilesAccess: () -> Unit): DashboardActions {
         return DashboardActions(
             onVersionTap = {
                 state.developerTapCount++

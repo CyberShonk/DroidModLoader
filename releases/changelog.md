@@ -16,6 +16,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- Rotating the device preserves open panels, installer choices, and operation state instead of restarting the app session.
 - Deployable mod payload files are no longer excluded just because their names or extensions resemble documentation. Runtime files such as UIO `supported.txt` now deploy to `Data`, while installer files and unrelated development artifacts remain excluded from physical deployment.
 - Physical deployment stops before writes when a selected target belongs to another supported game, uses the wrong role, is obviously too broad, or does not match the selected Data/Game Root installation pair.
 - Deployment state is kept separate for each selected Data and Game Root target, so switching installations does not reuse another target's saved deployment state.
@@ -26,6 +27,8 @@ This file records release changes visible to users and known limitations.
 
 ### Known Issues
 
+- A white flash can appear when opening dialogs or rotating the device.
+- Repeated archive installation attempts can retain duplicate archive copies, including after cancelling installer options.
 - Guidance for folder selection and the complete target marker matrix for each distribution are still limited.
 - RAR5 is detected but is not supported for installation.
 - RAR archives protected by a password, encrypted RAR archives, and multipart RAR archives are not supported.

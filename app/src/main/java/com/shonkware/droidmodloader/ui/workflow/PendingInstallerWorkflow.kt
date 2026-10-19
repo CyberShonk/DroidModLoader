@@ -305,25 +305,20 @@ internal class PendingInstallerWorkflow(
         updateSelectedOptionIds(selectedOptionIds)
     }
 
+    fun cancelActiveInstall(): Boolean {
+        val activeController = activeCancellationController.get() ?: return false
+        activeController.cancel()
+        appendLog(
+            "Installer cancellation requested for: " +
+                pendingSessionProvider()?.prepared?.archiveName.orEmpty()
+        )
+        updateLastOperationStatus("Cancelling installer...")
+        return true
+    }
+
     fun cancelPendingInstall() {
-        val session =
-            pendingSessionProvider() ?: return
-
-        val activeController =
-            activeCancellationController.get()
-
-        if (activeController != null) {
-            activeController.cancel()
-
-            appendLog(
-                "Installer cancellation requested for: " +
-                        session.prepared.archiveName
-            )
-            updateLastOperationStatus(
-                "Cancelling installer..."
-            )
-            return
-        }
+        val session = pendingSessionProvider() ?: return
+        if (cancelActiveInstall()) return
 
         val engine = createEngine() ?: return
 

@@ -40,6 +40,35 @@ class AppStartupCoordinatorTest {
         assertEquals(true, events.contains("sync:null"))
     }
 
+    @Test
+    fun `recreation while startup is queued does not reload or recover twice`() {
+        val events = mutableListOf<String>()
+        var queued: (() -> Unit)? = null
+        val coordinator = AppStartupCoordinator(
+            runInBackground = { action ->
+                check(queued == null)
+                queued = action
+            },
+            loadSetupState = { events += "load" },
+            migrateLegacyProfileStorage = {},
+            refreshGameOptions = {},
+            loadSelectedGameConfig = {},
+            migratePrioritySpacing = {},
+            ensureDataBaseline = {},
+            createRuntime = { "engine" },
+            checkRecovery = { events += "recover" },
+            synchronizePluginsAndRefresh = { events += "refresh" },
+            appendLog = { events += it }
+        )
+
+        coordinator.initialize { events += "restore" }
+        coordinator.initialize { error("must not restore old saved state over the live session") }
+        assertEquals(listOf("restore", "UI ready."), events)
+        checkNotNull(queued).invoke()
+        coordinator.initialize()
+        assertEquals(listOf("restore", "UI ready.", "load", "recover", "refresh"), events)
+    }
+
     private fun coordinator(
         events: MutableList<String>,
         runtime: String?

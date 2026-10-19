@@ -1,5 +1,7 @@
 package com.shonkware.droidmodloader.ui.workflow
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 /** Coordinates the ordered startup sequence without owning Android lifecycle APIs. */
 internal class AppStartupCoordinator<T>(
     private val runInBackground: (() -> Unit) -> Unit,
@@ -14,7 +16,11 @@ internal class AppStartupCoordinator<T>(
     private val synchronizePluginsAndRefresh: (T?) -> Unit,
     private val appendLog: (String) -> Unit
 ) {
-    fun initialize() {
+    private val initializationStarted = AtomicBoolean(false)
+
+    fun initialize(beforeStart: () -> Unit = {}) {
+        if (!initializationStarted.compareAndSet(false, true)) return
+        beforeStart()
         runInBackground {
             loadSetupState()
             migrateLegacyProfileStorage()

@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 class DashboardRefreshCoordinatorTest {
     @Test
-    fun `refresh projects result into UI state and updates second screen`() {
+    fun `refresh projects result into observable UI state`() {
         val state = MutableMainActivityUiState()
         val events = mutableListOf<String>()
         val flags = mapOf(
@@ -27,14 +27,13 @@ class DashboardRefreshCoordinatorTest {
                 events += "ui"
                 action()
             },
-            refreshSecondScreen = { events += "second-screen" },
             appendLog = { events += it }
         )
         coordinator.refresh()
 
         assertEquals("summary", state.summaryText)
         assertEquals(flags, state.visibleModFlags)
-        assertEquals(listOf("ui", "second-screen", "Dashboard refreshed."), events)
+        assertEquals(listOf("ui", "Dashboard refreshed."), events)
     }
     @Test
     fun `missing result leaves UI state unchanged`() {
@@ -43,7 +42,6 @@ class DashboardRefreshCoordinatorTest {
             state = state,
             buildResult = { null },
             runOnUiThread = { it() },
-            refreshSecondScreen = {},
             appendLog = {}
         )
 

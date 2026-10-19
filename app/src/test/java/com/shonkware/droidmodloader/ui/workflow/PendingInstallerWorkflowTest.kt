@@ -201,6 +201,7 @@ class PendingInstallerWorkflowTest {
     ) {
         var session: PendingInstallerSession? = session
         var operationInProgress = false
+        var engineCreationCount = 0
         var clearCount = 0
         var refreshCount = 0
         val logs = mutableListOf<String>()
@@ -216,7 +217,7 @@ class PendingInstallerWorkflowTest {
         val workflow = PendingInstallerWorkflow(
             pendingSessionProvider = { session },
             isOperationInProgress = { operationInProgress },
-            createEngine = { engine },
+            createEngine = { engineCreationCount++; engine },
             beginOperation = { message -> beginMessages.add(message) },
             finishOperation = { message -> finishMessages.add(message) },
             cancelOperation = { message -> cancelMessages.add(message) },
@@ -234,6 +235,43 @@ class PendingInstallerWorkflowTest {
             },
             refreshDashboard = { refreshCount++ }
         )
+    }
+
+    @Test
+    fun activeOnlyCancellationLeavesIdlePreparedSessionUntouched() {
+        val engine = FakePendingInstallerEngine()
+        val pending = session()
+        val harness = WorkflowHarness(engine, pending)
+
+        assertFalse(harness.workflow.cancelActiveInstall())
+
+        assertEquals(pending, harness.session)
+        assertEquals(0, harness.engineCreationCount)
+        assertEquals(0, harness.clearCount)
+        assertTrue(engine.cancelledArchiveNames.isEmpty())
+        assertTrue(harness.statuses.isEmpty())
+    }
+
+    @Test
+    fun activeOnlyCancellationSignalsWorkerWithoutIdleCleanupOrSecondEngine() {
+        val engine = FakePendingInstallerEngine()
+        lateinit var harness: WorkflowHarness
+        engine.beforeFinalizeCompletes = { signal ->
+            assertTrue(harness.workflow.cancelActiveInstall())
+            assertEquals(0, harness.clearCount)
+            assertTrue(engine.cancelledArchiveNames.isEmpty())
+            signal.throwIfCancellationRequested()
+        }
+        harness = WorkflowHarness(engine, session())
+
+        harness.workflow.finalizePendingInstall()
+
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(listOf("Installer cancelled."), harness.cancelMessages)
+        assertEquals(1, harness.clearCount)
+        assertTrue(harness.failures.isEmpty())
+        assertTrue(engine.savedMods.isEmpty())
+        assertFalse(harness.workflow.cancelActiveInstall())
     }
 
     @Test
