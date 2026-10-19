@@ -34,8 +34,14 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Compile android tests
+        run: ./gradlew compileDebugAndroidTestKotlin
+
       - name: Build debug APK
         run: ./gradlew assembleDebug
+
+      - name: Run Android lint
+        run: ./gradlew lintDebug
 
       - name: Verify debug build receipts
         run: python3 tools/check-apk-receipts.py app/build/outputs/apk/debug/*.apk
