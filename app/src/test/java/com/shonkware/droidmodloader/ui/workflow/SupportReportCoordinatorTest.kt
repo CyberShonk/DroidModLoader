@@ -4,7 +4,11 @@ import com.shonkware.droidmodloader.engine.io.SessionLogWriter
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModType
 import com.shonkware.droidmodloader.engine.model.PluginEntry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import java.io.File
 import org.junit.Test
 import java.nio.file.Files
 
@@ -33,6 +37,54 @@ class SupportReportCoordinatorTest {
         assertTrue(text.contains("Enabled Plugins: 1"))
         assertTrue(text.contains("Developer Mode Enabled: true"))
         assertTrue(text.contains("persisted line"))
+    }
+
+    @Test
+    fun `file reports preserve complete large snapshots and isolate failed exports`() {
+        val root = Files.createTempDirectory("dml-support-export").toFile()
+        try {
+            val writer = SessionLogWriter { File(root, "external") }
+            writer.append("original persistent history")
+            var current = "0123456789 Ω🚀\n".repeat(75_000)
+            val largeContent = current
+            var fail = false
+            val coordinator = SupportReportCoordinator(
+                engineProvider = { FakeEngine() },
+                diagnosticInfoProvider = {
+                    check(!fail) { "diagnostic failure" }
+                    AppDiagnosticInfo("test", 1, "com.test", "13", "Fixture")
+                },
+                lastOperationStatusProvider = { "Ready." },
+                developerModeEnabledProvider = { false },
+                currentLogTextProvider = { current },
+                sessionLogWriter = writer
+            )
+            val cache = File(root, "cache")
+            val first = coordinator.buildShareFile(cache)
+            val firstContents = first.readText()
+            assertEquals(File(cache, "support-reports"), first.parentFile)
+            assertTrue(first.length() > 1_104_036)
+            assertTrue(firstContents.contains(largeContent))
+            assertTrue(firstContents.contains("original persistent history"))
+
+            current = "new snapshot"
+            val second = coordinator.buildShareFile(cache)
+            assertNotEquals(first, second)
+            assertEquals(firstContents, first.readText())
+            assertTrue(second.readText().contains("new snapshot"))
+            val exports = first.parentFile!!.list()!!.toSet()
+            fail = true
+            assertThrows(IllegalStateException::class.java) { coordinator.buildShareFile(cache) }
+            assertEquals(exports, first.parentFile!!.list()!!.toSet())
+            assertEquals(firstContents, first.readText())
+
+            val blockedCache = File(root, "blocked").apply { writeText("preserve me") }
+            assertThrows(IllegalStateException::class.java) { coordinator.buildShareFile(blockedCache) }
+            assertEquals("preserve me", blockedCache.readText())
+            assertTrue(writer.readTextOrEmpty().contains("original persistent history"))
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     private class FakeEngine : SupportReportEngine {

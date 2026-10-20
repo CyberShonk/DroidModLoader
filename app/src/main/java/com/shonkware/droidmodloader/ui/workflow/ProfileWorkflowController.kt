@@ -2,23 +2,19 @@ package com.shonkware.droidmodloader.ui.workflow
 
 internal class ProfileWorkflowController(
     private val runInBackground: (() -> Unit) -> Unit,
-    private val completeFirstSetup: () -> Unit,
-    private val createAdditionalProfile: () -> Unit,
+    private val prepareFirstSetup: () -> (() -> Unit),
+    private val prepareAdditionalProfile: () -> (() -> Unit),
     private val switchActiveProfile: (String) -> Unit,
     private val deleteProfileAction: (String) -> Unit,
     private val saveDashboardSettings: () -> Unit
 ) {
 
     fun completeSetup() {
-        runInBackground {
-            completeFirstSetup()
-        }
+        runInBackground(prepareFirstSetup())
     }
 
     fun createProfile() {
-        runInBackground {
-            createAdditionalProfile()
-        }
+        runInBackground(prepareAdditionalProfile())
     }
 
     fun switchProfile(profileId: String) {

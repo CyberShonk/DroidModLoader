@@ -201,6 +201,44 @@ class ArchiveBrowserWorkflowTest {
         assertEquals(listOf("/archives/one"), installedPaths)
     }
 
+    @Test
+    fun rejectedScanDoesNotReadHistoryOrLeaveLoadingState() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val workflow = workflow(
+            store = FakeFolderStore().apply { folderPaths["profile-a"] = "/archives" },
+            runInBackground = { false },
+            scanFolder = { error("Rejected scan must not touch the filesystem") },
+            updateState = { states += it }
+        )
+
+        workflow.refresh()
+        workflow.refresh()
+
+        assertFalse(states.last().isLoading)
+        assertEquals(4, states.size)
+    }
+
+    @Test
+    fun queuedScanResultIsNotPublishedAfterProfileChanges() {
+        var profileId = "profile-a"
+        val publications = mutableListOf<() -> Unit>()
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val workflow = workflow(
+            store = FakeFolderStore().apply { folderPaths["profile-a"] = "/archives" },
+            activeProfileIdProvider = { profileId },
+            postToUiThread = publications::add,
+            updateState = { states += it }
+        )
+
+        workflow.refresh()
+        assertTrue(states.last().isLoading)
+        profileId = "profile-b"
+        val count = states.size
+        publications.forEach { it() }
+
+        assertEquals(count, states.size)
+    }
+
     private fun workflow(
         store: FakeFolderStore,
         activeProfileIdProvider: () -> String? = { "profile-a" },
@@ -211,12 +249,14 @@ class ArchiveBrowserWorkflowTest {
         showFolderSetup: () -> Unit = {},
         showBrowser: () -> Unit = {},
         updateState: (ArchiveBrowserUiState) -> Unit = {},
-        installArchivePath: (String) -> Unit = {}
+        installArchivePath: (String) -> Unit = {},
+        runInBackground: (() -> Unit) -> Boolean = { it(); true },
+        postToUiThread: (() -> Unit) -> Unit = { it() }
     ): ArchiveBrowserWorkflow {
         return ArchiveBrowserWorkflow(
             preferences = store,
             activeProfileIdProvider = activeProfileIdProvider,
-            runInBackground = { task -> task() },
+            runInBackground = runInBackground,
             isOperationInProgress = isOperationInProgress,
             isBrowserOpen = { true },
             scanFolder = scanFolder,
@@ -226,7 +266,8 @@ class ArchiveBrowserWorkflowTest {
             showBrowser = showBrowser,
             updateState = updateState,
             installArchivePath = installArchivePath,
-            appendLog = {}
+            appendLog = {},
+            postToUiThread = postToUiThread
         )
     }
 

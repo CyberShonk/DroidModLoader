@@ -52,9 +52,8 @@ internal class ProfileManagementWorkflow(
     private val updateLastOperationStatus: (String) -> Unit
 ) {
 
-    fun completeFirstSetup() {
+    fun completeFirstSetup(input: FirstSetupInput = firstSetupInputProvider()) {
         val repo = repositoryProvider() ?: return
-        val input = firstSetupInputProvider()
 
         if (
             !input.realDeployEnabled ||
@@ -101,9 +100,8 @@ internal class ProfileManagementWorkflow(
         refreshDashboard()
     }
 
-    fun createAdditionalProfile() {
+    fun createAdditionalProfile(input: AdditionalProfileInput = additionalProfileInputProvider()) {
         val repo = repositoryProvider() ?: return
-        val input = additionalProfileInputProvider()
 
         if (
             !input.realDeployEnabled ||

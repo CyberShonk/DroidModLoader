@@ -60,6 +60,8 @@ import com.shonkware.droidmodloader.engine.download.ArchiveFolderPreferences
 import com.shonkware.droidmodloader.engine.download.ArchiveFolderScanner
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserHistory
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserWorkflow
+import com.shonkware.droidmodloader.ui.workflow.GameConfigurationInput
+import com.shonkware.droidmodloader.ui.workflow.FolderSelectionScope
 import com.shonkware.droidmodloader.ui.workflow.FolderPickMode
 import com.shonkware.droidmodloader.ui.workflow.FolderPickerWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.DirectFolderSelectionCoordinator
@@ -124,6 +126,10 @@ internal class SessionViewModel @JvmOverloads constructor(
         private set
     var pendingDeleteMod by mutableStateOf<Mod?>(null)
         private set
+    private var pendingDeleteContext: Pair<String?, GameConfigurationInput>? = null
+    var pendingSupportReportFile by mutableStateOf<File?>(null)
+        private set
+    private var pendingSupportReportContext: Pair<String?, GameConfigurationInput>? = null
 
     private fun getExternalFilesDir(type: String?) = applicationContext.getExternalFilesDir(type)
     private fun getSharedPreferences(name: String, mode: Int) = applicationContext.getSharedPreferences(name, mode)
@@ -176,6 +182,16 @@ internal class SessionViewModel @JvmOverloads constructor(
             },
             handlePickedGameInstallation = { mode, installation ->
                 folderPickerWorkflowController.handlePickedGameInstallation(mode, installation)
+            },
+            selectionScopeProvider = { mode ->
+                FolderSelectionScope(
+                    activeProfileId,
+                    when (mode) {
+                        FolderPickMode.FirstSetupGameFolder, FolderPickMode.FirstSetupDataFolder -> setupGameId
+                        FolderPickMode.NewProfileGameFolder, FolderPickMode.NewProfileDataFolder -> newProfileGameId
+                        else -> selectedGameId
+                    }
+                )
             }
         )
     }
@@ -185,6 +201,53 @@ internal class SessionViewModel @JvmOverloads constructor(
             postToUiThread = { action -> runOnUiThread(action) }
         )
     }
+    val isOperationAdmitted: Boolean
+        get() = activityThreadRunner.isOperationAdmitted
+
+    private fun runSessionOperation(
+        requireNoPendingInstaller: Boolean = false,
+        refreshArchives: Boolean = true,
+        prepare: () -> Boolean = { true },
+        task: () -> Unit
+    ): Boolean {
+        val accepted = activityThreadRunner.runExclusiveInBackground(
+            beforeSchedule = {
+                val allowed = !requireNoPendingInstaller || captureOnUiThread { pendingArchiveInstall == null }
+                if (allowed && prepare()) {
+                    captureOnUiThread {
+                        pendingSupportReportFile = null
+                        pendingSupportReportContext = null
+                    }
+                    true
+                } else {
+                    false
+                }
+            },
+            onFinished = {
+                if (refreshArchives) runOnUiThread { archiveBrowserWorkflow.refreshIfOpen() }
+            }
+        ) {
+            try {
+                task()
+            } catch (failure: Throwable) {
+                operationReporter.failOperation("Operation failed: ${failure.message}", failure)
+            } finally {
+                // Publish queued state (including pending choices) before another request can own it.
+                activityThreadRunner.runOnUiThreadBlocking {}
+            }
+        }
+        if (!accepted) {
+            operationReporter.appendLog("Ignoring request: session operation was not admitted.")
+        }
+        return accepted
+    }
+
+    private fun <T> captureOnUiThread(capture: () -> T): T {
+        var result: Result<T>? = null
+        activityThreadRunner.runOnUiThreadBlocking { result = runCatching(capture) }
+        return checkNotNull(result).getOrThrow()
+    }
+
     private val sessionLogWriter by lazy {
         SessionLogWriter { getExternalFilesDir(null) }
     }
@@ -287,7 +350,7 @@ internal class SessionViewModel @JvmOverloads constructor(
 
     private val pluginActionWorkflowController by lazy {
         PluginActionWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             writeLoadOrderFiles = { pluginManagementWorkflow.writeLoadOrderFiles() },
             togglePluginEnabled = { normalizedPath ->
                 pluginManagementWorkflow.togglePluginEnabled(normalizedPath)
@@ -355,12 +418,24 @@ internal class SessionViewModel @JvmOverloads constructor(
 
     private val installerWorkflowController by lazy {
         InstallerWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
             finalizeInstallerInstall = {
-                pendingInstallerWorkflow.finalizePendingInstall()
+                var finalization: PendingInstallerWorkflow.Finalization? = null
+                try {
+                    runSessionOperation(
+                        prepare = {
+                            finalization = pendingInstallerWorkflow.prepareFinalization()
+                            finalization != null
+                        }
+                    ) { checkNotNull(finalization).run() }
+                } catch (failure: Throwable) {
+                    finalization?.abandon()
+                    throw failure
+                }
             },
             cancelInstallerInstall = {
-                pendingInstallerWorkflow.cancelPendingInstall()
+                if (!pendingInstallerWorkflow.cancelActiveInstall()) {
+                    runSessionOperation { pendingInstallerWorkflow.cancelPendingInstall() }
+                }
             },
             toggleInstallerOption = { optionId ->
                 pendingInstallerWorkflow.toggleOption(optionId)
@@ -369,9 +444,13 @@ internal class SessionViewModel @JvmOverloads constructor(
     }
     private val profileWorkflowController by lazy {
         ProfileWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
-            completeFirstSetup = { profileManagementWorkflow.completeFirstSetup() },
-            createAdditionalProfile = { profileManagementWorkflow.createAdditionalProfile() },
+            runInBackground = { task -> runSessionOperation(requireNoPendingInstaller = true, task = task) },
+            prepareFirstSetup = {
+                captureFirstSetupInput().let { input -> { profileManagementWorkflow.completeFirstSetup(input) } }
+            },
+            prepareAdditionalProfile = {
+                captureAdditionalProfileInput().let { input -> { profileManagementWorkflow.createAdditionalProfile(input) } }
+            },
             switchActiveProfile = { profileId ->
                 profileManagementWorkflow.switchActiveProfile(profileId)
             },
@@ -379,36 +458,38 @@ internal class SessionViewModel @JvmOverloads constructor(
             saveDashboardSettings = { profileManagementWorkflow.saveDashboardSettings() }
         )
     }
+    private fun captureFirstSetupInput(): FirstSetupInput = captureOnUiThread {
+        FirstSetupInput(
+            profileNameText = profileNameText,
+            gameId = setupGameId,
+            targetDataPath = setupTargetPathText,
+            realDeployEnabled = DeploymentConfigUiMapper.isGameInstallationResolved(
+                setupRootTargetPathText, setupTargetPathText
+            ),
+            targetRootPath = setupRootTargetPathText
+        )
+    }
+
+    private fun captureAdditionalProfileInput(): AdditionalProfileInput = captureOnUiThread {
+        AdditionalProfileInput(
+            profileNameText = newProfileNameText,
+            gameId = newProfileGameId,
+            targetDataPath = newProfileDataPathText,
+            realDeployEnabled = DeploymentConfigUiMapper.isGameInstallationResolved(
+                newProfileRootPathText, newProfileDataPathText
+            ),
+            targetRootPath = newProfileRootPathText
+        )
+    }
+
     private val profileManagementWorkflow by lazy {
         ProfileManagementWorkflow(
             repositoryProvider = { profileRepositoryFactory.create() },
             gameDisplayNameProvider = GameCatalog::displayName,
-            firstSetupInputProvider = {
-                FirstSetupInput(
-                    profileNameText = profileNameText,
-                    gameId = setupGameId,
-                    targetDataPath = setupTargetPathText,
-                    realDeployEnabled = DeploymentConfigUiMapper.isGameInstallationResolved(
-                        setupRootTargetPathText,
-                        setupTargetPathText
-                    ),
-                    targetRootPath = setupRootTargetPathText
-                )
-            },
-            additionalProfileInputProvider = {
-                AdditionalProfileInput(
-                    profileNameText = newProfileNameText,
-                    gameId = newProfileGameId,
-                    targetDataPath = newProfileDataPathText,
-                    realDeployEnabled = DeploymentConfigUiMapper.isGameInstallationResolved(
-                        newProfileRootPathText,
-                        newProfileDataPathText
-                    ),
-                    targetRootPath = newProfileRootPathText
-                )
-            },
+            firstSetupInputProvider = ::captureFirstSetupInput,
+            additionalProfileInputProvider = ::captureAdditionalProfileInput,
             activeProfileIdProvider = { activeProfileId },
-            dashboardProfileInputProvider = {
+            dashboardProfileInputProvider = { captureOnUiThread {
                 DashboardProfileInput(
                     targetPathText = targetPathText,
                     rootTargetPathText = rootTargetPathText,
@@ -416,7 +497,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                     dataPathReselectionRequired = dataPathReselectionRequired,
                     rootPathReselectionRequired = rootPathReselectionRequired
                 )
-            },
+            } },
             applyFirstSetupUiState = { profiles, profile ->
                 activityThreadRunner.runOnUiThreadBlocking {
                     setupComplete = true
@@ -559,7 +640,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     }
     private val modActionWorkflowController by lazy {
         ModActionWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             onToggleModEnabled = { modId -> modManagementWorkflow.toggleModEnabled(modId) },
             onMoveModUp = { modId -> modManagementWorkflow.moveModUp(modId) },
             onMoveModDown = { modId -> modManagementWorkflow.moveModDown(modId) },
@@ -571,14 +652,14 @@ internal class SessionViewModel @JvmOverloads constructor(
     private val archiveImportWorkflowController: ArchiveImportWorkflowController by lazy {
         ArchiveImportWorkflowController(
             appendLog = { message -> operationReporter.appendLog(message) },
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(requireNoPendingInstaller = true, task = task) },
             handleImportedArchive = { uri -> archiveImportExecutionWorkflow.importArchive(uri) },
             showArchiveLibrarySummary = { developerDiagnosticsCoordinator.buildArchiveLibrarySummary() }
         )
     }
     private val folderPickerWorkflowController by lazy {
         FolderPickerWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(requireNoPendingInstaller = true, task = task) },
             saveFirstSetupDataPath = { path ->
                 runOnUiThread {
                     setupTargetPathText = path
@@ -655,7 +736,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     }
     private val deploymentActionWorkflowController by lazy {
         DeploymentActionWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             runDeploy = { deploymentExecutionWorkflow.deploy() },
             runForceFullRedeploy = { deploymentExecutionWorkflow.forceFullRedeploy() },
             buildDeploymentPlan = { developerDiagnosticsCoordinator.buildDeploymentPlanSummary() },
@@ -694,7 +775,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     }
     private val deployRecoveryWorkflowController by lazy {
         DeployRecoveryWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             showRecoveryDetails = {
                 showDeployRecoveryDialog = true
             },
@@ -726,18 +807,18 @@ internal class SessionViewModel @JvmOverloads constructor(
     }
     private val developerToolsWorkflowController by lazy {
         DeveloperToolsWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             buildResolvedDataGraph = {
                 developerDiagnosticsCoordinator.buildResolvedDataGraphSummary()
             },
             showArchiveLibrarySummary = {
-                archiveImportWorkflowController.requestArchiveLibrarySummary()
+                developerDiagnosticsCoordinator.buildArchiveLibrarySummary()
             }
         )
     }
     private val overwriteActionWorkflowController by lazy {
         OverwriteActionWorkflowController(
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
+            runInBackground = { task -> runSessionOperation(task = task) },
             openOverwriteFolderPanel = {
                 profileContentInspectionCoordinator.openOverwriteFolderPanel()
             },
@@ -773,15 +854,33 @@ internal class SessionViewModel @JvmOverloads constructor(
         )
     }
 
-    private val profileScopedEngineFactory by lazy {
-        ProfileScopedEngineFactory(
-            appContext = applicationContext,
-            externalFilesDirProvider = { getExternalFilesDir(null) },
-            profileStoragePaths = profileStoragePaths,
-            selectedGameIdProvider = { selectedGameId },
-            appendError = { message -> operationReporter.appendError(message) }
+    private fun captureProfileContext(): Pair<String?, GameConfigurationInput> = captureOnUiThread {
+        activeProfileId to GameConfigurationInput(
+            selectedGameId = selectedGameId,
+            targetDataPath = targetPathText,
+            realDeployEnabled = realDeployEnabledState,
+            targetRootPath = rootTargetPathText,
+            dataPathReselectionRequired = dataPathReselectionRequired,
+            rootPathReselectionRequired = rootPathReselectionRequired
         )
     }
+
+    private val profileScopedEngineFactory: ProfileScopedEngineFactory
+        get() {
+            val (profileId, configuration) = captureProfileContext()
+            val gameId = configuration.selectedGameId
+            return ProfileScopedEngineFactory(
+                appContext = applicationContext,
+                externalFilesDirProvider = { getExternalFilesDir(null) },
+                profileStoragePaths = ProfileStoragePaths(
+                    filesDir = filesDir,
+                    activeProfileIdProvider = { profileId },
+                    selectedGameIdProvider = { gameId }
+                ),
+                selectedGameIdProvider = { gameId },
+                appendError = { message -> operationReporter.appendError(message) }
+            )
+        }
     private val profileRepositoryFactory by lazy {
         ProfileRepositoryFactory(
             externalFilesDirProvider = { getExternalFilesDir(null) },
@@ -793,7 +892,8 @@ internal class SessionViewModel @JvmOverloads constructor(
         ProfileSessionCoordinator(
             state = this,
             profileRepositoryFactory = profileRepositoryFactory,
-            profileScopedEngineFactory = profileScopedEngineFactory,
+            profileScopedEngineFactoryProvider = { profileScopedEngineFactory },
+            configurationInputProvider = { captureProfileContext().second },
             profileStartupWorkflow = profileStartupWorkflow,
             gameConfigurationWorkflow = gameConfigurationWorkflow,
             runOnUiThreadBlocking = activityThreadRunner::runOnUiThreadBlocking,
@@ -947,8 +1047,8 @@ internal class SessionViewModel @JvmOverloads constructor(
         ArchiveBrowserWorkflow(
             preferences = archiveFolderPreferences,
             activeProfileIdProvider = { activeProfileId },
-            runInBackground = { task -> activityThreadRunner.runInBackground(task) },
-            isOperationInProgress = { operationInProgress },
+            runInBackground = { task -> runSessionOperation(refreshArchives = false, task = task) },
+            isOperationInProgress = { activityThreadRunner.isOperationAdmitted },
             isBrowserOpen = { fullscreenPanel == FullscreenPanel.ARCHIVES },
             scanFolder = { folderPath -> archiveFolderScanner.scan(folderPath) },
             loadHistory = {
@@ -981,7 +1081,8 @@ internal class SessionViewModel @JvmOverloads constructor(
             installArchivePath = { sourcePath ->
                 archiveImportWorkflowController.handleArchivePath(sourcePath)
             },
-            appendLog = { message -> operationReporter.appendLog(message) }
+            appendLog = { message -> operationReporter.appendLog(message) },
+            postToUiThread = { action -> runOnUiThread(action) }
         )
     }
 
@@ -1065,7 +1166,7 @@ internal class SessionViewModel @JvmOverloads constructor(
 
     private val appStartupCoordinator by lazy {
         AppStartupCoordinator(
-            runInBackground = activityThreadRunner::runInBackground,
+            runInBackground = { task -> runSessionOperation(task = task) },
             loadSetupState = profileSessionCoordinator::loadSetupState,
             migrateLegacyProfileStorage = legacyProfileStorageMigrator::migrateIfNeeded,
             refreshGameOptions = profileSessionCoordinator::refreshGameOptions,
@@ -1117,10 +1218,14 @@ internal class SessionViewModel @JvmOverloads constructor(
             overwriteActionWorkflowController = overwriteActionWorkflowController,
             developerToolsWorkflowController = developerToolsWorkflowController,
             deployRecoveryWorkflowController = deployRecoveryWorkflowController,
-            activityThreadRunner = activityThreadRunner,
-            profileContentInspectionCoordinator = profileContentInspectionCoordinator,
-            pluginSyncWorkflowController = pluginSyncWorkflowController,
-            loadSelectedGameConfigIntoUi = profileSessionCoordinator::loadSelectedGameConfigIntoUi,
+            selectGame = { gameId ->
+                runSessionOperation(requireNoPendingInstaller = true) {
+                    activityThreadRunner.runOnUiThreadBlocking { selectedGameId = gameId }
+                    profileSessionCoordinator.loadSelectedGameConfigIntoUi()
+                    profileContentInspectionCoordinator.ensureDataBaselineIfMissing("selected game changed")
+                    pluginSyncWorkflowController.syncWithNewEngineThenRefresh()
+                }
+            },
             appendLog = operationReporter::appendLog,
             archiveImportExecutionWorkflow =
                 archiveImportExecutionWorkflow,
@@ -1187,19 +1292,64 @@ internal class SessionViewModel @JvmOverloads constructor(
     )
 
     private fun showDeleteConfirmDialog(mod: Mod) {
-        runOnUiThread { pendingDeleteMod = mod }
+        runOnUiThread {
+            pendingDeleteContext = captureProfileContext()
+            pendingDeleteMod = mod
+        }
     }
 
-    fun cancelDelete() { pendingDeleteMod = null }
+    fun cancelDelete() {
+        pendingDeleteMod = null
+        pendingDeleteContext = null
+    }
 
     fun confirmDelete(mod: Mod) {
         if (pendingDeleteMod != mod) return
-        pendingDeleteMod = null
-        activityThreadRunner.runInBackground { modManagementWorkflow.deleteInstalledMod(mod.id) }
+        if (pendingDeleteContext != captureProfileContext()) {
+            cancelDelete()
+            operationReporter.appendLog("Ignoring delete confirmation: profile, game or target changed.")
+            return
+        }
+        if (runSessionOperation { modManagementWorkflow.deleteInstalledMod(mod.id) }) {
+            cancelDelete()
+        }
     }
 
     fun consumeSettingsRequest() { settingsRequested = false }
-    fun shareText(): String = supportReportCoordinator.buildShareText()
+    fun requestSupportReport() {
+        var context: Pair<String?, GameConfigurationInput>? = null
+        runSessionOperation(
+            refreshArchives = false,
+            prepare = {
+                context = captureProfileContext()
+                true
+            }
+        ) {
+            val report = supportReportCoordinator.buildShareFile(applicationContext.cacheDir)
+            val published = captureOnUiThread {
+                if (context == captureProfileContext()) {
+                    pendingSupportReportContext = context
+                    pendingSupportReportFile = report
+                    true
+                } else {
+                    false
+                }
+            }
+            if (!published) report.delete()
+        }
+    }
+
+    fun consumeSupportReport(): File? {
+        val report = pendingSupportReportFile.takeIf { pendingSupportReportContext == captureProfileContext() }
+        pendingSupportReportFile = null
+        pendingSupportReportContext = null
+        return report
+    }
+    fun logShareUnavailable(error: RuntimeException) {
+        operationReporter.appendError("Could not open Share Logs chooser: ${error.message}", error)
+        lastOperationStatus = "Could not open Share Logs. See session log for details."
+    }
+
     fun logSettingsUnavailable(error: Throwable? = null) {
         if (error == null) operationReporter.appendLog("All-files access settings are unavailable on this device.")
         else operationReporter.appendError("All-files access settings are unavailable: ${error.message}", error)

@@ -10,6 +10,8 @@ import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowser
 import com.shonkware.droidmodloader.engine.storage.DirectFolderBrowserState
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 
+internal data class FolderSelectionScope(val profileId: String?, val gameId: String)
+
 internal class DirectFolderSelectionCoordinator(
     private val accessGrantedProvider: () -> Boolean,
     private val browser: DirectFolderBrowser,
@@ -19,7 +21,10 @@ internal class DirectFolderSelectionCoordinator(
     private val handlePickedFolder: (FolderPickMode, String) -> Unit,
     private val gameInstallationResolver: GameInstallationResolver? = null,
     private val selectedGameIdProvider: (FolderPickMode) -> String? = { null },
-    private val handlePickedGameInstallation: (FolderPickMode, ResolvedGameInstallation) -> Unit = { _, _ -> }
+    private val handlePickedGameInstallation: (FolderPickMode, ResolvedGameInstallation) -> Unit = { _, _ -> },
+    private val selectionScopeProvider: (FolderPickMode) -> FolderSelectionScope = {
+        FolderSelectionScope(null, "")
+    }
 ) {
     var allFilesAccessGranted by mutableStateOf(true)
         private set
@@ -33,6 +38,7 @@ internal class DirectFolderSelectionCoordinator(
         private set
 
     private var folderPickMode = FolderPickMode.ActiveGameFolder
+    private var openedScope: FolderSelectionScope? = null
 
     fun refreshAccessState() {
         allFilesAccessGranted = accessGrantedProvider()
@@ -46,6 +52,7 @@ internal class DirectFolderSelectionCoordinator(
         }
 
         folderPickMode = mode
+        openedScope = selectionScopeProvider(mode)
         browserRequiresWritable = mode != FolderPickMode.ArchiveLibraryFolder
         browserTitle = titleFor(mode)
         val currentPath = currentPathProvider(mode)
@@ -66,6 +73,12 @@ internal class DirectFolderSelectionCoordinator(
     }
 
     fun selectCurrent() {
+        if (openedScope != selectionScopeProvider(folderPickMode)) {
+            browserState = browserState.copy(
+                errorMessage = "Profile or game changed. Reopen the folder chooser."
+            )
+            return
+        }
         val currentPath = browserState.currentPath ?: return
 
         if (folderPickMode.isGameInstallationMode()) {

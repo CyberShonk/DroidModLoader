@@ -2,6 +2,7 @@ package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 import com.shonkware.droidmodloader.engine.profile.ProfileRepositoryFactory
+import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.ui.MainActivityUiState
 
 /**
@@ -11,7 +12,8 @@ import com.shonkware.droidmodloader.ui.MainActivityUiState
 internal class ProfileSessionCoordinator(
     private val state: MainActivityUiState,
     private val profileRepositoryFactory: ProfileRepositoryFactory,
-    private val profileScopedEngineFactory: ProfileScopedEngineFactory,
+    private val profileScopedEngineFactoryProvider: () -> ProfileScopedEngineFactory,
+    private val configurationInputProvider: () -> GameConfigurationInput,
     private val profileStartupWorkflow: ProfileStartupWorkflow,
     private val gameConfigurationWorkflow: GameConfigurationWorkflow,
     private val runOnUiThreadBlocking: (() -> Unit) -> Unit,
@@ -29,15 +31,18 @@ internal class ProfileSessionCoordinator(
     }
 
     fun loadSelectedGameConfigIntoUi() {
-        val engine = profileScopedEngineFactory.create() ?: return
-        val activeProfile = state.profileOptions.firstOrNull {
-            it.profileId == state.activeProfileId
+        val factory = profileScopedEngineFactoryProvider()
+        val engine = factory.create() ?: return
+        var activeProfile: GameProfile? = null
+        var previousGameId = ""
+        runOnUiThreadBlocking {
+            activeProfile = state.profileOptions.firstOrNull { it.profileId == state.activeProfileId }
+            previousGameId = state.selectedGameId
         }
-        val previousGameId = state.selectedGameId
         val result = gameConfigurationWorkflow.load(
             engine = GameConfigurationEngineAdapter(engine),
             activeProfile = activeProfile,
-            selectedGameId = state.selectedGameId
+            selectedGameId = previousGameId
         )
 
         if (previousGameId != result.selectedGameId) {
@@ -53,17 +58,11 @@ internal class ProfileSessionCoordinator(
     }
 
     fun saveSelectedGameConfigFromUi() {
-        val engine = profileScopedEngineFactory.create() ?: return
+        val engine = profileScopedEngineFactoryProvider().create() ?: return
+        val input = configurationInputProvider()
         val updatedConfig = gameConfigurationWorkflow.save(
             engine = GameConfigurationEngineAdapter(engine),
-            input = GameConfigurationInput(
-                selectedGameId = state.selectedGameId,
-                targetDataPath = state.targetPathText,
-                realDeployEnabled = state.realDeployEnabledState,
-                targetRootPath = state.rootTargetPathText,
-                dataPathReselectionRequired = state.dataPathReselectionRequired,
-                rootPathReselectionRequired = state.rootPathReselectionRequired
-            )
+            input = input
         )
         appendLog("Saved updated config from Compose state: $updatedConfig")
     }

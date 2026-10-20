@@ -7,6 +7,7 @@ import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.install.InstallCancellationController
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import com.shonkware.droidmodloader.engine.install.InstallCancelledException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 internal data class PendingInstallerSession(
@@ -104,22 +105,29 @@ internal class PendingInstallerWorkflow(
                 InstallCancellationController?
                 >(null)
     fun finalizePendingInstall() {
+        prepareFinalization()?.run()
+    }
+
+    /** Reserve the immutable choices and cancellation handle while admission is held. */
+    fun prepareFinalization(): Finalization? {
         if (isOperationInProgress()) {
             appendLog(
                 "Ignoring installer finalize request: " +
                         "operation already in progress."
             )
-            return
+            return null
         }
 
-        val session = pendingSessionProvider()
+        val session = pendingSessionProvider()?.let {
+            it.copy(selectedOptionIds = it.selectedOptionIds.toSet())
+        }
 
         if (session == null) {
             appendError(
                 "No pending installer session found.",
                 null
             )
-            return
+            return null
         }
 
         val cancellationController =
@@ -136,30 +144,46 @@ internal class PendingInstallerWorkflow(
                 "Ignoring installer finalize request: " +
                         "installer finalization is already active."
             )
-            return
+            return null
+        }
+        return Finalization(session, cancellationController)
+    }
+
+    inner class Finalization internal constructor(
+        private val session: PendingInstallerSession,
+        private val cancellationController: InstallCancellationController
+    ) {
+        private val consumed = AtomicBoolean(false)
+
+        fun run() {
+            if (consumed.compareAndSet(false, true)) {
+                executeFinalization(session, cancellationController)
+            }
         }
 
-        beginOperation(
-            "Installing selected options..."
-        )
-
-        val engine = createEngine()
-
-        if (engine == null) {
-            activeCancellationController
-                .compareAndSet(
-                    cancellationController,
-                    null
-                )
-
-            failOperation(
-                "Install failed: could not create engine.",
-                null
-            )
-            return
+        fun abandon() {
+            if (consumed.compareAndSet(false, true)) {
+                activeCancellationController.compareAndSet(cancellationController, null)
+            }
         }
+    }
 
+    private fun executeFinalization(
+        session: PendingInstallerSession,
+        cancellationController: InstallCancellationController
+    ) {
+        var cleanupEngine: PendingInstallerEngine? = null
         try {
+            beginOperation(
+                "Installing selected options..."
+            )
+            val engine = createEngine()
+            cleanupEngine = engine
+            if (engine == null) {
+                failOperation("Install failed: could not create engine.", null)
+                return
+            }
+            cancellationController.signal.throwIfCancellationRequested()
             val existingMods =
                 engine.getCurrentMods()
 
@@ -242,7 +266,7 @@ internal class PendingInstallerWorkflow(
             exception: InstallCancelledException
         ) {
             try {
-                engine.cancelPreparedArchiveInstall(
+                cleanupEngine?.cancelPreparedArchiveInstall(
                     session.prepared
                 )
             } catch (

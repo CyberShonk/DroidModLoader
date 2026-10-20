@@ -17,7 +17,7 @@ internal data class ArchiveBrowserHistory(
 internal class ArchiveBrowserWorkflow(
     private val preferences: ArchiveFolderSelectionStore,
     private val activeProfileIdProvider: () -> String?,
-    private val runInBackground: (() -> Unit) -> Unit,
+    private val runInBackground: (() -> Unit) -> Boolean,
     private val isOperationInProgress: () -> Boolean,
     private val isBrowserOpen: () -> Boolean,
     private val scanFolder: (String) -> ArchiveFolderScanResult,
@@ -27,7 +27,8 @@ internal class ArchiveBrowserWorkflow(
     private val showBrowser: () -> Unit,
     private val updateState: (ArchiveBrowserUiState) -> Unit,
     private val installArchivePath: (String) -> Unit,
-    private val appendLog: (String) -> Unit
+    private val appendLog: (String) -> Unit,
+    private val postToUiThread: (() -> Unit) -> Unit = { it() }
 ) {
     @Volatile
     private var scanInProgress = false
@@ -88,7 +89,7 @@ internal class ArchiveBrowserWorkflow(
         )
         updateState(currentState)
 
-        runInBackground {
+        val accepted = runInBackground {
             try {
                 val scanResult = scanFolder(folderPath)
                 val history = loadHistory()
@@ -105,7 +106,10 @@ internal class ArchiveBrowserWorkflow(
                         isLoading = false,
                         errorMessage = null
                     )
-                    updateState(currentState)
+                    val result = currentState
+                    postToUiThread {
+                        if (isCurrentSelection(profileId, folderPath)) updateState(result)
+                    }
                 }
             } catch (t: Throwable) {
                 if (isCurrentSelection(profileId, folderPath)) {
@@ -115,7 +119,10 @@ internal class ArchiveBrowserWorkflow(
                         errorMessage = t.message
                             ?: "DML could not scan the selected archive folder."
                     )
-                    updateState(currentState)
+                    val result = currentState
+                    postToUiThread {
+                        if (isCurrentSelection(profileId, folderPath)) updateState(result)
+                    }
                     appendLog("Archive folder scan failed: ${t.message}")
                 }
             } finally {
@@ -125,6 +132,11 @@ internal class ArchiveBrowserWorkflow(
                     refresh()
                 }
             }
+        }
+        if (!accepted) {
+            scanInProgress = false
+            currentState = currentState.copy(isLoading = false)
+            updateState(currentState)
         }
     }
 

@@ -84,7 +84,8 @@ internal class DeploymentExecutionWorkflow(
             saveActiveProfile()
             saveSelectedGameConfig()
 
-            val engine = createEngine() ?: return
+            val engine = createEngine()
+                ?: throw IllegalStateException("Could not create engine for active profile.")
             val gameId = selectedGameIdProvider()
             val config = engine.getGameDeploymentConfig(gameId)
 

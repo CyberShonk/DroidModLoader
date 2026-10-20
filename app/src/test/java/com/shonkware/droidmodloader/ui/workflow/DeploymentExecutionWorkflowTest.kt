@@ -7,12 +7,63 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightIssue
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightSeverity
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
+import java.io.File
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DeploymentExecutionWorkflowTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun admissionRejectsDuplicateDeployProfileAndTargetWorkBeforeFilesystemCallbacks() {
+        val directory = temporaryFolder.newFolder()
+        val scheduled = mutableListOf<() -> Unit>()
+        val runner = ActivityThreadRunner({ true }, { it() }, scheduled::add)
+        val engine = FakeDeploymentExecutionEngine(
+            config = config(),
+            beforeDeploy = { File(directory, "deploy").writeText("writer") }
+        )
+        // Busy publication is deliberately absent, as when UI posting is delayed.
+        val harness = Harness(engine)
+        val schedule: (() -> Unit) -> Unit = { runner.runExclusiveInBackground(it) }
+        val deployment = DeploymentActionWorkflowController(
+            runInBackground = schedule,
+            runDeploy = harness.workflow::deploy,
+            runForceFullRedeploy = harness.workflow::forceFullRedeploy,
+            buildDeploymentPlan = {},
+            buildFullRedeployPlan = {}
+        )
+        val changeProfile = { File(directory, "profile").writeText("changed") }
+        val profiles = ProfileWorkflowController(schedule, { changeProfile }, { changeProfile },
+            { changeProfile() }, { changeProfile() }, changeProfile)
+        val changeTarget: (String) -> Unit = { File(directory, "target").writeText(it) }
+        val folders = FolderPickerWorkflowController(schedule, changeTarget, changeTarget,
+            changeTarget, changeTarget, changeTarget, {})
+
+        deployment.deploy()
+        deployment.deploy()
+        deployment.forceFullRedeploy()
+        profiles.switchProfile("profile-b")
+        folders.handlePickedFolder(FolderPickMode.ActiveDataFolder, "/other-target")
+
+        assertEquals(1, scheduled.size)
+        assertTrue(directory.listFiles()!!.isEmpty())
+        scheduled.removeAt(0)()
+        assertEquals(listOf("deploy"), directory.list()!!.toList())
+        assertEquals(null, engine.fullRedeployedGameId)
+        assertEquals(1, harness.saveProfileCount)
+        assertFalse(runner.isOperationAdmitted)
+
+        profiles.switchProfile("profile-b")
+        scheduled.removeAt(0)()
+        assertTrue(File(directory, "profile").isFile)
+    }
+
     @Test
     fun deploySavesConfigurationLogsResultsAndFinishes() {
         val engine = FakeDeploymentExecutionEngine(
@@ -96,7 +147,7 @@ class DeploymentExecutionWorkflowTest {
     }
 
     @Test
-    fun deployPreservesExistingEarlyReturnWhenEngineCannotBeCreated() {
+    fun deployReportsUnavailableEngineAsFailure() {
         val harness = Harness(engine = null)
 
         harness.workflow.deploy()
@@ -105,9 +156,12 @@ class DeploymentExecutionWorkflowTest {
         assertEquals(1, harness.saveConfigCount)
         assertEquals(listOf("Deploying mods..."), harness.begunOperations)
         assertTrue(harness.finishedOperations.isEmpty())
-        assertTrue(harness.failedOperations.isEmpty())
-        assertEquals(0, harness.refreshCount)
-        assertFalse(harness.logs.contains("----- Deploy Workflow End -----"))
+        assertEquals(
+            "Deploy failed: Could not create engine for active profile.",
+            harness.failedOperations.single().first
+        )
+        assertEquals(1, harness.refreshCount)
+        assertTrue(harness.logs.contains("----- Deploy Workflow End -----"))
     }
 
     @Test
@@ -248,7 +302,8 @@ class DeploymentExecutionWorkflowTest {
         private val deployThrowable: Throwable? = null,
         private val fullRedeployThrowable: Throwable? = null,
         private val fullRedeployPlanSummary: String = "plan summary",
-        private val journalSummary: String = "journal line one\njournal line two"
+        private val journalSummary: String = "journal line one\njournal line two",
+        private val beforeDeploy: () -> Unit = {}
     ) : DeploymentExecutionEngine {
         var deployedGameId: String? = null
         var fullRedeployedGameId: String? = null
@@ -271,6 +326,7 @@ class DeploymentExecutionWorkflowTest {
         }
 
         override fun deployForGame(gameId: String): ScopedDeploymentResult {
+            beforeDeploy()
             deployThrowable?.let { throw it }
             deployedGameId = gameId
             return deployResult

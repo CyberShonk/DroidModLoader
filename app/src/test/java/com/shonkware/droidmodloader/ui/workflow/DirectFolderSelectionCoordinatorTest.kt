@@ -36,6 +36,42 @@ class DirectFolderSelectionCoordinatorTest {
     }
 
     @Test
+    fun `folder chosen for superseded profile or game is refused`() {
+        val root = Files.createTempDirectory("dml-stale-folder").toFile()
+        try {
+            var scope = FolderSelectionScope("profile-a", "skyrim_le")
+            var selections = 0
+            val validator = DirectPathValidator()
+            val coordinator = DirectFolderSelectionCoordinator(
+                accessGrantedProvider = { true },
+                browser = DirectFolderBrowser(listOf(root), validator),
+                pathValidator = validator,
+                currentPathProvider = { root.absolutePath },
+                requestAllFilesAccess = {},
+                handlePickedFolder = { _, _ -> selections++ },
+                selectionScopeProvider = { scope }
+            )
+            for (replacement in listOf(
+                FolderSelectionScope("profile-b", "skyrim_le"),
+                FolderSelectionScope("profile-a", "fallout_nv")
+            )) {
+                scope = FolderSelectionScope("profile-a", "skyrim_le")
+                coordinator.open(FolderPickMode.ActiveDataFolder)
+                scope = replacement
+                coordinator.selectCurrent()
+                assertEquals(0, selections)
+                assertTrue(coordinator.showBrowser)
+                assertEquals("Profile or game changed. Reopen the folder chooser.", coordinator.browserState.errorMessage)
+            }
+            coordinator.open(FolderPickMode.ActiveDataFolder)
+            coordinator.selectCurrent()
+            assertEquals(1, selections)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `missing access requests settings without opening browser`() {
         var requests = 0
         val root = Files.createTempDirectory("dml-folder-access").toFile()

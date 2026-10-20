@@ -16,6 +16,7 @@ import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModType
 import com.shonkware.droidmodloader.ui.workflow.PendingInstallerEngine
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -115,6 +116,64 @@ class SessionRecreationTest {
     }
 
     @Test
+    fun supportReportIsSingleUseAndDiscardedWhenItsInputsAreSuperseded() {
+        compose.activityRule.scenario.onActivity { activity ->
+            render(activity)
+            // Separate app-owned fixture scope; no production startup or game target.
+            session.activeProfileId = "s2-support-report-fixture"
+            session.requestSupportReport()
+        }
+        compose.waitUntil(5_000) { session.pendingSupportReportFile != null && !session.isOperationAdmitted }
+        var exported: File? = null
+        compose.runOnIdle {
+            exported = session.consumeSupportReport()
+            assertNull(session.consumeSupportReport())
+            session.requestSupportReport()
+        }
+        assertTrue(checkNotNull(exported).readText().contains("Droid Mod Loader Diagnostic Summary"))
+        compose.waitUntil(5_000) { session.pendingSupportReportFile != null && !session.isOperationAdmitted }
+        compose.runOnIdle {
+            session.selectedGameId = "fallout_nv"
+            assertNull(session.consumeSupportReport())
+            session.requestSupportReport()
+        }
+        compose.waitUntil(5_000) { session.pendingSupportReportFile != null && !session.isOperationAdmitted }
+        compose.runOnIdle {
+            // Even another operation in the same context invalidates an unconsumed result.
+            session.buildActions(shareLogs = {}, requestAllFilesAccess = {}).onViewModFiles("missing-fixture-mod")
+            assertNull(session.pendingSupportReportFile)
+            assertNull(session.consumeSupportReport())
+        }
+        compose.waitUntil(5_000) {
+            session.logText.contains("Mod not found: missing-fixture-mod") && !session.isOperationAdmitted
+        }
+    }
+
+    @Test
+    fun deleteConfirmationForSupersededProfileGameOrTargetIsRefused() {
+        compose.activityRule.scenario.onActivity { activity ->
+            render(activity)
+            val actions = session.buildActions(shareLogs = {}, requestAllFilesAccess = {})
+            val mod = Mod(id = "never-delete", name = "Test", installPath = "/test/mod",
+                enabled = true, priority = 1, modType = ModType.LOOSE)
+            for (change in listOf<() -> Unit>(
+                { session.activeProfileId = "profile-b" },
+                { session.selectedGameId = "fallout_nv" },
+                { session.targetPathText = "/other-target" }
+            )) {
+                session.activeProfileId = "profile-a"
+                session.selectedGameId = "skyrim_le"
+                session.targetPathText = "/original-target"
+                actions.onDeleteMod(mod)
+                change()
+                session.confirmDelete(mod)
+                assertNull(session.pendingDeleteMod)
+                assertTrue(session.logText.contains("Ignoring delete confirmation: profile, game or target changed."))
+            }
+        }
+    }
+
+    @Test
     fun savedAttentionBundleDoesNotSerializeOrRecreateLiveInstallerState() {
         compose.activityRule.scenario.onActivity { activity ->
             render(activity)
@@ -175,9 +234,37 @@ class SessionRecreationTest {
 
             compose.runOnIdle {
                 assertTrue(session.operationInProgress)
+                assertTrue(session.isOperationAdmitted)
                 assertSame(prepared, session.pendingArchiveInstall)
             }
             compose.onNodeWithText("Installing selected options...").assertIsDisplayed()
+            compose.runOnIdle {
+                val gameId = session.selectedGameId
+                val profileId = session.activeProfileId
+                val status = session.lastOperationStatus
+                val actions = session.buildActions(shareLogs = {}, requestAllFilesAccess = {})
+                // Model a delayed busy projection: session admission must still refuse these.
+                session.operationInProgress = false
+                actions.onConfirmInstaller()
+                actions.onDeployMods()
+                actions.onSelectProfile("must-not-be-loaded")
+                actions.onSelectGame("fallout_nv")
+                actions.onSaveSettings()
+                session.requestSupportReport()
+                assertNull(session.pendingSupportReportFile)
+                val mod = Mod(id = "must-not-be-deleted", name = "Test", installPath = "/test/mod",
+                    enabled = true, priority = 1, modType = ModType.LOOSE)
+                actions.onDeleteMod(mod)
+                session.confirmDelete(mod)
+                assertEquals(mod, session.pendingDeleteMod)
+                session.cancelDelete()
+                assertEquals(gameId, session.selectedGameId)
+                assertEquals(profileId, session.activeProfileId)
+                assertEquals(status, session.lastOperationStatus)
+                assertEquals(1, engine.finalizeCount.get())
+                assertEquals(0, engine.saveCount.get())
+                session.operationInProgress = true
+            }
             if (cancel) {
                 compose.onNodeWithText("Cancel").performClick()
                 compose.waitUntil(timeoutMillis = 5_000) { session.lastOperationStatus == "Cancelling installer..." }
@@ -185,13 +272,13 @@ class SessionRecreationTest {
                 // Duplicate confirmation must not start another worker after reattachment.
                 compose.onNodeWithText("Install Selected").performClick()
                 compose.waitUntil(timeoutMillis = 5_000) {
-                    session.logText.contains("Ignoring installer finalize request: operation already in progress.")
+                    session.logText.contains("Ignoring request: session operation was not admitted.")
                 }
             }
             engine.release.countDown()
             val expected = if (cancel) "Installer cancelled." else "Archive imported successfully."
             compose.waitUntil(timeoutMillis = 5_000) {
-                session.pendingArchiveInstall == null && !session.operationInProgress &&
+                session.pendingArchiveInstall == null && !session.operationInProgress && !session.isOperationAdmitted &&
                     session.lastOperationStatus.startsWith(expected)
             }
             compose.runOnIdle {

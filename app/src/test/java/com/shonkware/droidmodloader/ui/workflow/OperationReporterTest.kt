@@ -98,9 +98,29 @@ class OperationReporterTest {
         )
     }
 
-    private fun createReporter(state: FakeState): OperationReporter {
+    @Test
+    fun `busy state is a delayed UI projection not synchronous admission`() {
+        val state = FakeState()
+        val publications = mutableListOf<() -> Unit>()
+        val reporter = createReporter(state, publications::add)
+
+        reporter.beginOperation("Deploying...")
+
+        assertFalse(state.operationInProgress)
+        assertTrue(state.fileLines.single().contains("OPERATION START: Deploying..."))
+
+        publications.toList().forEach { it() }
+
+        assertTrue(state.operationInProgress)
+        assertEquals("Deploying...", state.activeOperationText)
+    }
+
+    private fun createReporter(
+        state: FakeState,
+        runOnUiThread: (() -> Unit) -> Unit = { it() }
+    ): OperationReporter {
         return OperationReporter(
-            runOnUiThread = { action -> action() },
+            runOnUiThread = runOnUiThread,
             currentLogText = { state.logText },
             updateLogText = { state.logText = it },
             updateOperationInProgress = { state.operationInProgress = it },

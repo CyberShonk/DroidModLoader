@@ -195,6 +195,106 @@ class PendingInstallerWorkflowTest {
         assertTrue(harness.statuses.isEmpty())
     }
 
+    @Test
+    fun reservedFinalizationAcceptsCancellationBeforeWorkerStarts() {
+        val engine = FakePendingInstallerEngine()
+        val harness = WorkflowHarness(engine, session())
+        val request = checkNotNull(harness.workflow.prepareFinalization())
+
+        assertTrue(harness.workflow.cancelActiveInstall())
+        assertEquals(0, harness.engineCreationCount)
+        assertTrue(engine.cancelledArchiveNames.isEmpty())
+        assertTrue(engine.savedMods.isEmpty())
+
+        request.run()
+
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(1, engine.cancelledArchiveNames.size)
+        assertTrue(engine.savedMods.isEmpty())
+        assertNull(harness.session)
+        assertEquals(listOf("Installer cancelled."), harness.cancelMessages)
+        assertFalse(harness.workflow.cancelActiveInstall())
+    }
+
+    @Test
+    fun abandonedReservationCannotRunOrReleaseANewerRequest() {
+        val engine = FakePendingInstallerEngine()
+        val harness = WorkflowHarness(engine, session())
+        val abandoned = checkNotNull(harness.workflow.prepareFinalization())
+        abandoned.abandon()
+        assertFalse(harness.workflow.cancelActiveInstall())
+        val current = checkNotNull(harness.workflow.prepareFinalization())
+
+        abandoned.run()
+        abandoned.abandon()
+        assertEquals(0, harness.engineCreationCount)
+        assertTrue(harness.workflow.cancelActiveInstall())
+        current.run()
+        current.run()
+
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(1, harness.clearCount)
+    }
+
+    @Test
+    fun schedulingFailureAbandonsReservedCancellationAndSessionCanRetry() {
+        val engine = FakePendingInstallerEngine()
+        val harness = WorkflowHarness(engine, session())
+        val runner = ActivityThreadRunner({ true }, { it() }, { error("start failed") })
+        var request: PendingInstallerWorkflow.Finalization? = null
+        try {
+            runner.runExclusiveInBackground(beforeSchedule = {
+                request = harness.workflow.prepareFinalization()
+                request != null
+            }) { checkNotNull(request).run() }
+            error("Expected scheduling failure")
+        } catch (failure: IllegalStateException) {
+            request?.abandon()
+            assertEquals("start failed", failure.message)
+        }
+
+        assertFalse(runner.isOperationAdmitted)
+        assertFalse(harness.workflow.cancelActiveInstall())
+        assertEquals(0, harness.engineCreationCount)
+        harness.workflow.finalizePendingInstall()
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(1, harness.finishMessages.size)
+    }
+
+    @Test
+    fun reservedChoicesAreNotRereadFromMutableUiState() {
+        val engine = FakePendingInstallerEngine()
+        val harness = WorkflowHarness(engine, session())
+        val originalChoices = harness.session!!.selectedOptionIds.toSet()
+        val request = checkNotNull(harness.workflow.prepareFinalization())
+        harness.session = harness.session!!.copy(selectedOptionIds = setOf("superseded"))
+
+        request.run()
+
+        assertEquals(originalChoices, engine.finalizedSelectedOptionIds)
+    }
+
+    @Test
+    fun engineCreationFailureReleasesLocalGuardForRetry() {
+        val engine = FakePendingInstallerEngine()
+        val harness = WorkflowHarness(engine, session())
+        val failure = IllegalStateException("factory failed")
+        harness.engineCreationFailure = failure
+
+        harness.workflow.finalizePendingInstall()
+
+        assertEquals(failure, harness.failures.single().second)
+        assertFalse(harness.workflow.cancelActiveInstall())
+        assertTrue(engine.savedMods.isEmpty())
+
+        harness.engineCreationFailure = null
+        harness.workflow.finalizePendingInstall()
+
+        assertEquals(2, harness.engineCreationCount)
+        assertEquals(1, engine.savedMods.size)
+        assertEquals(1, harness.finishMessages.size)
+    }
+
     private class WorkflowHarness(
         engine: FakePendingInstallerEngine?,
         session: PendingInstallerSession?
@@ -202,6 +302,7 @@ class PendingInstallerWorkflowTest {
         var session: PendingInstallerSession? = session
         var operationInProgress = false
         var engineCreationCount = 0
+        var engineCreationFailure: Throwable? = null
         var clearCount = 0
         var refreshCount = 0
         val logs = mutableListOf<String>()
@@ -217,7 +318,11 @@ class PendingInstallerWorkflowTest {
         val workflow = PendingInstallerWorkflow(
             pendingSessionProvider = { session },
             isOperationInProgress = { operationInProgress },
-            createEngine = { engineCreationCount++; engine },
+            createEngine = {
+                engineCreationCount++
+                engineCreationFailure?.let { throw it }
+                engine
+            },
             beginOperation = { message -> beginMessages.add(message) },
             finishOperation = { message -> finishMessages.add(message) },
             cancelOperation = { message -> cancelMessages.add(message) },

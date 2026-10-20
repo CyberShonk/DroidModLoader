@@ -4,6 +4,7 @@ import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.io.SessionLogWriter
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
+import java.io.File
 
 internal data class AppDiagnosticInfo(
     val versionName: String,
@@ -33,6 +34,19 @@ internal class SupportReportCoordinator(
     private val currentLogTextProvider: () -> String,
     private val sessionLogWriter: SessionLogWriter
 ) {
+    fun buildShareFile(cacheDir: File): File {
+        val directory = File(cacheDir, "support-reports")
+        check(directory.isDirectory || directory.mkdirs()) { "Could not create support report cache." }
+        val report = File.createTempFile("dml-support-report-", ".txt", directory)
+        try {
+            report.writeText(buildShareText())
+            return report
+        } catch (failure: Throwable) {
+            report.delete()
+            throw failure
+        }
+    }
+
     fun buildShareText(): String {
         val engine = engineProvider()
         val mods = engine?.getCurrentMods().orEmpty()

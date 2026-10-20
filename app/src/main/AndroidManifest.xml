@@ -13,6 +13,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.DroidModLoader">
+        <provider
+            android:name=".SupportReportFileProvider"
+            android:authorities="${applicationId}.supportreports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/support_report_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"

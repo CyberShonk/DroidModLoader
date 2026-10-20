@@ -18,6 +18,7 @@ import com.shonkware.droidmodloader.engine.storage.AllFilesAccessManager
 import com.shonkware.droidmodloader.ui.DroidModLoaderScreen
 import com.shonkware.droidmodloader.ui.SecondScreenController
 import com.shonkware.droidmodloader.ui.theme.DmlTheme
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private lateinit var session: SessionViewModel
@@ -33,7 +34,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val actions = remember(session) {
-                session.buildActions(::shareLogs, ::requestAllFilesAccess)
+                session.buildActions(session::requestSupportReport, ::requestAllFilesAccess)
             }
             val state = session.dashboardState()
             // Presentation/windows are recreated for the current Activity; only
@@ -62,6 +63,9 @@ class MainActivity : ComponentActivity() {
                     session.consumeSettingsRequest()
                     requestAllFilesAccess()
                 }
+            }
+            LaunchedEffect(session.pendingSupportReportFile) {
+                session.consumeSupportReport()?.let(::shareLogs)
             }
             val deleteMod = session.pendingDeleteMod
             DisposableEffect(deleteMod) {
@@ -97,12 +101,13 @@ class MainActivity : ComponentActivity() {
         session.onResume()
     }
 
-    private fun shareLogs() {
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            putExtra(Intent.EXTRA_TEXT, session.shareText())
-            type = "text/plain"
+    private fun shareLogs(report: File) {
+        try {
+            val sendIntent = SupportReportFileProvider.createShareIntent(this, report)
+            startActivity(Intent.createChooser(sendIntent, "Share Logs"))
+        } catch (error: RuntimeException) {
+            session.logShareUnavailable(error)
         }
-        startActivity(Intent.createChooser(sendIntent, "Share Logs"))
     }
 
     private fun requestAllFilesAccess() {

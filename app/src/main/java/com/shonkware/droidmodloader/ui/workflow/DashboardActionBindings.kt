@@ -23,10 +23,7 @@ internal class DashboardActionBindings(
     private val overwriteActionWorkflowController: OverwriteActionWorkflowController,
     private val developerToolsWorkflowController: DeveloperToolsWorkflowController,
     private val deployRecoveryWorkflowController: DeployRecoveryWorkflowController,
-    private val activityThreadRunner: ActivityThreadRunner,
-    private val profileContentInspectionCoordinator: ProfileContentInspectionCoordinator,
-    private val pluginSyncWorkflowController: PluginSyncWorkflowController,
-    private val loadSelectedGameConfigIntoUi: () -> Unit,
+    private val selectGame: (String) -> Unit,
     private val appendLog: (String) -> Unit,
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow,
 
@@ -64,14 +61,7 @@ internal class DashboardActionBindings(
             onTogglePlugin = pluginActionWorkflowController::togglePlugin,
             onMovePluginUp = pluginActionWorkflowController::movePluginUp,
             onMovePluginDown = pluginActionWorkflowController::movePluginDown,
-            onSelectGame = { gameId ->
-                state.selectedGameId = gameId
-                loadSelectedGameConfigIntoUi()
-                activityThreadRunner.runInBackground {
-                    profileContentInspectionCoordinator.ensureDataBaselineIfMissing("selected game changed")
-                    pluginSyncWorkflowController.syncWithNewEngineThenRefresh()
-                }
-            },
+            onSelectGame = selectGame,
             onPickTargetFolder = {
                 directFolderSelectionCoordinator.open(
                     if (state.setupComplete) {
@@ -81,11 +71,7 @@ internal class DashboardActionBindings(
                     }
                 )
             },
-            onSaveSettings = {
-                activityThreadRunner.runInBackground {
-                    profileWorkflowController.saveSettings()
-                }
-            },
+            onSaveSettings = profileWorkflowController::saveSettings,
             onShareLogs = shareLogs,
             onProfileNameChanged = { state.profileNameText = it },
             onSetupGameChanged = { gameId ->
