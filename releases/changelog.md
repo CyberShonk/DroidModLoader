@@ -6,8 +6,8 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
-- feat: Deployment Health shares scoped readiness, pending-change, recovery and integrity facts across dashboard details, App Attention and support reports. Unknown or stale evidence stays explicit; successful operations and warning review do not prove disk integrity, and routine refreshes never rebuild expected hashes.
-- feat: Report & Diagnostics offers a cancellable, read-only SHA-256 check of recorded Data, Game Root and installed mod files, reporting missing, changed, unreadable or unavailable evidence. Results identify captured inputs and remain historical observations, not live health or compatibility proof; checks never rebuild missing expected hashes.
+- feat: Deployment Health shares scoped readiness, pending-change, recovery and integrity facts across dashboard details, App Attention and support reports. Unknown or stale evidence stays explicit; successful operations and warning review do not prove disk integrity, and routine refreshes never rebuild expected hashes. <!-- commits: 2975d4fa6e4fa54debc4b5ff6d11789c58919e99 -->
+- feat: Report & Diagnostics offers a cancellable, read-only SHA-256 check of recorded Data, Game Root and installed mod files, reporting missing, changed, unreadable or unavailable evidence. Results identify captured inputs and remain historical observations, not live health or compatibility proof; checks never rebuild missing expected hashes. <!-- commits: de2614ec50a76c773008bba4e38c8d6ce75d04c0 -->
 - feat: Mods show warnings for missing installation folders or no recognized game data. <!-- commits: 29119e8019f06089ea276fcae8ecaadaaf29ce44 -->
 - feat: App Attention collects unresolved deployment and installation recovery notices and requests to select a game folder again for the current profile. <!-- commits: cc38f79ff572825db526f7d41d2c5ba07edc1c4e, 5a6c10c62eafdae4ba2e7d6729f5d5f96a7ca107 -->
 - feat: Archive Library offers explicit cleanup of old archive copies, deleting only verified redundant copies while preserving originals and import history. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
