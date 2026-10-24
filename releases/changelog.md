@@ -4,6 +4,10 @@ This file records release changes visible to users and known limitations.
 
 ## v0.8.0-beta - Unreleased
 
+### Added
+
+- feat: Release preparation creates categorized draft notes from unreleased changes, links each entry to its recorded commit, and starts a fresh changelog section.
+
 ### Changed
 
 - Operation feedback now stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status.

@@ -76,6 +76,21 @@ python3 tools/check-apk-receipts.py app/build/outputs/apk/debug/*.apk
 This checks hashes and metadata consistency, not cryptographic trust in the
 receipt itself. The build task separately verifies APK signatures.
 
+## Release note drafts
+
+`tools/prepare-release.sh <version> <version-code>` copies the unreleased changelog
+into draft release notes, dates that changelog section, and starts a fresh
+`Unreleased` section. It does not publish a release. Existing branch, clean tree,
+version code and tag checks still apply. Python 3, full Git history and a GitHub
+`origin` are required.
+
+Each change gets an inline link to the commit that last changed its changelog
+line. If that is not the intended implementation commit, add a trailing override
+such as `<!-- commits: abc1234, def5678 -->` to the entry's bullet line. References
+must resolve to commits in the current history. Overrides are hidden in the
+generated notes.
+Review the summaries, links, known issues and upgrade guidance before publication.
+
 ## Pull requests
 
 Include:
