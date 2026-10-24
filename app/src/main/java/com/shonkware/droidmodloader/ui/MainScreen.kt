@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.attention.AppAttention
 import com.shonkware.droidmodloader.attention.AppAttentionAction
 import com.shonkware.droidmodloader.attention.AppAttentionId
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.flags.ModFlag
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
@@ -43,6 +44,7 @@ data class DashboardUiState(
     val developerModeEnabled: Boolean,
     val lastOperationStatus: String,
     val summaryText: String,
+    val deploymentHealth: DeploymentHealth? = null,
     val mods: List<Mod>,
     val plugins: List<PluginEntry>,
     val gameOptions: List<String>,
@@ -165,6 +167,7 @@ data class DashboardActions(
     val onBuildResolvedDataGraph: () -> Unit = {},
     val onBuildDeploymentPlan: () -> Unit = {},
     val onVerifyManagedContent: () -> Unit = {},
+    val onRefreshDeploymentHealth: () -> Unit = {},
     val onCancelIntegrityCheck: () -> Unit = {},
     val onShowArchiveLibrarySummary: () -> Unit = {},
     val onCleanOldArchiveCopies: () -> Unit = {},
@@ -282,6 +285,8 @@ private fun MainDashboardScreen(
                     onShareLogs = actions.onShareLogs,
                     operationInProgress = state.operationInProgress,
                     integrityCheckInProgress = state.integrityCheckInProgress,
+                    deploymentHealth = state.deploymentHealth,
+                    onRefreshDeploymentHealth = actions.onRefreshDeploymentHealth,
                     onVerifyManagedContent = actions.onVerifyManagedContent,
                     onCancelIntegrityCheck = actions.onCancelIntegrityCheck
                 )
@@ -311,7 +316,7 @@ private fun MainDashboardScreen(
                             Text("Previous Deploy Warning")
                         },
                         text = {
-                            Text(state.deployRecoveryWarningText)
+                            Text(state.deployRecoveryWarningText, modifier = Modifier.verticalScroll(rememberScrollState()))
                         },
                         confirmButton = {
                             TextButton(onClick = actions.onCloseDeployRecoveryDetails) {

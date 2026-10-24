@@ -87,6 +87,28 @@ class SupportReportCoordinatorTest {
         }
     }
 
+    @Test
+    fun `support uses the supplied shared health projection without recomputing it`() {
+        val root = Files.createTempDirectory("dml-health-support").toFile()
+        try {
+            val state = com.shonkware.droidmodloader.ui.MutableMainActivityUiState().apply {
+                activeProfileId = "profile-a"
+                selectedGameId = "fallout_nv"
+            }
+            val health = state.currentDeploymentHealth()
+            var calls = 0
+            val coordinator = SupportReportCoordinator(
+                { FakeEngine() }, { AppDiagnosticInfo("test", 1, "com.test", "36", "Fixture") },
+                { "Ready" }, { false }, { "log" }, SessionLogWriter { root },
+                deploymentHealthProvider = { calls++; health }
+            )
+            val text = coordinator.buildShareText()
+            assertEquals(1, calls)
+            assertTrue(text.contains(health.toDebugSummary()))
+            assertTrue(text.contains("INTEGRITY_UNVERIFIED"))
+        } finally { root.deleteRecursively() }
+    }
+
     private class FakeEngine : SupportReportEngine {
         override fun getCurrentMods(): List<Mod> = listOf(
             Mod("mod", "Mod", "/mods/mod", true, 1, ModType.LOOSE)

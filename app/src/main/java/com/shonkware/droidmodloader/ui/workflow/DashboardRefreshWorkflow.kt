@@ -3,7 +3,8 @@ package com.shonkware.droidmodloader.ui.workflow
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.flags.ModFlag
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
-import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
+import com.shonkware.droidmodloader.engine.deploy.health.ScopedIntegrityObservation
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
 
@@ -11,8 +12,8 @@ internal interface DashboardRefreshEngine {
     fun getCurrentMods(): List<Mod>
     fun getCurrentPlugins(): List<PluginEntry>
     fun hasSavedState(): Boolean
-    fun getGameDeploymentConfig(gameId: String): GameDeploymentConfig?
-    fun validateTargetDataPath(path: String): Boolean
+    fun buildDeploymentHealth(profileId: String, gameId: String, observation: ScopedIntegrityObservation?,
+        contentIndexes: Map<String, ModContentIndex>): DeploymentHealth
     fun indexModContent(mod: Mod): ModContentIndex
     fun evaluateModFlags(mod: Mod, contentIndex: ModContentIndex): Set<ModFlag>
 }
@@ -23,11 +24,8 @@ internal class DashboardRefreshEngineAdapter(
     override fun getCurrentMods(): List<Mod> = engine.getCurrentMods()
     override fun getCurrentPlugins(): List<PluginEntry> = engine.getCurrentPlugins()
     override fun hasSavedState(): Boolean = engine.hasSavedState()
-    override fun getGameDeploymentConfig(gameId: String): GameDeploymentConfig? =
-        engine.getGameDeploymentConfig(gameId)
-
-    override fun validateTargetDataPath(path: String): Boolean =
-        engine.validateTargetDataPath(path)
+    override fun buildDeploymentHealth(profileId: String, gameId: String, observation: ScopedIntegrityObservation?,
+        contentIndexes: Map<String, ModContentIndex>) = engine.buildDeploymentHealth(profileId, gameId, observation, contentIndexes)
 
     override fun indexModContent(mod: Mod): ModContentIndex = engine.indexModContent(mod)
     override fun evaluateModFlags(mod: Mod, contentIndex: ModContentIndex): Set<ModFlag> =
@@ -39,13 +37,16 @@ internal data class DashboardRefreshResult(
     val plugins: List<PluginEntry>,
     val modContentIndexes: Map<String, ModContentIndex>,
     val modFlags: Map<String, Set<ModFlag>>,
-    val summaryText: String
+    val summaryText: String,
+    val deploymentHealth: DeploymentHealth? = null
 )
 
 internal class DashboardRefreshWorkflow {
     fun build(
         engine: DashboardRefreshEngine,
-        selectedGameId: String
+        selectedGameId: String,
+        profileId: String = "",
+        observation: ScopedIntegrityObservation? = null
     ): DashboardRefreshResult {
         val mods = engine.getCurrentMods().sortedBy { it.priority }
         val plugins = engine.getCurrentPlugins().sortedBy { it.priority }
@@ -57,25 +58,12 @@ internal class DashboardRefreshWorkflow {
             else -> "No current mod state"
         }
         val highestPriorityMod = mods.lastOrNull()?.name ?: "None"
-        val config = engine.getGameDeploymentConfig(selectedGameId)
-        val deployMode = when {
-            config == null -> "Simulated"
-            config.realDeployEnabled && engine.validateTargetDataPath(config.targetDataPath) ->
-                "Direct Path"
-            else -> "Simulated"
-        }
-        val targetStatus = config
-            ?.targetDataPath
-            ?.takeIf { it.isNotBlank() }
-            ?: "Not configured"
         val summary = buildString {
             appendLine("Installed mods: $installedCount")
             appendLine("Enabled mods: $enabledCount")
             appendLine("Plugins: ${plugins.size}")
             appendLine("State source: $stateSourceText")
             appendLine("Highest priority mod: $highestPriorityMod")
-            appendLine("Deploy mode: $deployMode")
-            appendLine("Target: $targetStatus")
         }
         val contentIndexes = mods.associate { mod ->
             mod.id to engine.indexModContent(mod)
@@ -92,7 +80,8 @@ internal class DashboardRefreshWorkflow {
             plugins = plugins,
             modContentIndexes = contentIndexes,
             modFlags = modFlags,
-            summaryText = summary
+            summaryText = summary,
+            deploymentHealth = engine.buildDeploymentHealth(profileId, selectedGameId, observation, contentIndexes)
         )
     }
 }

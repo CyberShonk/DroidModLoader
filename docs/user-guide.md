@@ -109,13 +109,25 @@ not tools reserved for developers.
 Use diagnostics when the selected target, plugin state, archive support, or
 deployment result is unclear.
 
+**Report & Diagnostics** shows one Deployment Health summary shared with its
+details, relevant App Attention notices and support reports. **Refresh Deployment
+Evidence** collects current target readiness, recorded pending changes and journal
+facts without checking file bytes or rebuilding expected hashes. Missing or stale
+source indexes leave pending changes unknown. Details identify each target role,
+collection time and reason codes; simulated targets never imply a physical deploy.
+Readiness, pending changes and integrity remain separate facts, not a health score.
+
 In **Report & Diagnostics**, choose **Check Recorded Managed Content** to compare
 recorded Data, Game Root and installed mod files with their saved SHA-256 hashes.
 **Cancel Integrity Check** stops cooperatively and leaves partial results in the
 report. Missing or invalid evidence is reported as unavailable, never rebuilt by
 this check. Results identify the captured profile, targets, input digest and time;
 they are historical observations, not live health, repair or compatibility proof.
-Rerun after changes. DML mutations are excluded during a check, but external
+After checking, use **Refresh Deployment Evidence** to include the observation in
+Deployment Health. Admitted mutations invalidate cached health/check evidence;
+profile, target or journal changes cannot revive an old match. Completed or reviewed
+operations do not establish integrity. Rerun checks after changes. DML mutations are
+excluded during a check, but external
 programs can still change files; this is not an atomic filesystem snapshot.
 
 Evidence reads are limited to 8 MiB per metadata file, 50,000 files per target,

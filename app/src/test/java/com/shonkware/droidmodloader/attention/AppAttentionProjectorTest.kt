@@ -1,5 +1,7 @@
 package com.shonkware.droidmodloader.attention
 
+import com.shonkware.droidmodloader.engine.deploy.GameTargetType
+import com.shonkware.droidmodloader.engine.deploy.health.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -142,9 +144,12 @@ class AppAttentionProjectorTest {
                 profileSessionReady = profileSessionReady,
                 activeProfileId = activeProfileId,
                 selectedGameId = selectedGameId,
-                gameInstallationReselectionRequired = gameInstallationReselectionRequired,
-                deployRecoveryRequired = deployRecoveryRequired,
-                installRecoveryRequiresAttention = installRecoveryRequiresAttention
+                deploymentHealth = DeploymentHealthProjector.project(DeploymentHealthFacts(
+                    activeProfileId.orEmpty(), selectedGameId, GameTargetType.entries.map {
+                        DeploymentTargetHealth(it, null, TargetReadiness.UNKNOWN, null, gameInstallationReselectionRequired)
+                    }, if (deployRecoveryRequired) DeploymentRecoveryFact.UNFINISHED else DeploymentRecoveryFact.NONE,
+                    DeploymentIntegrityEvidence(), null, 0, installRecoveryRequired = installRecoveryRequiresAttention
+                ))
             )
         )
     }

@@ -421,6 +421,18 @@ internal class ModLibraryService(
     }
 
 
+    /** Reuse the resolver with captured recorded indexes; health collection never rebuilds them. */
+    fun resolveRecordedDeploymentWinners(
+        mods: List<Mod>,
+        recordedFiles: List<ModFile>
+    ): Pair<List<FileRecord>, List<FileRecord>> {
+        val enabled = mods.filter { it.enabled }.sortedBy { it.priority }
+        val enabledIds = enabled.map { it.id }.toSet()
+        val files = recordedFiles.filter { it.modId in enabledIds }
+        return resolver.resolve(enabled, files.filter { deployFileClassifier.classify(it.normalizedPath) == DeployScope.DATA }) to
+            resolver.resolve(enabled, files.filter { deployFileClassifier.classify(it.normalizedPath) == DeployScope.GAME_ROOT })
+    }
+
     fun getCurrentDataWinningRecords(): List<FileRecord> {
         return resolveForScopes(
             mods = getEnabledCurrentMods(),

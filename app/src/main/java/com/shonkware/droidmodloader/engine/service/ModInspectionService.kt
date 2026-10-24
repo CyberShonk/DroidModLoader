@@ -7,6 +7,8 @@ import com.shonkware.droidmodloader.engine.data.DeploymentManifestRepository
 import com.shonkware.droidmodloader.engine.integrity.IntegrityInput
 import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
 import com.shonkware.droidmodloader.engine.model.ModType
+import com.shonkware.droidmodloader.engine.model.ModFile
+import com.shonkware.droidmodloader.engine.util.PathUtils
 import org.json.JSONArray
 import java.nio.file.Files
 import com.shonkware.droidmodloader.engine.index.ModContentCategory
@@ -31,6 +33,12 @@ import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraphBuilder
 import com.shonkware.droidmodloader.engine.resolve.ResolvedFileIdentity
 import java.io.File
 
+internal data class RecordedInstallEvidence(
+    val mods: List<Mod>,
+    val inputs: List<IntegrityInput>,
+    val deploymentStateKnown: Boolean
+)
+
 internal class ModInspectionService(
     modFileIndexDir: File,
     private val currentMods: () -> List<Mod>,
@@ -46,7 +54,10 @@ internal class ModInspectionService(
     private val overwriteScanner = OverwriteScanner()
     private val integrityIndexRepository = ModFileIndexRepository(modFileIndexDir)
 
-    fun captureInstallIntegrityInputs(modsDir: File, stateFile: File): List<IntegrityInput> {
+    fun captureInstallIntegrityInputs(modsDir: File, stateFile: File): List<IntegrityInput> =
+        captureRecordedInstallEvidence(modsDir, stateFile).inputs
+
+    fun captureRecordedInstallEvidence(modsDir: File, stateFile: File): RecordedInstallEvidence {
         val integrity = ManagedContentIntegrity
         return try {
             require(!Files.isSymbolicLink(modsDir.toPath())) { "Aliased managed storage root" }
@@ -55,7 +66,9 @@ internal class ModInspectionService(
             var remainingFiles = integrity.MAX_RECORDED_FILES
             val ids = mutableSetOf<String>()
             val roots = mutableSetOf<String>()
-            (0 until array.length()).map { index ->
+            val mods = mutableListOf<Mod>()
+            var deploymentStateKnown = true
+            val inputs = (0 until array.length()).map { index ->
                 val record = array.getJSONObject(index)
                 val id = record.getString("id")
                 val path = record.getString("installPath")
@@ -71,8 +84,12 @@ internal class ModInspectionService(
                     require(!Files.isSymbolicLink(component)) { "Aliased managed install path" }
                     component = component.parent
                 }
-                val mod = Mod(id, record.getString("name"), path, false, 0,
-                    ModType.ARCHIVE)
+                val priority = record.opt("priority") as? Number
+                if (record.opt("enabled") !is Boolean || priority == null ||
+                    priority.toLong() !in 0..Int.MAX_VALUE.toLong()) deploymentStateKnown = false
+                val mod = Mod(id, record.getString("name"), path, record.optBoolean("enabled", false),
+                    priority?.toInt() ?: 0, ModType.ARCHIVE)
+                mods += mod
                 integrity.capture("Installed mod", id, root, integrityIndexRepository.getIndexFile(mod)) {
                     val records = integrity.indexRecords(it, id, path)
                     require(records.size <= remainingFiles) { "Aggregate recorded install file limit exceeded" }
@@ -80,13 +97,42 @@ internal class ModInspectionService(
                     records
                 }
             }
+            RecordedInstallEvidence(mods, inputs, deploymentStateKnown)
         } catch (failure: Exception) {
-            listOf(IntegrityInput(
+            RecordedInstallEvidence(emptyList(), listOf(IntegrityInput(
                 "Installed mods", "Recorded install paths", null, stateFile, integrity.revision(stateFile),
                 emptyList(), integrity.evidenceProblem(stateFile, failure)
-            ))
+            )), false)
         }
     }
+
+    fun recordedDeploymentFiles(
+        sources: RecordedInstallEvidence,
+        contentIndexes: Map<String, ModContentIndex>?
+    ): List<ModFile>? = try {
+        require(sources.deploymentStateKnown) { "Recorded deployment source state unavailable" }
+        val modsById = sources.mods.associateBy { it.id }
+        sources.inputs.filter { modsById[it.identity]?.enabled == true }.flatMap { input ->
+            require(input.unavailable == null && input.root?.canonicalPath == input.canonicalRootPath) {
+                "Recorded index unavailable or install root changed"
+            }
+            val currentPaths = contentIndexes?.get(input.identity)?.entries?.map { it.originalPath }?.toSet()
+            require(currentPaths != null && currentPaths == input.records.map { it.path }.toSet()) {
+                "Recorded source file set is stale or unavailable"
+            }
+            input.records.map { entry ->
+                val file = ManagedContentIntegrity.resolveRecordedFile(input, entry)
+                val attributes = Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
+                    java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                // Match the index writer's API: Android NIO timestamps can be coarser.
+                require(attributes.isRegularFile && entry.sizeBytes == attributes.size() &&
+                    entry.modifiedEpochMillis == file.lastModified()) { "Recorded source signature is stale or unavailable" }
+                require(ManagedContentIntegrity.hasRecordedHash(entry.hash)) { "Recorded source hash unavailable" }
+                val mod = checkNotNull(modsById[input.identity])
+                ModFile(mod.id, mod.name, entry.path, checkNotNull(PathUtils.normalize(entry.path)), entry.hash)
+            }
+        }
+    } catch (_: Exception) { null }
 
     private fun getCurrentMods(): List<Mod> = currentMods()
     private fun indexModContent(mod: Mod): ModContentIndex = indexContent(mod)

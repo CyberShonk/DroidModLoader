@@ -52,9 +52,9 @@ internal class DeveloperDiagnosticsCoordinator(
         profileId: String,
         cancelled: () -> Boolean,
         contextStillCurrent: () -> Boolean
-    ) {
+    ): ManagedIntegrityReport? {
         beginOperation("Checking recorded managed content...")
-        try {
+        return try {
             val result = engine.verifyManagedContent(gameId, cancelled)
             val report = result.copy(stale = result.stale || !contextStillCurrent())
             appendLog("----- Managed Content Integrity: profile=$profileId; game=$gameId -----")
@@ -65,10 +65,12 @@ internal class DeveloperDiagnosticsCoordinator(
                 report.groups.any { !it.complete } -> "Integrity check partial; some evidence unavailable."
                 else -> "Integrity check completed; review recorded counts."
             })
+            report
         } catch (failure: Exception) {
             failOperation("Integrity check failed: ${failure.message}", failure)
+            null
         }
-        // Do not refresh/rebuild indexes after a read-only evidence check.
+        // The caller may reproject recorded metadata, but must not rebuild expected indexes.
     }
 
     fun buildResolvedDataGraphSummary() {

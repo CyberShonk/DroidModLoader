@@ -67,7 +67,7 @@ class DeploymentJournalRepository internal constructor(
     /** Only an absent file is absent evidence; blank, invalid or unreadable files throw. */
     fun load(): DeploymentJournalRecord? = metadataFile.read()?.let(::decode)
 
-    private fun decode(text: String): DeploymentJournalRecord =
+    internal fun decode(text: String): DeploymentJournalRecord =
         CriticalMetadataJson.decode("deployment journal", text) { value ->
             val json = value as JSONObject
             val version = if (json.has("schemaVersion")) json.requiredInt("schemaVersion") else 1

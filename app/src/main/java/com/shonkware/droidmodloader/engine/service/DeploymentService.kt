@@ -23,6 +23,11 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecke
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthFacts
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentTargetHealth
+import com.shonkware.droidmodloader.engine.deploy.health.TargetReadiness
 import com.shonkware.droidmodloader.engine.integrity.IntegrityInput
 import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
 import com.shonkware.droidmodloader.engine.model.DeploymentRecord
@@ -54,22 +59,7 @@ internal class DeploymentService(
     fun captureTargetIntegrityInputs(gameId: String): List<IntegrityInput> {
         val integrity = ManagedContentIntegrity
         return try {
-            val configText = try {
-                integrity.readEvidence(gameConfigFile)
-            } catch (_: java.nio.file.NoSuchFileException) {
-                null
-            }
-            if (configText != null) {
-                val configs = org.json.JSONArray(configText)
-                val ids = mutableSetOf<String>()
-                for (index in 0 until configs.length()) {
-                    val config = configs.getJSONObject(index)
-                    require(ids.add(config.getString("gameId"))) { "Duplicate game config" }
-                    config.getBoolean("realDeployEnabled")
-                }
-            }
-            val config = configText?.let { gameDeploymentConfigRepository.parse(it).firstOrNull { it.gameId == gameId } }
-            val targets = resolveDeploymentTargets(gameId, config)
+            val targets = resolveInspectionTargets(gameId)
             listOf(targets.data, targets.root).map { target ->
                 integrity.capture(target.targetType.displayName, target.identity.stableKey(), target.deployDirectory,
                     target.manifestFile, integrity::manifestRecords).let { input ->
@@ -83,6 +73,110 @@ internal class DeploymentService(
                 emptyList(), integrity.evidenceProblem(gameConfigFile, failure)
             ))
         }
+    }
+
+    private fun resolveInspectionTargets(gameId: String): ResolvedDeploymentTargets {
+        val configText = try {
+            ManagedContentIntegrity.readEvidence(gameConfigFile)
+        } catch (_: java.nio.file.NoSuchFileException) {
+            null
+        }
+        if (configText != null) {
+            val configs = org.json.JSONArray(configText)
+            val ids = mutableSetOf<String>()
+            for (index in 0 until configs.length()) {
+                val config = configs.getJSONObject(index)
+                require(ids.add(config.getString("gameId"))) { "Duplicate game config" }
+                config.getBoolean("realDeployEnabled")
+            }
+        }
+        val config = configText?.let { gameDeploymentConfigRepository.parse(it).firstOrNull { it.gameId == gameId } }
+        return resolveDeploymentTargets(gameId, config)
+    }
+
+    fun deploymentHealthJournalRevision(gameId: String): String =
+        ManagedContentIntegrity.revision(getDeploymentJournalFile(gameId))
+
+    fun collectDeploymentHealthFacts(
+        profileId: String,
+        gameId: String,
+        winningRecords: Pair<List<FileRecord>, List<FileRecord>>?
+    ): DeploymentHealthFacts {
+        var recoveryDetails = ""
+        val recovery = try {
+            val file = getDeploymentJournalFile(gameId)
+            val text = try {
+                ManagedContentIntegrity.readEvidence(file)
+            } catch (_: java.nio.file.NoSuchFileException) { null }
+            val journal = text?.let { DeploymentJournalRepository(file).decode(it) }
+            require(journal == null || (journal.profileId == getCurrentProfileIdForJournal() && journal.gameId == gameId)) {
+                "Journal belongs to another profile/game"
+            }
+            if (journal != null) {
+                recoveryDetails = "Operation ${journal.operationId}; recorded targets: " +
+                    listOfNotNull(journal.dataTarget?.identityKey, journal.rootTarget?.identityKey)
+                        .joinToString().ifEmpty { "unknown (legacy journal)" }
+            }
+            when (journal?.status) {
+                DeploymentJournalStatus.STARTED -> DeploymentRecoveryFact.UNFINISHED
+                DeploymentJournalStatus.FAILED -> DeploymentRecoveryFact.FAILED
+                DeploymentJournalStatus.REVIEWED -> DeploymentRecoveryFact.REVIEWED
+                else -> DeploymentRecoveryFact.NONE
+            }
+        } catch (_: Exception) {
+            recoveryDetails = "Journal evidence is unreadable, invalid or belongs to another profile/game."
+            DeploymentRecoveryFact.UNKNOWN
+        }
+        var preflight: Boolean? = null
+        var preflightDetails = ""
+        val targetHealth = try {
+            val targets = resolveInspectionTargets(gameId)
+            val resolved = listOf(targets.data, targets.root)
+            val plans = resolved.mapIndexed { index, target ->
+                if (!target.canDeploy || winningRecords == null) null else try {
+                    var oldRecords = emptyList<DeploymentRecord>()
+                    val input = ManagedContentIntegrity.capture(target.targetType.displayName,
+                        target.identity.stableKey(), target.deployDirectory, target.manifestFile) { text ->
+                        oldRecords = DeploymentManifestRepository(target.manifestFile).parse(text)
+                        ManagedContentIntegrity.manifestRecords(text)
+                    }
+                    require(input.unavailable == null || input.revision == "missing") { "Manifest unavailable" }
+                    require(oldRecords.all { it.winningModId.isNotBlank() && ManagedContentIntegrity.hasRecordedHash(it.hash) }) {
+                        "Manifest has incomplete comparison evidence"
+                    }
+                    DeploymentPlanBuilder().build(
+                        if (index == 0) DeploymentPlanScope.DATA else DeploymentPlanScope.GAME_ROOT,
+                        oldRecords, if (index == 0) winningRecords.first else winningRecords.second
+                    )
+                } catch (_: Exception) { null }
+            }
+            if (plans.all { it != null }) {
+                val result = deploymentPreflightChecker.check(targets.configSnapshot,
+                    ScopedDeploymentPlan(checkNotNull(plans[0]), checkNotNull(plans[1])))
+                preflight = result.canDeploy
+                preflightDetails = result.issues.take(8).joinToString("\n") { "${it.severity}: ${it.title} ${it.details}" }
+                if (result.issues.size > 8) preflightDetails += "\n${result.issues.size - 8} additional preflight findings."
+            }
+            resolved.mapIndexed { index, target ->
+                val reselect = when (target.targetType) {
+                    GameTargetType.DATA -> targets.configSnapshot?.dataPathReselectionRequired == true
+                    GameTargetType.GAME_ROOT -> targets.configSnapshot?.rootPathReselectionRequired == true
+                }
+                DeploymentTargetHealth(target.targetType, target.identity, when {
+                    !target.canDeploy -> TargetReadiness.UNAVAILABLE
+                    target.identity.mode in setOf("simulated", "root_simulated") -> TargetReadiness.SIMULATED
+                    else -> TargetReadiness.READY
+                }, plans[index]?.operationCount, reselect, listOfNotNull(target.unavailableReason,
+                    if (winningRecords == null) "Recorded source comparison is unavailable or stale; no empty plan was assumed." else null
+                ).joinToString("\n"))
+            }
+        } catch (_: Exception) {
+            GameTargetType.entries.map { DeploymentTargetHealth(it, null, TargetReadiness.UNKNOWN, null,
+                details = "Target configuration is missing expected fields, unsafe or unreadable.") }
+        }
+        return DeploymentHealthFacts(profileId, gameId, targetHealth, recovery,
+            DeploymentIntegrityEvidence(), preflight, System.currentTimeMillis(), recoveryDetails,
+            preflightDetails = preflightDetails)
     }
 
     fun saveGameDeploymentConfigs(configs: List<GameDeploymentConfig>) {

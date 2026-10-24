@@ -1,12 +1,14 @@
 package com.shonkware.droidmodloader.attention
 
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
+import com.shonkware.droidmodloader.engine.deploy.health.TargetReadiness
+
 internal data class AppAttentionProjectionInput(
     val profileSessionReady: Boolean,
     val activeProfileId: String?,
     val selectedGameId: String,
-    val gameInstallationReselectionRequired: Boolean,
-    val deployRecoveryRequired: Boolean,
-    val installRecoveryRequiresAttention: Boolean
+    val deploymentHealth: DeploymentHealth
 )
 
 internal object AppAttentionProjector {
@@ -17,8 +19,14 @@ internal object AppAttentionProjector {
             return emptyList()
         }
 
+        val health = input.deploymentHealth.takeIf { it.isFor(profileId, gameId) } ?: return emptyList()
+        val installRecovery = health.installRecoveryRequired
+        val deployRecovery = health.recovery in setOf(DeploymentRecoveryFact.UNFINISHED, DeploymentRecoveryFact.FAILED)
+        val reselection = health.targets.any {
+            it.reselectionRequired || it.readiness == TargetReadiness.UNAVAILABLE
+        }
         val attention = mutableListOf<AppAttention>()
-        if (input.installRecoveryRequiresAttention) {
+        if (installRecovery) {
             attention.add(
                 AppAttention(
                     id = AppAttentionIds.scoped(
@@ -33,7 +41,7 @@ internal object AppAttentionProjector {
             )
         }
 
-        if (input.deployRecoveryRequired) {
+        if (deployRecovery) {
             attention.add(
                 AppAttention(
                     id = AppAttentionIds.scoped(
@@ -43,7 +51,9 @@ internal object AppAttentionProjector {
                     ),
                     kind = AppAttentionKind.DEPLOY_RECOVERY,
                     severity = AppAttentionSeverity.WARNING,
-                    actions = listOf(
+                    actions = if (health.recovery == DeploymentRecoveryFact.FAILED) {
+                        listOf(AppAttentionAction.VIEW_DEPLOY_RECOVERY)
+                    } else listOf(
                         AppAttentionAction.VIEW_DEPLOY_RECOVERY,
                         AppAttentionAction.MARK_DEPLOY_RECOVERY_REVIEWED
                     )
@@ -51,7 +61,7 @@ internal object AppAttentionProjector {
             )
         }
 
-        if (input.gameInstallationReselectionRequired) {
+        if (reselection) {
             attention.add(
                 AppAttention(
                     id = AppAttentionIds.scoped(

@@ -101,6 +101,8 @@ import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportEngineAdapter
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
+import com.shonkware.droidmodloader.engine.deploy.health.ScopedIntegrityObservation
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -210,6 +212,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     private fun runSessionOperation(
         requireNoPendingInstaller: Boolean = false,
         refreshArchives: Boolean = true,
+        preserveHealthEvidence: Boolean = false,
         prepare: () -> Boolean = { true },
         task: () -> Unit
     ): Boolean {
@@ -218,6 +221,10 @@ internal class SessionViewModel @JvmOverloads constructor(
                 val allowed = !requireNoPendingInstaller || captureOnUiThread { pendingArchiveInstall == null }
                 if (allowed && prepare()) {
                     captureOnUiThread {
+                        if (!preserveHealthEvidence) {
+                            integrityObservation.set(null)
+                            deploymentHealth = deploymentHealth?.let(DeploymentHealthProjector::invalidate)
+                        }
                         pendingSupportReportFile = null
                         pendingSupportReportContext = null
                     }
@@ -303,7 +310,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     private val supportReportCoordinator by lazy {
         SupportReportCoordinator(
             engineProvider = {
-                profileScopedEngineFactory.create()?.let(::SupportReportEngineAdapter)
+                profileScopedEngineFactory.create(prepareDirectories = false)?.let(::SupportReportEngineAdapter)
             },
             diagnosticInfoProvider = {
                 val packageInfo = packageManager.getPackageInfo(packageName, 0)
@@ -318,7 +325,8 @@ internal class SessionViewModel @JvmOverloads constructor(
             lastOperationStatusProvider = { lastOperationStatus },
             developerModeEnabledProvider = { developerModeEnabled },
             currentLogTextProvider = { logText },
-            sessionLogWriter = sessionLogWriter
+            sessionLogWriter = sessionLogWriter,
+            deploymentHealthProvider = { captureOnUiThread { currentDeploymentHealth() } }
         )
     }
     private val pluginSynchronizationWorkflow by lazy {
@@ -1100,10 +1108,13 @@ internal class SessionViewModel @JvmOverloads constructor(
         DashboardRefreshCoordinator(
             state = this,
             buildResult = {
-                profileScopedEngineFactory.create()?.let { engine ->
+                val (profileId, gameId, engine) = captureOnUiThread {
+                    Triple(activeProfileId.orEmpty(), selectedGameId, profileScopedEngineFactory.create(prepareDirectories = false))
+                }
+                engine?.let {
                     dashboardRefreshWorkflow.build(
-                        engine = DashboardRefreshEngineAdapter(engine),
-                        selectedGameId = selectedGameId
+                        engine = DashboardRefreshEngineAdapter(it), selectedGameId = gameId,
+                        profileId = profileId, observation = integrityObservation.get()
                     )
                 }
             },
@@ -1241,10 +1252,21 @@ internal class SessionViewModel @JvmOverloads constructor(
                 archiveImportExecutionWorkflow,
             cleanOldArchiveCopies = ::cleanOldArchiveCopies,
             verifyManagedContent = ::verifyManagedContent,
+            refreshDeploymentHealth = ::refreshDeploymentHealth,
             cancelIntegrityCheck = { integrityCancellation.get()?.set(true) },
         ).build(shareLogs = shareLogs, requestAllFilesAccess = requestAllFilesAccess)
 
     private val integrityCancellation = AtomicReference<AtomicBoolean?>(null)
+    private val integrityObservation = AtomicReference<ScopedIntegrityObservation?>(null)
+
+    private fun refreshDeploymentHealth() {
+        runSessionOperation(refreshArchives = false, preserveHealthEvidence = true) {
+            captureOnUiThread { deploymentHealth = deploymentHealth?.let(DeploymentHealthProjector::invalidate) }
+            operationReporter.beginOperation("Refreshing deployment evidence...")
+            check(dashboardRefreshCoordinator.refresh()) { "Could not collect deployment evidence." }
+            operationReporter.finishOperation("Deployment evidence collected; review health details.")
+        }
+    }
 
     private fun verifyManagedContent() {
         val cancellation = AtomicBoolean(false)
@@ -1263,13 +1285,20 @@ internal class SessionViewModel @JvmOverloads constructor(
                         Triple(activeProfileId.orEmpty(), selectedGameId,
                             checkNotNull(profileScopedEngineFactory.create(prepareDirectories = false)))
                     }
-                    developerDiagnosticsCoordinator.verifyManagedContent(
+                    val context = captureOnUiThread { deploymentHealthContextKey() }
+                    val journalRevision = engine.deploymentHealthJournalRevision(gameId)
+                    val report = developerDiagnosticsCoordinator.verifyManagedContent(
                         DeveloperDiagnosticsEngineAdapter(engine), gameId, profileId,
                         cancelled = cancellation::get,
                         contextStillCurrent = {
-                            captureOnUiThread { activeProfileId.orEmpty() == profileId && selectedGameId == gameId }
+                            captureOnUiThread { deploymentHealthContextKey() == context }
                         }
                     )
+                    val observation = report?.let { ScopedIntegrityObservation(profileId, gameId, it, journalRevision) }
+                    integrityObservation.set(observation)
+                    if (report != null) {
+                        operationReporter.appendLog("Refresh Deployment Evidence to include this observation in Deployment Health; no source index was rebuilt.")
+                    }
                 } finally {
                     integrityCancellation.compareAndSet(cancellation, null)
                     captureOnUiThread { integrityCheckInProgress = false }
@@ -1390,6 +1419,7 @@ internal class SessionViewModel @JvmOverloads constructor(
         var context: Pair<String?, GameConfigurationInput>? = null
         runSessionOperation(
             refreshArchives = false,
+            preserveHealthEvidence = true,
             prepare = {
                 context = captureProfileContext()
                 true

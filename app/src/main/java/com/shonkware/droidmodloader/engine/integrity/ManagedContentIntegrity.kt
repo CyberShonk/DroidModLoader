@@ -9,7 +9,12 @@ import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
 import java.security.MessageDigest
 
-internal data class RecordedContent(val path: String, val hash: String)
+internal data class RecordedContent(
+    val path: String,
+    val hash: String,
+    val sizeBytes: Long? = null,
+    val modifiedEpochMillis: Long? = null
+)
 
 internal data class IntegrityInput(
     val label: String,
@@ -65,6 +70,8 @@ internal object ManagedContentIntegrity {
     private const val MAX_METADATA_BYTES = 8 * 1024 * 1024
     const val MAX_RECORDED_FILES = 50_000
     private val hashPattern = Regex("[a-fA-F0-9]{64}")
+
+    fun hasRecordedHash(hash: String): Boolean = hashPattern.matches(hash)
 
     fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it) }
@@ -163,7 +170,9 @@ internal object ManagedContentIntegrity {
             require(com.shonkware.droidmodloader.engine.util.PathUtils.normalize(original) == normalized) {
                 "Index path identity mismatch"
             }
-            RecordedContent(original, record.opt("hash") as? String ?: "")
+            RecordedContent(original, record.opt("hash") as? String ?: "",
+                record.optLong("sizeBytes", -1).takeIf { it >= 0 },
+                record.optLong("modifiedEpochMillis", -1).takeIf { it >= 0 })
         }
     }
 
@@ -178,6 +187,23 @@ internal object ManagedContentIntegrity {
                 input.evidenceFile.absolutePath, input.revision, input.unavailable).joinToString("\u0000", postfix = "\u0000")
         }).toByteArray(Charsets.UTF_8)
     )
+
+    fun resolveRecordedFile(input: IntegrityInput, record: RecordedContent): File {
+        val root = checkNotNull(input.root)
+        requireSafePath(record.path)
+        require(input.canonicalRootPath != null && root.canonicalPath == input.canonicalRootPath &&
+            !Files.isSymbolicLink(root.toPath())) { "Recorded root identity changed" }
+        val rootPath = root.canonicalFile.toPath()
+        val file = File(root, record.path)
+        val canonical = file.canonicalFile.toPath()
+        require(canonical != rootPath && canonical.startsWith(rootPath)) { "Path escapes recorded root" }
+        var path = root.toPath()
+        record.path.split('/').forEach { part ->
+            path = path.resolve(part)
+            require(!Files.isSymbolicLink(path)) { "Aliased recorded path" }
+        }
+        return file
+    }
 
     fun check(input: IntegrityInput, cancelled: () -> Boolean): IntegrityCounts {
         var counts = IntegrityCounts(input.label, input.identity, input.records.size, evidenceProblem = input.unavailable)
@@ -197,23 +223,11 @@ internal object ManagedContentIntegrity {
             return counts.copy(rootStatus = "Unreadable")
         }
         if (input.unavailable != null) return counts
-        val rootPath = root.canonicalFile.toPath()
         for (record in input.records) {
             if (cancelled()) break
             try {
-                requireSafePath(record.path)
-                val file = File(root, record.path)
-                require(root.canonicalPath == input.canonicalRootPath && !Files.isSymbolicLink(root.toPath())) {
-                    "Recorded root identity changed"
-                }
+                val file = resolveRecordedFile(input, record)
                 val canonical = file.canonicalFile.toPath()
-                require(canonical != rootPath && canonical.startsWith(rootPath)) { "Path escapes recorded root" }
-                // Reject symlinks in the traversal, including aliases that remain inside the root.
-                var path = root.toPath()
-                record.path.split('/').forEach { part ->
-                    path = path.resolve(part)
-                    require(!Files.isSymbolicLink(path)) { "Aliased recorded path" }
-                }
                 val attributes = Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
                 if (!attributes.isRegularFile) {
                     counts = counts.copy(unreadable = counts.unreadable + 1)

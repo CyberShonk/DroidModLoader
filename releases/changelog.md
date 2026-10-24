@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- feat: Deployment Health shares scoped readiness, pending-change, recovery and integrity facts across dashboard details, App Attention and support reports. Unknown or stale evidence stays explicit; successful operations and warning review do not prove disk integrity, and routine refreshes never rebuild expected hashes.
 - feat: Report & Diagnostics offers a cancellable, read-only SHA-256 check of recorded Data, Game Root and installed mod files, reporting missing, changed, unreadable or unavailable evidence. Results identify captured inputs and remain historical observations, not live health or compatibility proof; checks never rebuild missing expected hashes.
 - feat: Mods show warnings for missing installation folders or no recognized game data. <!-- commits: 29119e8019f06089ea276fcae8ecaadaaf29ce44 -->
 - feat: App Attention collects unresolved deployment and installation recovery notices and requests to select a game folder again for the current profile. <!-- commits: cc38f79ff572825db526f7d41d2c5ba07edc1c4e, 5a6c10c62eafdae4ba2e7d6729f5d5f96a7ca107 -->

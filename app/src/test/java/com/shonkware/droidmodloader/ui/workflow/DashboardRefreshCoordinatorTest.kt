@@ -36,6 +36,38 @@ class DashboardRefreshCoordinatorTest {
         assertEquals(listOf("ui", "Dashboard refreshed."), events)
     }
     @Test
+    fun `queued result for an old profile is not published`() {
+        val state = MutableMainActivityUiState().apply { activeProfileId = "a"; summaryText = "existing" }
+        val queued = mutableListOf<() -> Unit>()
+        val log = mutableListOf<String>()
+        val coordinator = DashboardRefreshCoordinator(state,
+            { DashboardRefreshResult(emptyList(), emptyList(), emptyMap(), emptyMap(), "old") },
+            { queued += it }, log::add)
+        coordinator.refresh()
+        state.activeProfileId = "b"
+        queued.single().invoke()
+        assertEquals("existing", state.summaryText)
+        assertEquals(emptyList<String>(), log)
+    }
+
+    @Test
+    fun `only latest refresh publishes after A to B to A`() {
+        val state = MutableMainActivityUiState().apply { activeProfileId = "a" }
+        val queued = mutableListOf<() -> Unit>()
+        var builds = 0
+        val coordinator = DashboardRefreshCoordinator(state,
+            { DashboardRefreshResult(emptyList(), emptyList(), emptyMap(), emptyMap(), "build-${++builds}") },
+            { queued += it }, {})
+        coordinator.refresh()
+        state.activeProfileId = "b"
+        coordinator.refresh()
+        state.activeProfileId = "a"
+        coordinator.refresh()
+        queued.forEach { it() }
+        assertEquals("build-3", state.summaryText)
+    }
+
+    @Test
     fun `missing result leaves UI state unchanged`() {
         val state = MutableMainActivityUiState().apply { summaryText = "existing" }
         val coordinator = DashboardRefreshCoordinator(

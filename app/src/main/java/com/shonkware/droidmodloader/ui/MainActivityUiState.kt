@@ -8,6 +8,15 @@ import com.shonkware.droidmodloader.attention.AppAttentionIds
 import com.shonkware.droidmodloader.attention.AppAttentionKind
 import com.shonkware.droidmodloader.attention.AppAttentionProjectionInput
 import com.shonkware.droidmodloader.attention.AppAttentionProjector
+import com.shonkware.droidmodloader.engine.deploy.GameTargetType
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthFacts
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthPhase
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentTargetHealth
+import com.shonkware.droidmodloader.engine.deploy.health.TargetReadiness
 import com.shonkware.droidmodloader.engine.flags.ModFlag
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
@@ -49,6 +58,8 @@ interface MainActivityUiState {
     var lastOperationStatus: String
     var logText: String
     var summaryText: String
+    var deploymentHealth: DeploymentHealth?
+    var deploymentHealthContext: List<String>
     var visibleMods: List<Mod>
     var visiblePlugins: List<PluginEntry>
     var gameOptions: List<String>
@@ -90,6 +101,42 @@ interface MainActivityUiState {
     var showDeployRecoveryDialog: Boolean
     var showForceFullRedeployConfirmDialog: Boolean
 
+    fun deploymentHealthContextKey(): List<String> = listOf(activeProfileId.orEmpty(), selectedGameId,
+        targetPathText, rootTargetPathText, realDeployEnabledState.toString(),
+        dataPathReselectionRequired.toString(), rootPathReselectionRequired.toString())
+
+    fun currentDeploymentHealth(): DeploymentHealth {
+        val snapshot = deploymentHealth?.takeIf {
+            it.isFor(activeProfileId, selectedGameId) && deploymentHealthContext == deploymentHealthContextKey()
+        }
+        val installRecovery = installRecoveryAttentionRequired &&
+            installRecoveryAttentionProfileId == activeProfileId && installRecoveryAttentionGameId == selectedGameId
+        val deployRecovery = deployRecoveryAttentionRequired &&
+            deployRecoveryAttentionProfileId == activeProfileId && deployRecoveryAttentionGameId == selectedGameId
+        val snapshotCurrent = snapshot != null && snapshot.phase != DeploymentHealthPhase.STALE_CONTEXT && !operationInProgress
+        val recovery = if (!snapshotCurrent && deployRecovery && snapshot?.recovery != DeploymentRecoveryFact.FAILED) {
+            DeploymentRecoveryFact.UNFINISHED
+        } else snapshot?.recovery ?: DeploymentRecoveryFact.UNKNOWN
+        val recoveryDetails = if (!snapshotCurrent && recovery == DeploymentRecoveryFact.UNFINISHED &&
+            deployRecovery && deployRecoveryWarningText.isNotBlank()) {
+            deployRecoveryWarningText
+        } else snapshot?.recoveryDetails.orEmpty()
+        return DeploymentHealthProjector.project(DeploymentHealthFacts(
+            activeProfileId.orEmpty(), selectedGameId,
+            snapshot?.targets ?: GameTargetType.entries.map { role ->
+                DeploymentTargetHealth(role, null, TargetReadiness.UNKNOWN, null,
+                    if (role == GameTargetType.DATA) dataPathReselectionRequired else rootPathReselectionRequired)
+            },
+            recovery,
+            snapshot?.integrity ?: DeploymentIntegrityEvidence(), snapshot?.preflightCanDeploy,
+            snapshot?.collectedAtEpochMillis ?: 0, recoveryDetails,
+            contextStillCurrent = !operationInProgress && snapshot?.phase != DeploymentHealthPhase.STALE_CONTEXT &&
+                (snapshot != null || deploymentHealth == null),
+            installRecoveryRequired = installRecovery,
+            preflightDetails = snapshot?.preflightDetails.orEmpty()
+        ))
+    }
+
     fun toDashboardUiState(
         secondScreenEnabled: Boolean,
         allFilesAccessRequired: Boolean,
@@ -129,6 +176,8 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var lastOperationStatus by mutableStateOf("Ready.")
     override var logText by mutableStateOf("")
     override var summaryText by mutableStateOf("Loading...")
+    override var deploymentHealth by mutableStateOf<DeploymentHealth?>(null)
+    override var deploymentHealthContext by mutableStateOf<List<String>>(emptyList())
     override var visibleMods by mutableStateOf<List<Mod>>(emptyList())
     override var visiblePlugins by mutableStateOf<List<PluginEntry>>(emptyList())
     override var gameOptions by mutableStateOf(listOf("skyrim_le", "oblivion", "fallout_3", "fallout_nv", "ttw"))
@@ -175,24 +224,13 @@ internal class MutableMainActivityUiState : MainActivityUiState {
         allFilesAccessRequired: Boolean,
         directFolderState: DirectFolderSelectionUiState
     ): DashboardUiState {
-        val deployRecoveryRequiredForCurrentProfile =
-            deployRecoveryAttentionRequired &&
-                deployRecoveryAttentionProfileId == activeProfileId &&
-                deployRecoveryAttentionGameId == selectedGameId
-        val installRecoveryRequiredForCurrentProfile =
-            installRecoveryAttentionRequired &&
-                installRecoveryAttentionProfileId == activeProfileId &&
-                installRecoveryAttentionGameId == selectedGameId
+        val health = currentDeploymentHealth()
         val appAttention = AppAttentionProjector.project(
             AppAttentionProjectionInput(
                 profileSessionReady = setupComplete && activeProfileId != null,
                 activeProfileId = activeProfileId,
                 selectedGameId = selectedGameId,
-                gameInstallationReselectionRequired =
-                    dataPathReselectionRequired || rootPathReselectionRequired,
-                deployRecoveryRequired = deployRecoveryRequiredForCurrentProfile,
-                installRecoveryRequiresAttention =
-                    installRecoveryRequiredForCurrentProfile
+                deploymentHealth = health
             )
         )
 
@@ -202,6 +240,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
             summaryText = summaryText,
+            deploymentHealth = health,
             mods = visibleMods,
             plugins = visiblePlugins,
             gameOptions = gameOptions,
@@ -263,8 +302,8 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             showOverwriteDialog = showOverwriteDialog,
             overwriteBaselineExists = overwriteBaselineExists,
             overwriteMessage = overwriteMessage,
-            deployRecoveryWarningText = deployRecoveryWarningText,
-            deployRecoveryAttentionRequired = deployRecoveryRequiredForCurrentProfile,
+            deployRecoveryWarningText = health.toDebugSummary(),
+            deployRecoveryAttentionRequired = health.recovery == DeploymentRecoveryFact.UNFINISHED,
             appAttention = appAttention,
             dismissedAttentionIds = dismissedAttentionIds,
             suppressedAttentionPromptIds = suppressedAttentionPromptIds,

@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.ModEngine
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.io.SessionLogWriter
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.PluginEntry
@@ -32,7 +33,8 @@ internal class SupportReportCoordinator(
     private val lastOperationStatusProvider: () -> String,
     private val developerModeEnabledProvider: () -> Boolean,
     private val currentLogTextProvider: () -> String,
-    private val sessionLogWriter: SessionLogWriter
+    private val sessionLogWriter: SessionLogWriter,
+    private val deploymentHealthProvider: () -> DeploymentHealth? = { null }
 ) {
     fun buildShareFile(cacheDir: File): File {
         val directory = File(cacheDir, "support-reports")
@@ -52,6 +54,7 @@ internal class SupportReportCoordinator(
         val mods = engine?.getCurrentMods().orEmpty()
         val plugins = engine?.getCurrentPlugins().orEmpty()
         val info = diagnosticInfoProvider()
+        val health = deploymentHealthProvider()
         val summary = buildString {
             appendLine("=== Droid Mod Loader Diagnostic Summary ===")
             appendLine()
@@ -69,6 +72,7 @@ internal class SupportReportCoordinator(
             appendLine()
             appendLine("Developer Mode Enabled: ${developerModeEnabledProvider()}")
             appendLine()
+            health?.let { appendLine(it.toDebugSummary()) }
             appendLine("Current Logs:")
             appendLine(currentLogTextProvider())
         }

@@ -2,6 +2,9 @@ package com.shonkware.droidmodloader.engine
 
 import android.content.Context
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
+import com.shonkware.droidmodloader.engine.deploy.health.ScopedIntegrityObservation
 import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
 import com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport
 import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
@@ -162,6 +165,45 @@ class ModEngine(
         deploymentService.buildDeploymentPlanForGame(gameId)
     fun buildDeploymentPlanDebugSummary(gameId: String): String =
         deploymentService.buildDeploymentPlanDebugSummary(gameId)
+
+    internal fun deploymentHealthJournalRevision(gameId: String): String =
+        deploymentService.deploymentHealthJournalRevision(gameId)
+
+    internal fun buildDeploymentHealth(
+        profileId: String,
+        gameId: String,
+        observation: ScopedIntegrityObservation?,
+        contentIndexes: Map<String, ModContentIndex>? = null
+    ): DeploymentHealth {
+        val integrity = ManagedContentIntegrity
+        val extra = integrity.revision(stateFile) + integrity.revision(gameConfigFile)
+        val journalRevision = deploymentService.deploymentHealthJournalRevision(gameId)
+        val inputs = deploymentService.captureTargetIntegrityInputs(gameId)
+        val sources = modInspectionService.captureRecordedInstallEvidence(modsDir, stateFile)
+        val before = integrity.inputDigest(inputs + sources.inputs, extra)
+        val files = modInspectionService.recordedDeploymentFiles(sources, contentIndexes)
+        val winners = try {
+            files?.let { modLibraryService.resolveRecordedDeploymentWinners(sources.mods, it) }
+        } catch (_: Exception) { null }
+        val facts = deploymentService.collectDeploymentHealthFacts(profileId, gameId, winners)
+        val current = managedIntegrityInputDigest(gameId)
+        val evidence = DeploymentHealthProjector.integrityEvidence(observation?.report, current,
+            observation?.profileId == profileId && observation.gameId == gameId &&
+                observation.journalRevision == journalRevision)
+        return DeploymentHealthProjector.project(facts.copy(
+            integrity = evidence,
+            contextStillCurrent = before == current &&
+                journalRevision == deploymentService.deploymentHealthJournalRevision(gameId)
+        ))
+    }
+
+    private fun managedIntegrityInputDigest(gameId: String): String {
+        val extra = ManagedContentIntegrity.revision(stateFile) + ManagedContentIntegrity.revision(gameConfigFile)
+        return ManagedContentIntegrity.inputDigest(
+            deploymentService.captureTargetIntegrityInputs(gameId) +
+                modInspectionService.captureInstallIntegrityInputs(modsDir, stateFile), extra
+        )
+    }
 
     internal fun verifyManagedContent(
         gameId: String,

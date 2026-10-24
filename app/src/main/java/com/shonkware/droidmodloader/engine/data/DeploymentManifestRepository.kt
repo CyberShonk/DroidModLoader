@@ -48,6 +48,10 @@ class DeploymentManifestRepository(
         val text = manifestFile.readText()
         if (text.isBlank()) return emptyList()
 
+        return parse(text)
+    }
+
+    internal fun parse(text: String): List<DeploymentRecord> {
         val array = JSONArray(text)
         val results = mutableListOf<DeploymentRecord>()
 
