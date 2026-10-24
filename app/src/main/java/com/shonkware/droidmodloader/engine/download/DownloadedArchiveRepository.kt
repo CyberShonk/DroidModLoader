@@ -1,40 +1,51 @@
 package com.shonkware.droidmodloader.engine.download
 
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFile
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.nullableLong
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.nullableString
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredLong
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredString
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbe
 
-class DownloadedArchiveRepository(
+class DownloadedArchiveRepository internal constructor(
     private val archiveLibraryDir: File,
-    private val archiveListFile: File,
-    private val archiveFormatProbe: ArchiveFormatProbe = ArchiveFormatProbe()
+    private val archiveFormatProbe: ArchiveFormatProbe,
+    private val metadataFile: CriticalMetadataFile
 ) {
-    fun load(): List<DownloadedArchiveRecord> {
-        if (!archiveListFile.exists()) return emptyList()
+    constructor(
+        archiveLibraryDir: File,
+        archiveListFile: File,
+        archiveFormatProbe: ArchiveFormatProbe = ArchiveFormatProbe()
+    ) : this(archiveLibraryDir, archiveFormatProbe, CriticalMetadataFile(archiveListFile))
 
-        return try {
-            val root = JSONArray(archiveListFile.readText())
-            buildList {
-                for (index in 0 until root.length()) {
-                    val obj = root.getJSONObject(index)
-                    add(fromJson(obj))
-                }
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
+    /** Only an absent file means an empty store. Invalid/unreadable evidence throws. */
+    fun load(): List<DownloadedArchiveRecord> {
+        val text = metadataFile.read() ?: return emptyList()
+        return decode(text)
     }
 
-    fun save(records: List<DownloadedArchiveRecord>) {
-        archiveListFile.parentFile?.mkdirs()
-
-        val root = JSONArray()
-        records.forEach { record ->
-            root.put(toJson(record))
+    private fun decode(text: String): List<DownloadedArchiveRecord> =
+        CriticalMetadataJson.decode("archive records", text) { value ->
+            val root = value as JSONArray
+            val records = List(root.length()) { index -> fromJson(root.getJSONObject(index)) }
+            require(records.map { it.archiveId }.distinct().size == records.size) {
+                "Duplicate archive IDs"
+            }
+            records
         }
 
-        archiveListFile.writeText(root.toString(2))
+    fun save(records: List<DownloadedArchiveRecord>) {
+        // Even direct saves must not replace unreadable/corrupt evidence with an empty list.
+        load()
+        val root = JSONArray()
+        records.forEach { record -> root.put(toJson(record)) }
+        val text = root.toString(2)
+        decode(text)
+        metadataFile.replace(text)
     }
 
     fun registerArchive(
@@ -155,24 +166,24 @@ class DownloadedArchiveRepository(
 
     private fun fromJson(obj: JSONObject): DownloadedArchiveRecord {
         return DownloadedArchiveRecord(
-            archiveId = obj.optString("archiveId"),
-            displayName = obj.optString("displayName"),
-            fileName = obj.optString("fileName"),
-            archiveFormat = obj.optString("archiveFormat"),
-            relativePath = obj.optString("relativePath"),
-            sizeBytes = obj.optLong("sizeBytes"),
-            modifiedAtMillis = obj.optLong("modifiedAtMillis"),
-            fingerprint = obj.optString("fingerprint"),
-            sourcePath = obj.optNullableString("sourcePath") ?: obj.optNullableString("sourceUri"),
-            sourceUrl = obj.optNullableString("sourceUrl"),
-            nexusGameDomain = obj.optNullableString("nexusGameDomain"),
-            nexusModId = obj.optNullableLong("nexusModId"),
-            nexusFileId = obj.optNullableLong("nexusFileId"),
-            nexusFileName = obj.optNullableString("nexusFileName"),
-            version = obj.optNullableString("version"),
-            installedModId = obj.optNullableString("installedModId"),
-            installedAtMillis = obj.optNullableLong("installedAtMillis"),
-            createdAtMillis = obj.optLong("createdAtMillis", System.currentTimeMillis())
+            archiveId = obj.requiredString("archiveId"),
+            displayName = obj.requiredString("displayName"),
+            fileName = obj.requiredString("fileName"),
+            archiveFormat = obj.requiredString("archiveFormat"),
+            relativePath = obj.requiredString("relativePath"),
+            sizeBytes = obj.requiredLong("sizeBytes"),
+            modifiedAtMillis = obj.requiredLong("modifiedAtMillis"),
+            fingerprint = obj.requiredString("fingerprint"),
+            sourcePath = obj.nullableString("sourcePath") ?: obj.nullableString("sourceUri"),
+            sourceUrl = obj.nullableString("sourceUrl"),
+            nexusGameDomain = obj.nullableString("nexusGameDomain"),
+            nexusModId = obj.nullableLong("nexusModId"),
+            nexusFileId = obj.nullableLong("nexusFileId"),
+            nexusFileName = obj.nullableString("nexusFileName"),
+            version = obj.nullableString("version"),
+            installedModId = obj.nullableString("installedModId"),
+            installedAtMillis = obj.nullableLong("installedAtMillis"),
+            createdAtMillis = obj.requiredLong("createdAtMillis")
         )
     }
 
@@ -189,13 +200,4 @@ class DownloadedArchiveRepository(
         }
     }
 
-    private fun JSONObject.optNullableString(name: String): String? {
-        if (!has(name) || isNull(name)) return null
-        return optString(name).takeIf { it.isNotBlank() }
-    }
-
-    private fun JSONObject.optNullableLong(name: String): Long? {
-        if (!has(name) || isNull(name)) return null
-        return optLong(name)
-    }
 }

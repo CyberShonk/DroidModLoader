@@ -1,11 +1,18 @@
 package com.shonkware.droidmodloader.engine.deploy.journal
 
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFile
+import com.shonkware.droidmodloader.engine.data.MetadataFault
+import com.shonkware.droidmodloader.engine.data.MetadataFaultOperations
+import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 class DeploymentJournalRepositoryTest {
@@ -59,6 +66,9 @@ class DeploymentJournalRepositoryTest {
         assertNull(loaded.dataTarget)
         assertNull(loaded.rootTarget)
         assertTrue(loaded.toDebugSummary().contains("legacy journal schema"))
+
+        file.writeText(JSONObject(file.readText()).apply { remove("schemaVersion") }.toString())
+        assertEquals(loaded, DeploymentJournalRepository(file).load())
     }
 
     @Test
@@ -81,6 +91,113 @@ class DeploymentJournalRepositoryTest {
         repository.saveStarted(record("operation-b"))
         assertEquals("operation-b", repository.load()!!.operationId)
     }
+
+    @Test
+    fun `only missing journal is absent and invalid evidence blocks every replacement`() {
+        val file = journalFile("invalid")
+        val repository = DeploymentJournalRepository(file)
+        assertNull(repository.load())
+        val started = record("operation-a")
+        repository.saveStarted(started)
+        val valid = file.readText()
+        val invalid = listOf(
+            "", " ", "{", "{}", valid.dropLast(1), "$valid trailing", "[]",
+            JSONObject(valid).put("schemaVersion", 99).toString(),
+            JSONObject(valid).put("schemaVersion", "2").toString(),
+            JSONObject(valid).put("status", "UNKNOWN").toString(),
+            JSONObject(valid).put("status", "COMPLETED").toString(),
+            JSONObject(valid).put("status", "FAILED").toString(),
+            JSONObject(valid).put("status", "REVIEWED").toString(),
+            JSONObject(valid).put("completedAtEpochMillis", 2000).toString(),
+            JSONObject(valid).put("status", "COMPLETED")
+                .put("completedAtEpochMillis", 2000).toString(),
+            JSONObject(valid).apply { remove("status") }.toString(),
+            JSONObject(valid).put("operationId", false).toString(),
+            JSONObject(valid).put("dataTarget", false).toString(),
+            JSONObject(valid).apply { getJSONObject("planSummary").remove("totalOperationCount") }.toString()
+        )
+        for (text in invalid) {
+            file.writeText(text)
+            val before = file.readBytes()
+            assertThrows(IOException::class.java) { repository.load() }
+            assertThrows(IOException::class.java) { repository.saveStarted(record("operation-b")) }
+            assertThrows(IOException::class.java) { repository.markReviewed(started) }
+            assertThrows(IOException::class.java) { repository.markFailed(started, "failure") }
+            assertThrows(IOException::class.java) { repository.markCompleted(started, result()) }
+            assertArrayEquals(before, file.readBytes())
+        }
+    }
+
+    @Test
+    fun `failed journal transitions retain STARTED evidence and still block another deploy`() {
+        for (fault in MetadataFault.entries) {
+            val file = journalFile("fault-${fault.name}")
+            val healthy = DeploymentJournalRepository(file)
+            val started = record("operation-a")
+            healthy.saveStarted(started)
+            val before = file.readBytes()
+            val failing = DeploymentJournalRepository(CriticalMetadataFile(file, MetadataFaultOperations(fault)))
+            assertThrows(IOException::class.java) { failing.markCompleted(started, result()) }
+            assertThrows(IOException::class.java) { failing.markFailed(started, "failure") }
+            assertThrows(IOException::class.java) { failing.markReviewed(started) }
+            assertArrayEquals(before, file.readBytes())
+            assertEquals(started, healthy.load())
+            assertThrows(IllegalStateException::class.java) { healthy.saveStarted(record("operation-b")) }
+            assertTrue(file.parentFile!!.listFiles()!!.none { it.name.endsWith(".tmp") })
+
+            // Starting after review must also preserve the reviewed record on every I/O failure.
+            healthy.markReviewed(started)
+            val reviewed = file.readBytes()
+            assertThrows(IOException::class.java) { failing.saveStarted(record("operation-b")) }
+            assertArrayEquals(reviewed, file.readBytes())
+        }
+    }
+
+    @Test
+    fun `stale terminal and review requests cannot replace another operation`() {
+        val file = journalFile("stale")
+        val repository = DeploymentJournalRepository(file)
+        val first = record("operation-a")
+        repository.saveStarted(first)
+        repository.markCompleted(first, result())
+        assertEquals(DeploymentJournalStatus.COMPLETED, repository.load()!!.status)
+        val second = record("operation-b")
+        repository.saveStarted(second)
+        val before = file.readBytes()
+        assertThrows(IllegalStateException::class.java) { repository.markReviewed(first) }
+        assertThrows(IllegalStateException::class.java) { repository.markFailed(first, "failure") }
+        assertThrows(IllegalStateException::class.java) { repository.markCompleted(first, result()) }
+        assertArrayEquals(before, file.readBytes())
+        repository.markFailed(second, "expected failure")
+        assertEquals(DeploymentJournalStatus.FAILED, repository.load()!!.status)
+    }
+
+    @Test
+    fun `missing journal cannot be recreated by a terminal or review request`() {
+        val file = journalFile("missing-terminal")
+        val repository = DeploymentJournalRepository(file)
+        val started = record("operation-a")
+        assertThrows(IllegalStateException::class.java) { repository.markReviewed(started) }
+        assertThrows(IllegalStateException::class.java) { repository.markCompleted(started, result()) }
+        assertThrows(IllegalStateException::class.java) { repository.markFailed(started, "failure") }
+        assertNull(repository.load())
+    }
+
+    @Test
+    fun `unsupported new journal is refused without replacing reviewed evidence`() {
+        val file = journalFile("unsupported-new")
+        val repository = DeploymentJournalRepository(file)
+        val started = record("operation-a")
+        repository.saveStarted(started)
+        repository.markReviewed(started)
+        val before = file.readBytes()
+        assertThrows(IOException::class.java) {
+            repository.saveStarted(record("operation-b").copy(schemaVersion = 99))
+        }
+        assertArrayEquals(before, file.readBytes())
+    }
+
+    private fun result() = DeploymentJournalResultSummary(1, 0, 0, 0, 0, 0, 1)
 
     private fun journalFile(name: String): File {
         val root = Files.createTempDirectory("dml-journal-$name").toFile()

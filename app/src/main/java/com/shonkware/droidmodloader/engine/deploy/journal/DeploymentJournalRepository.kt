@@ -1,12 +1,24 @@
 package com.shonkware.droidmodloader.engine.deploy.journal
 
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFile
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.nullableLong
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.nullableObject
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.nullableString
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredBoolean
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredInt
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredLong
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredString
 import org.json.JSONObject
 import java.io.File
 
-class DeploymentJournalRepository(
-    private val journalFile: File
+class DeploymentJournalRepository internal constructor(
+    private val metadataFile: CriticalMetadataFile
 ) {
+    constructor(journalFile: File) : this(CriticalMetadataFile(journalFile))
+
     fun saveStarted(record: DeploymentJournalRecord) {
+        check(record.status == DeploymentJournalStatus.STARTED) { "Expected STARTED journal" }
         val existing = load()
         check(existing?.status != DeploymentJournalStatus.STARTED) {
             buildString {
@@ -27,6 +39,7 @@ class DeploymentJournalRepository(
         record: DeploymentJournalRecord,
         resultSummary: DeploymentJournalResultSummary
     ) {
+        requireCurrentStarted(record)
         save(
             record.copy(
                 status = DeploymentJournalStatus.COMPLETED,
@@ -41,6 +54,7 @@ class DeploymentJournalRepository(
         record: DeploymentJournalRecord,
         message: String
     ) {
+        requireCurrentStarted(record)
         save(
             record.copy(
                 status = DeploymentJournalStatus.FAILED,
@@ -50,57 +64,71 @@ class DeploymentJournalRepository(
         )
     }
 
-    fun load(): DeploymentJournalRecord? {
-        if (!journalFile.exists()) return null
+    /** Only an absent file is absent evidence; blank, invalid or unreadable files throw. */
+    fun load(): DeploymentJournalRecord? = metadataFile.read()?.let(::decode)
 
-        val text = journalFile.readText()
-        if (text.isBlank()) return null
+    private fun decode(text: String): DeploymentJournalRecord =
+        CriticalMetadataJson.decode("deployment journal", text) { value ->
+            val json = value as JSONObject
+            val version = if (json.has("schemaVersion")) json.requiredInt("schemaVersion") else 1
+            require(version in 1..2) { "Unsupported deployment journal schema: $version" }
+            val planJson = json.getJSONObject("planSummary")
+            val resultJson = json.nullableObject("resultSummary")
+            DeploymentJournalRecord(
+                schemaVersion = version,
+                operationId = json.requiredString("operationId"),
+                gameId = json.requiredString("gameId"),
+                profileId = json.requiredString("profileId"),
+                status = DeploymentJournalStatus.valueOf(json.requiredString("status")),
+                startedAtEpochMillis = json.requiredLong("startedAtEpochMillis"),
+                completedAtEpochMillis = json.nullableLong("completedAtEpochMillis"),
+                planSummary = DeploymentJournalPlanSummary(
+                    dataOperationCount = planJson.requiredInt("dataOperationCount"),
+                    rootOperationCount = planJson.requiredInt("rootOperationCount"),
+                    totalOperationCount = planJson.requiredInt("totalOperationCount"),
+                    dataEstimatedCopyBytes = planJson.nullableLong("dataEstimatedCopyBytes"),
+                    rootEstimatedCopyBytes = planJson.nullableLong("rootEstimatedCopyBytes"),
+                    preflightCanDeploy = planJson.requiredBoolean("preflightCanDeploy"),
+                    preflightErrorCount = planJson.requiredInt("preflightErrorCount"),
+                    preflightWarningCount = planJson.requiredInt("preflightWarningCount")
+                ),
+                resultSummary = resultJson?.let {
+                    DeploymentJournalResultSummary(
+                        addCount = it.requiredInt("addCount"),
+                        updateCount = it.requiredInt("updateCount"),
+                        removeCount = it.requiredInt("removeCount"),
+                        backupCount = it.requiredInt("backupCount"),
+                        restoreCount = it.requiredInt("restoreCount"),
+                        protectedConflictCount = it.requiredInt("protectedConflictCount"),
+                        finalRecordCount = it.requiredInt("finalRecordCount")
+                    )
+                },
+                failureMessage = json.nullableString("failureMessage"),
+                dataTarget = json.nullableObject("dataTarget")?.toTargetState(),
+                rootTarget = json.nullableObject("rootTarget")?.toTargetState()
+            ).also { record ->
+                val validState = when (record.status) {
+                    DeploymentJournalStatus.STARTED ->
+                        record.completedAtEpochMillis == null && record.resultSummary == null
+                    DeploymentJournalStatus.COMPLETED ->
+                        record.completedAtEpochMillis != null && record.resultSummary != null
+                    DeploymentJournalStatus.FAILED, DeploymentJournalStatus.REVIEWED ->
+                        record.completedAtEpochMillis != null
+                }
+                require(validState) { "Inconsistent deployment journal status/completion evidence" }
+            }
+        }
 
-        val json = JSONObject(text)
-        val planJson = json.getJSONObject("planSummary")
-        val resultJson = json.optJSONObject("resultSummary")
-
-        return DeploymentJournalRecord(
-            schemaVersion = json.optInt("schemaVersion", 1),
-            operationId = json.optString("operationId"),
-            gameId = json.optString("gameId"),
-            profileId = json.optString("profileId"),
-            status = DeploymentJournalStatus.valueOf(
-                json.optString("status", DeploymentJournalStatus.FAILED.name)
-            ),
-            startedAtEpochMillis = json.optLong("startedAtEpochMillis"),
-            completedAtEpochMillis = json.optNullableLong("completedAtEpochMillis"),
-            planSummary = DeploymentJournalPlanSummary(
-                dataOperationCount = planJson.optInt("dataOperationCount"),
-                rootOperationCount = planJson.optInt("rootOperationCount"),
-                totalOperationCount = planJson.optInt("totalOperationCount"),
-                dataEstimatedCopyBytes = planJson.optNullableLong("dataEstimatedCopyBytes"),
-                rootEstimatedCopyBytes = planJson.optNullableLong("rootEstimatedCopyBytes"),
-                preflightCanDeploy = planJson.optBoolean("preflightCanDeploy"),
-                preflightErrorCount = planJson.optInt("preflightErrorCount"),
-                preflightWarningCount = planJson.optInt("preflightWarningCount")
-            ),
-            resultSummary = resultJson?.let {
-                DeploymentJournalResultSummary(
-                    addCount = it.optInt("addCount"),
-                    updateCount = it.optInt("updateCount"),
-                    removeCount = it.optInt("removeCount"),
-                    backupCount = it.optInt("backupCount"),
-                    restoreCount = it.optInt("restoreCount"),
-                    protectedConflictCount = it.optInt("protectedConflictCount"),
-                    finalRecordCount = it.optInt("finalRecordCount")
-                )
-            },
-            failureMessage = json.optString("failureMessage")
-                .takeIf { it.isNotBlank() && it != "null" },
-            dataTarget = json.optJSONObject("dataTarget")?.toTargetState(),
-            rootTarget = json.optJSONObject("rootTarget")?.toTargetState()
-        )
+    private fun requireCurrentStarted(record: DeploymentJournalRecord) {
+        check(record.status == DeploymentJournalStatus.STARTED && load() == record) {
+            "Refusing to replace missing or changed deployment journal evidence."
+        }
     }
 
     private fun save(record: DeploymentJournalRecord) {
-        journalFile.parentFile?.mkdirs()
-        journalFile.writeText(toJson(record).toString(2))
+        val text = toJson(record).toString(2)
+        decode(text)
+        metadataFile.replace(text)
     }
 
     private fun toJson(record: DeploymentJournalRecord): JSONObject {
@@ -166,24 +194,19 @@ class DeploymentJournalRepository(
 
     private fun JSONObject.toTargetState(): DeploymentJournalTargetState {
         return DeploymentJournalTargetState(
-            targetType = optString("targetType"),
-            gameId = optString("gameId"),
-            mode = optString("mode"),
-            target = optString("target"),
-            identityKey = optString("identityKey"),
-            manifestFilePath = optString("manifestFilePath"),
-            baselineFilePath = optString("baselineFilePath")
-                .takeIf { it.isNotBlank() && it != "null" },
-            backupDirectoryPath = optString("backupDirectoryPath")
+            targetType = requiredString("targetType"),
+            gameId = requiredString("gameId"),
+            mode = requiredString("mode"),
+            target = requiredString("target"),
+            identityKey = requiredString("identityKey"),
+            manifestFilePath = requiredString("manifestFilePath"),
+            baselineFilePath = nullableString("baselineFilePath"),
+            backupDirectoryPath = requiredString("backupDirectoryPath")
         )
     }
 
-    private fun JSONObject.optNullableLong(name: String): Long? {
-        if (!has(name) || isNull(name)) return null
-        return optLong(name)
-    }
-
     fun markReviewed(record: DeploymentJournalRecord) {
+        requireCurrentStarted(record)
         save(
             record.copy(
                 status = DeploymentJournalStatus.REVIEWED,

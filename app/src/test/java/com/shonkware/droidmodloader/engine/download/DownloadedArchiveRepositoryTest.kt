@@ -1,11 +1,19 @@
 package com.shonkware.droidmodloader.engine.download
 
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFile
+import com.shonkware.droidmodloader.engine.data.MetadataFault
+import com.shonkware.droidmodloader.engine.data.MetadataFaultOperations
+import com.shonkware.droidmodloader.engine.install.ArchiveFormatProbe
+import org.json.JSONArray
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 
 class DownloadedArchiveRepositoryTest {
 
@@ -232,6 +240,72 @@ class DownloadedArchiveRepositoryTest {
             record.archiveFormat
         )
     }
+    @Test
+    fun `invalid archive evidence is explicit and cannot become an empty store`() {
+        val library = tempFolder.newFolder("invalid-library")
+        val archive = File(library, "example.zip").apply { writeSignature(0x50, 0x4b, 0x03, 0x04) }
+        val file = File(tempFolder.newFolder("invalid-state"), "archives.json")
+        val repository = DownloadedArchiveRepository(library, file)
+        repository.registerArchive(archive, archive.name)
+        val valid = file.readText()
+        val invalid = listOf(
+            "", " ", "[", "[{}]", valid.dropLast(1), "$valid trailing",
+            "{\"schemaVersion\":99,\"records\":[]}",
+            JSONArray(valid).apply { getJSONObject(0).put("sizeBytes", "unknown") }.toString(),
+            JSONArray(valid).apply { getJSONObject(0).put("installedAtMillis", false) }.toString(),
+            JSONArray(valid).apply { put(getJSONObject(0)) }.toString()
+        )
+        for (text in invalid) {
+            file.writeText(text)
+            val before = file.readBytes()
+            val failure = assertThrows(IOException::class.java) { repository.load() }
+            assertTrue(failure.message.orEmpty().contains("Invalid or unsupported archive records"))
+            assertThrows(IOException::class.java) { repository.buildSummary() }
+            assertThrows(IOException::class.java) { repository.save(emptyList()) }
+            assertThrows(IOException::class.java) { repository.markInstalled("id", "mod") }
+            assertThrows(IOException::class.java) { repository.registerArchive(archive, archive.name) }
+            assertArrayEquals(before, file.readBytes())
+        }
+        file.writeText("[]")
+        assertTrue(repository.load().isEmpty())
+    }
+
+    @Test
+    fun `read and persistence failures preserve the complete old archive store`() {
+        for (fault in MetadataFault.entries) {
+            val root = tempFolder.newFolder("fault-${fault.name}")
+            val file = File(root, "archives.json")
+            val archive = File(root, "example.zip").apply { writeSignature(0x50, 0x4b, 0x03, 0x04) }
+            val healthy = DownloadedArchiveRepository(root, file)
+            val record = healthy.registerArchive(archive, archive.name)
+            val before = file.readBytes()
+            val failing = DownloadedArchiveRepository(
+                root, ArchiveFormatProbe(), CriticalMetadataFile(file, MetadataFaultOperations(fault))
+            )
+            if (fault == MetadataFault.READ) {
+                assertThrows(IOException::class.java) { failing.load() }
+            }
+            assertThrows(IOException::class.java) { failing.save(emptyList()) }
+            assertThrows(IOException::class.java) { failing.markInstalled(record.archiveId, "new-mod") }
+            assertThrows(IOException::class.java) { failing.registerArchive(archive, "New name.zip") }
+            assertArrayEquals(before, file.readBytes())
+            assertEquals(listOf(record), healthy.load())
+            assertTrue(root.listFiles()!!.none { it.name.endsWith(".tmp") })
+        }
+    }
+
+    @Test
+    fun `invalid proposed archive replacement leaves old records untouched`() {
+        val root = tempFolder.newFolder("invalid-new")
+        val file = File(root, "archives.json")
+        val archive = File(root, "example.zip").apply { writeSignature(0x50, 0x4b, 0x03, 0x04) }
+        val repository = DownloadedArchiveRepository(root, file)
+        val record = repository.registerArchive(archive, archive.name)
+        val before = file.readBytes()
+        assertThrows(IOException::class.java) { repository.save(listOf(record.copy(archiveId = ""))) }
+        assertArrayEquals(before, file.readBytes())
+    }
+
     private fun File.writeSignature(
         vararg values: Int
     ) {

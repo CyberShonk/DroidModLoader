@@ -8,6 +8,8 @@ import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalStatu
 import com.shonkware.droidmodloader.engine.deploy.journal.DeploymentJournalTargetState
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -17,6 +19,7 @@ import org.junit.Assert.fail
 import org.junit.Assume.assumeNoException
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 class DeploymentTargetTransitionTest {
@@ -229,6 +232,35 @@ class DeploymentTargetTransitionTest {
         val retained = repository.load()!!
         assertEquals(targetStateA.identityKey, retained.dataTarget?.identityKey)
         assertFalse(File(targetB, MANAGED_PATH).exists())
+    }
+
+    @Test
+    fun `invalid journal blocks ordinary and full deployment before target or manifest writes`() {
+        for ((index, text) in listOf("", "{", "{\"schemaVersion\":99}").withIndex()) {
+            val fixture = fixture("invalid-journal-$index")
+            fixture.selectSimulated()
+            fixture.journalFile.parentFile!!.mkdirs()
+            fixture.journalFile.writeText(text)
+            val before = fixture.journalFile.readBytes()
+            val target = fixture.service.resolvedDataTarget(GAME_ID)
+            assertThrows(IOException::class.java) { fixture.service.deployForGame(GAME_ID) }
+            assertThrows(IOException::class.java) { fixture.service.forceFullRedeployForGame(GAME_ID) }
+            assertArrayEquals(before, fixture.journalFile.readBytes())
+            assertFalse(File(fixture.simulatedData, MANAGED_PATH).exists())
+            assertFalse(target.manifestFile.exists())
+        }
+    }
+
+    @Test
+    fun `unreadable journal path blocks deployment without replacing its evidence`() {
+        val fixture = fixture("unreadable-journal")
+        fixture.selectSimulated()
+        fixture.journalFile.mkdirs()
+        val sentinel = File(fixture.journalFile, "evidence").apply { writeText("preserve") }
+        assertThrows(IOException::class.java) { fixture.service.deployForGame(GAME_ID) }
+        assertThrows(IOException::class.java) { fixture.service.forceFullRedeployForGame(GAME_ID) }
+        assertEquals("preserve", sentinel.readText())
+        assertFalse(File(fixture.simulatedData, MANAGED_PATH).exists())
     }
 
     private fun fixture(name: String): Fixture {
