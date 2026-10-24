@@ -1,6 +1,8 @@
 package com.shonkware.droidmodloader.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -52,8 +58,8 @@ fun ArchiveFolderSetupDialog(
             Text(
                 "Select the folder where you keep downloaded mod archives. " +
                     "DML will scan files directly inside it for ZIP, 7Z, and RAR archives " +
-                    "and remember the folder. When you install a mod, DML copies the archive " +
-                    "into its managed storage. The original file stays where it is."
+                    "and remember the folder. When you install a mod, DML uses a temporary archive copy " +
+                    "rather than keeping another archive. The original file stays where it is."
             )
         },
         confirmButton = {
@@ -82,8 +88,10 @@ fun ArchiveLibraryPanelDialog(
     onInstallArchive: (String) -> Unit,
     onCancelArchiveImport: () -> Unit,
     onClose: () -> Unit,
-    lastOperationStatus: String = ""
+    lastOperationStatus: String = "",
+    onCleanOldArchiveCopies: () -> Unit = {}
 ) {
+    var showCleanupConfirmation by rememberSaveable { mutableStateOf(false) }
     val filteredItems = remember(state.items, searchText) {
         val query = searchText.trim()
         if (query.isBlank()) {
@@ -191,6 +199,13 @@ fun ArchiveLibraryPanelDialog(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
+                TextButton(
+                    enabled = controlsEnabled,
+                    onClick = { showCleanupConfirmation = true }
+                ) {
+                    Text("Clean Old DML Copies…")
+                }
+
                 OutlinedTextField(
                     value = searchText,
                     onValueChange = onSearchTextChanged,
@@ -235,6 +250,32 @@ fun ArchiveLibraryPanelDialog(
                 }
             }
         }
+    }
+
+    if (showCleanupConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showCleanupConfirmation = false },
+            title = { Text("Clean old DML archive copies?") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Checks all stored profiles and removes only old DML copies that match a separate " +
+                            "surviving original byte for byte. Originals, installer sessions, and import history " +
+                            "stay unchanged. Missing, changed, selected, or uncertain files are preserved. " +
+                            "Verification reads both archives and can take time. Results appear in the log."
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = controlsEnabled, onClick = {
+                    showCleanupConfirmation = false
+                    onCleanOldArchiveCopies()
+                }) { Text("Verify and Clean") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanupConfirmation = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

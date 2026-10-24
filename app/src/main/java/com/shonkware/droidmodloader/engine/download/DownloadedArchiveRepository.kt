@@ -28,7 +28,7 @@ class DownloadedArchiveRepository internal constructor(
         return decode(text)
     }
 
-    private fun decode(text: String): List<DownloadedArchiveRecord> =
+    internal fun decode(text: String): List<DownloadedArchiveRecord> =
         CriticalMetadataJson.decode("archive records", text) { value ->
             val root = value as JSONArray
             val records = List(root.length()) { index -> fromJson(root.getJSONObject(index)) }

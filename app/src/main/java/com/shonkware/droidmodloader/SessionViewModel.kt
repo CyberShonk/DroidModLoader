@@ -58,6 +58,7 @@ import com.shonkware.droidmodloader.ui.workflow.ArchiveImportWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportExecutionWorkflow
 import com.shonkware.droidmodloader.engine.download.ArchiveFolderPreferences
 import com.shonkware.droidmodloader.engine.download.ArchiveFolderScanner
+import com.shonkware.droidmodloader.engine.download.LegacyArchiveCleanup
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserHistory
 import com.shonkware.droidmodloader.ui.workflow.ArchiveBrowserWorkflow
 import com.shonkware.droidmodloader.ui.workflow.GameConfigurationInput
@@ -1236,7 +1237,26 @@ internal class SessionViewModel @JvmOverloads constructor(
             appendLog = operationReporter::appendLog,
             archiveImportExecutionWorkflow =
                 archiveImportExecutionWorkflow,
+            cleanOldArchiveCopies = ::cleanOldArchiveCopies,
         ).build(shareLogs = shareLogs, requestAllFilesAccess = requestAllFilesAccess)
+
+    private fun cleanOldArchiveCopies() {
+        runSessionOperation(requireNoPendingInstaller = true) {
+            operationReporter.beginOperation("Verifying old DML archive copies...")
+            check(allFilesAccessManager.isGranted()) { "All-files access is required to verify originals." }
+            val base = checkNotNull(getExternalFilesDir(null)) { "External files directory is unavailable." }
+            val result = LegacyArchiveCleanup(
+                base,
+                filesDir,
+                selectedFolders = archiveFolderPreferences::selectedFoldersForCleanup,
+                report = operationReporter::appendLog
+            ).clean()
+            operationReporter.finishOperation(
+                "Old archive cleanup: ${result.removedFiles} removed (${result.removedBytes} bytes), " +
+                    "${result.preservedFiles} preserved. See log for details."
+            )
+        }
+    }
 
     private fun clearAttentionSessionState(kind: AppAttentionKind) {
         val profileId = activeProfileId ?: return

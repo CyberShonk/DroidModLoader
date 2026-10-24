@@ -164,6 +164,7 @@ data class DashboardActions(
     val onBuildResolvedDataGraph: () -> Unit = {},
     val onBuildDeploymentPlan: () -> Unit = {},
     val onShowArchiveLibrarySummary: () -> Unit = {},
+    val onCleanOldArchiveCopies: () -> Unit = {},
     val onViewLastDeployJournal: () -> Unit = {},
 
     val onOpenDeployRecoveryDetails: () -> Unit = {},
@@ -452,7 +453,8 @@ fun DroidModLoaderScreen(
                     actions.onCancelArchiveImport,
                 onClose =
                     actions.onCloseFullscreenPanel,
-                lastOperationStatus = state.lastOperationStatus
+                lastOperationStatus = state.lastOperationStatus,
+                onCleanOldArchiveCopies = actions.onCleanOldArchiveCopies
             )
         }
 

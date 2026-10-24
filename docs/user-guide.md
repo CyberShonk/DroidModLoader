@@ -47,7 +47,16 @@ from that folder and does not move or delete the original downloads when you
 switch folders.
 
 The Archive Library supports search, refresh, folder switching, and installed
-archive history for the active profile.
+archive history for the active profile. New imports use temporary archive copies,
+not a second permanent archive library.
+
+To remove copies retained by older versions, choose **Clean Old DML Copies…**
+and confirm **Verify and Clean**. DML checks records from all stored profiles
+and compares each eligible copy with its original before deleting it. This can
+take time for large archives. Originals, installer sessions, and import history
+are preserved. Missing or changed originals, selected libraries, and uncertain
+files are left alone. Unreadable or unresolved records can block cleanup; see
+the log for details.
 
 Archive format is identified from file content rather than filename extension.
 ZIP and supported 7z/RAR variants enter the normal installer flow. Detection

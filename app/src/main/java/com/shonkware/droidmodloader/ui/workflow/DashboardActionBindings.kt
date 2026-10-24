@@ -26,6 +26,7 @@ internal class DashboardActionBindings(
     private val selectGame: (String) -> Unit,
     private val appendLog: (String) -> Unit,
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow,
+    private val cleanOldArchiveCopies: () -> Unit,
 
 ) {
     // Do not store Activity callbacks on this binder: its background action
@@ -52,6 +53,7 @@ internal class DashboardActionBindings(
                 directFolderSelectionCoordinator.open(FolderPickMode.ArchiveLibraryFolder)
             },
             onInstallArchiveFromFolder = archiveBrowserWorkflow::installArchive,
+            onCleanOldArchiveCopies = cleanOldArchiveCopies,
             onDeployMods = deploymentActionWorkflowController::deploy,
             onWriteLoadOrderFiles = pluginActionWorkflowController::writeLoadOrderFiles,
             onToggleMod = modActionWorkflowController::toggleMod,

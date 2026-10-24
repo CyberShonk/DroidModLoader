@@ -49,6 +49,9 @@ class ArchiveFolderPreferences(
         return preferences.getBoolean(reselectionRequiredKey(profileId), false)
     }
 
+    /** No migration side effects, including for deleted/unlisted profiles. */
+    internal fun selectedFoldersForCleanup(): Set<String> = cleanupSelectedFolderPaths(preferences.all)
+
     private fun migrateLegacyUriSelection(profileId: String) {
         val hasProfileUri = !preferences
             .getString(profileLegacyUriKey(profileId), null)
@@ -82,6 +85,27 @@ class ArchiveFolderPreferences(
     }
 
     companion object {
+        internal fun cleanupSelectedFolderPaths(values: Map<String, *>): Set<String> {
+            val result = mutableSetOf<String>()
+            for ((key, value) in values) {
+                when {
+                    key == LEGACY_SELECTED_FOLDER_URI_KEY || key.startsWith(LEGACY_SELECTED_FOLDER_URI_KEY_PREFIX) -> {
+                        if (value !is String || value.isNotBlank()) {
+                            throw java.io.IOException("Unresolved legacy archive selection; choose its folder before cleanup.")
+                        }
+                    }
+                    key.startsWith(RESELECTION_REQUIRED_KEY_PREFIX) -> {
+                        if (value != false) throw java.io.IOException("An archive selection needs review before cleanup.")
+                    }
+                    key.startsWith(SELECTED_FOLDER_PATH_KEY_PREFIX) -> {
+                        if (value !is String || value.isBlank()) throw java.io.IOException("Invalid archive selection; cleanup stopped.")
+                        result += value
+                    }
+                }
+            }
+            return result
+        }
+
         const val PREFERENCES_NAME = "archive_folder_browser"
         private const val LEGACY_SELECTED_FOLDER_URI_KEY = "selected_archive_folder_uri"
         private const val LEGACY_SELECTED_FOLDER_URI_KEY_PREFIX = "selected_archive_folder_uri."
