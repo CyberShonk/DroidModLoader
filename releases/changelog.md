@@ -6,38 +6,46 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
-- feat: Release preparation creates categorized draft notes from unreleased changes, links each entry to its recorded commit, and starts a fresh changelog section.
+- feat: Mods show warnings for missing installation folders or no recognized game data. <!-- commits: 29119e8019f06089ea276fcae8ecaadaaf29ce44 -->
+- feat: App Attention collects unresolved deployment and installation recovery notices and requests to select a game folder again for the current profile. <!-- commits: cc38f79ff572825db526f7d41d2c5ba07edc1c4e, 5a6c10c62eafdae4ba2e7d6729f5d5f96a7ca107 -->
+- feat: Archive Library offers explicit cleanup of old archive copies, deleting only verified redundant copies while preserving originals and import history. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
+- build: DML Dev installs separately so development builds do not replace the release app. <!-- commits: 4584028f5396c3175799de700f16885b3408fa81 -->
+- build: APK build receipts record the source commit, local changes, version, APK hash and signing details. <!-- commits: 6425c1c7a19495ed1db7b57f6ab650486524caaf -->
+- feat: Release preparation creates categorized draft notes from unreleased changes, links each entry to its recorded commit, and starts a fresh changelog section. <!-- commits: 19194eef1c34aa4df653e4d47126a18bff4311bf -->
 
 ### Changed
 
-- Operation feedback now stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status.
-- Physical deployment preflight distinguishes Data and Game Root, validates a bounded game marker set, rejects targets for the wrong game or targets with their roles reversed, and checks that both selected paths belong to the same installation.
-- Target diagnostics report the selected target role, canonical path, validation result, and structured findings.
-- A clean Fallout New Vegas target remains valid for an initial Tale of Two Wastelands deployment.
-- Archive imports identify source format and reader support before creating a new managed archive copy.
-- Archive diagnostics distinguish RAR4 and RAR5 while retaining compatibility with existing stored RAR metadata.
-- ZIP and 7z reader failures provide clearer corruption, bounded memory, and cleanup diagnostics.
+- refactor: Operation feedback stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status. <!-- commits: 69bcad1cd7846cb3fcea988cfed19bce60c5af37 -->
+- feat: First setup, active settings and new profiles select the game's main folder. DML validates it, derives the Data folder and enables physical deployment intent after successful selection. <!-- commits: 6814fdcff26cef81502e515020bd5f2f6a3c6262, 0f864263d685becc1f66c615f4764e2c13450747 -->
+- feat: Target diagnostics report the selected target role, canonical path, validation result and structured findings. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c -->
+- feat: A clean Fallout New Vegas target remains valid for selecting Tale of Two Wastelands before its first deployment. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c, 6814fdcff26cef81502e515020bd5f2f6a3c6262 -->
+- fix: Archive imports check format and reader support before making a temporary snapshot. Unsupported RAR5 archives and unknown signatures are rejected without making a copy or opening an installer session. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d, bbe5e19d9d2477fc4361d13db663d0d8c4be9f89 -->
+- fix: Archive diagnostics distinguish RAR4 and RAR5 while retaining compatibility with existing stored RAR metadata. ZIP and 7z failures provide clearer corruption, memory limit and cleanup diagnostics. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d, 00c4de3491d3448d08d7c584ad1a7e11895151df -->
 
 ### Fixed
 
-- Rotating the device preserves open panels, installer choices, and operation state instead of restarting the app session.
-- Deployable mod payload files are no longer excluded just because their names or extensions resemble documentation. Runtime files such as UIO `supported.txt` now deploy to `Data`, while installer files and unrelated development artifacts remain excluded from physical deployment.
-- Physical deployment stops before writes when a selected target belongs to another supported game, uses the wrong role, is obviously too broad, or does not match the selected Data/Game Root installation pair.
-- Deployment state is kept separate for each selected Data and Game Root target, so switching installations does not reuse another target's saved deployment state.
-- Returning to a previously used target reuses that target's own saved deployment state.
-- Unfinished deployment state is no longer silently replaced when another deployment starts.
-- Unsupported RAR5 archives and unrecognized signatures no longer create a new managed archive copy or installer session before rejection.
-- Controlled archive probe and reader failures no longer produce diagnostics that resemble a crash for expected unsupported input.
+- fix: Rotating the device preserves open panels, installer choices and operation state instead of restarting the app session. <!-- commits: 31eb08c63b141621d441e62f77f0b6aa2e5d6484 -->
+- fix: Replace the light native window background that caused white flashes during launch and Activity recreation. <!-- commits: 6a41efa7442a903d4486500e55d47493f1e6d26f -->
+- fix: Refuse folder confirmation after storage access is revoked, and allow retry after access is restored. <!-- commits: 8be4ad61c81218977ead16c17d74797e525a7d47 -->
+- fix: Route profile deletion to the intended workflow instead of recursively calling the controller. <!-- commits: 248ed534c87f131df2441c8b06396ab751b6a121 -->
+- fix: Preserve deployable mod files even when their names or extensions resemble documentation. Files such as UIO `supported.txt` deploy to `Data`, while installer files and unrelated development artifacts remain excluded. <!-- commits: 79527bed70061cb62aead04be20e42d1c2cf6b0b -->
+- fix: Physical deployment validates Data and Game Root roles and known game markers before writes. Wrong games, reversed roles, overly broad folders and paths from different installations are rejected. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c -->
+- fix: Keep deployment state separate for each selected Data and Game Root target. Switching installations does not reuse another target's state, and returning to an earlier target reuses only that target's recorded state. <!-- commits: 2fdabecdf4ca22f123525801815d077e9b1b6c4e -->
+- fix: Preserve identical existing target files instead of overwriting them when DML first manages them. <!-- commits: 9eb5f4a5ede35ca587f0716a4c6c1c4164de2750 -->
+- fix: Preserve unfinished deployment journals and refuse corrupt or unreadable critical archive records and journals instead of silently replacing their evidence. <!-- commits: 2fdabecdf4ca22f123525801815d077e9b1b6c4e, 02908386680a42052ed4e2ef58d63670c48aab1c -->
+- fix: Refuse conflicting operations and profile, game or target changes while another operation owns the session. <!-- commits: 3cb315c0cb8839976d21be3ed438fb86fc05b1b7 -->
+- fix: Share full diagnostic reports as read only file attachments rather than oversized intent text. <!-- commits: 3cb315c0cb8839976d21be3ed438fb86fc05b1b7 -->
+- fix: Release temporary import snapshots after success, failure or cancellation, and clear abandoned snapshots at startup without deleting source archives or pending installer content. <!-- commits: bbe5e19d9d2477fc4361d13db663d0d8c4be9f89 -->
+- fix: Expected archive probe and reader failures no longer produce diagnostics that resemble a crash. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d -->
 
 ### Known Issues
 
-- A white flash can appear when opening dialogs or rotating the device.
-- Repeated archive installation attempts can retain duplicate archive copies, including after cancelling installer options.
-- Guidance for folder selection and the complete target marker matrix for each distribution are still limited.
-- RAR5 is detected but is not supported for installation.
-- RAR archives protected by a password, encrypted RAR archives, and multipart RAR archives are not supported.
-- Some uncommon 7z compression or encryption variants may remain unsupported.
-- Returning to a previously used deployment target does not automatically verify every physical managed file against changes made outside DML.
+- Legacy archive cleanup is not automatic. Files are retained when originals cannot be verified or the copy is still needed by a source or library selection. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
+- Game folder validation checks known executable and master file markers; game store layouts and runtime compatibility are not exhaustively qualified. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c, 6814fdcff26cef81502e515020bd5f2f6a3c6262 -->
+- RAR5 is detected but is not supported for installation. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d -->
+- Password protected, encrypted and multipart RAR archives are not supported. <!-- commits: dc70fece68f8e5daef06bdbe55d8a0379612827f -->
+- Some uncommon 7z compression or encryption variants may remain unsupported. <!-- commits: 00c4de3491d3448d08d7c584ad1a7e11895151df -->
+- Returning to a previous deployment target does not automatically verify every managed file against changes made outside DML. <!-- commits: 2fdabecdf4ca22f123525801815d077e9b1b6c4e -->
 
 ## v0.7.0-beta - 2026-06-29
 
