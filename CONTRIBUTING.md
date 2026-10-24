@@ -51,19 +51,19 @@ receipts separately; retaining every development APK is not required.
 
 Receipts identify the APK by SHA-256 and size and contain its embedded source,
 version, variant, UTC build time, toolchain, and optional GitHub Actions run URL.
-They also report signature verification and signing-certificate SHA-256 digests;
+They also report signature verification and SHA-256 digests of signing certificates;
 unsigned release outputs are explicitly marked unsigned. No keys or credentials
 are included. Signing or otherwise changing an APK invalidates its old receipt.
 
 The full commit identifies the source base. `dirty` includes tracked changes and
-non-ignored untracked files; their digests distinguish local edits but do not
+untracked files that are not ignored; their digests distinguish local edits but do not
 preserve those edits. Use clean committed source for distributed releases. Git
 history must remain available separately; receipts are provenance, not source
-snapshots or guarantees of byte-identical rebuilds.
+snapshots or guarantees that rebuilds produce identical bytes.
 
 Provenance is generated from build inputs and packaged into the APK. Receipt
 identity is read back from that APK, never relabeled from the current checkout.
-An up-to-date build preserves its original embedded build time. A receipt does
+A build with unchanged inputs preserves its original embedded build time. A receipt does
 not imply that unit tests or GUI checks passed: record validation separately,
 including the SHA-256 of the exact APK installed for GUI testing.
 
