@@ -14,6 +14,7 @@ class AppStartupCoordinatorTest {
         assertEquals(
             listOf(
                 "background",
+                "clean-archives",
                 "load-setup",
                 "migrate-storage",
                 "refresh-games",
@@ -58,7 +59,8 @@ class AppStartupCoordinatorTest {
             createRuntime = { "engine" },
             checkRecovery = { events += "recover" },
             synchronizePluginsAndRefresh = { events += "refresh" },
-            appendLog = { events += it }
+            appendLog = { events += it },
+            cleanTemporaryArchives = { events += "clean-archives" }
         )
 
         coordinator.initialize { events += "restore" }
@@ -66,7 +68,7 @@ class AppStartupCoordinatorTest {
         assertEquals(listOf("restore", "UI ready."), events)
         checkNotNull(queued).invoke()
         coordinator.initialize()
-        assertEquals(listOf("restore", "UI ready.", "load", "recover", "refresh"), events)
+        assertEquals(listOf("restore", "UI ready.", "clean-archives", "load", "recover", "refresh"), events)
     }
 
     private fun coordinator(
@@ -90,7 +92,8 @@ class AppStartupCoordinatorTest {
             },
             checkRecovery = { value -> events += "recovery:$value" },
             synchronizePluginsAndRefresh = { value -> events += "sync:$value" },
-            appendLog = { message -> events += "log:$message" }
+            appendLog = { message -> events += "log:$message" },
+            cleanTemporaryArchives = { events += "clean-archives" }
         )
     }
 }

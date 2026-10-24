@@ -147,7 +147,8 @@ class DownloadedArchiveRepositoryTest {
 
         val summary = repository.buildSummary()
 
-        assertTrue(summary.contains("Archive count: 1"))
+        assertTrue(summary.contains("Archive import records: 1"))
+        assertTrue(summary.contains("History only; archive copies may no longer exist."))
         assertTrue(summary.contains("Summary Mod"))
         assertTrue(summary.contains("Format: rar"))
         assertTrue(summary.contains("Installed mod: summary-mod-id"))
@@ -163,7 +164,7 @@ class DownloadedArchiveRepositoryTest {
         )
 
         assertEquals(
-            "No archives are currently saved in the archive library.",
+            "No archive imports are recorded.",
             repository.buildSummary()
         )
     }

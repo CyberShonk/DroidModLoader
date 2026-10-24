@@ -14,7 +14,8 @@ internal class AppStartupCoordinator<T>(
     private val createRuntime: () -> T?,
     private val checkRecovery: (T) -> Unit,
     private val synchronizePluginsAndRefresh: (T?) -> Unit,
-    private val appendLog: (String) -> Unit
+    private val appendLog: (String) -> Unit,
+    private val cleanTemporaryArchives: () -> Unit = {}
 ) {
     private val initializationStarted = AtomicBoolean(false)
 
@@ -22,6 +23,7 @@ internal class AppStartupCoordinator<T>(
         if (!initializationStarted.compareAndSet(false, true)) return
         beforeStart()
         runInBackground {
+            cleanTemporaryArchives()
             loadSetupState()
             migrateLegacyProfileStorage()
             refreshGameOptions()

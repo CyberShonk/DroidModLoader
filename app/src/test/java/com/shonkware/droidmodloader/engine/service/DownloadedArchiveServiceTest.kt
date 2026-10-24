@@ -14,7 +14,7 @@ class DownloadedArchiveServiceTest {
 
         assertTrue(fixture.service.getDownloadedArchives().isEmpty())
         assertEquals(
-            "No archives are currently saved in the archive library.",
+            "No archive imports are recorded.",
             fixture.service.buildDownloadedArchiveSummary()
         )
     }

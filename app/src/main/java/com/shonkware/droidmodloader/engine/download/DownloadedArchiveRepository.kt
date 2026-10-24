@@ -110,11 +110,12 @@ class DownloadedArchiveRepository internal constructor(
         val records = load()
 
         if (records.isEmpty()) {
-            return "No archives are currently saved in the archive library."
+            return "No archive imports are recorded."
         }
 
         return buildString {
-            appendLine("Archive count: ${records.size}")
+            appendLine("Archive import records: ${records.size}")
+            appendLine("History only; archive copies may no longer exist.")
             appendLine()
 
             records

@@ -105,12 +105,12 @@ class ArchiveImportExecutionWorkflowTest {
         assertEquals(listOf("Archive import cancelled."), harness.cancelMessages)
         assertTrue(harness.failures.isEmpty())
         assertFalse(engine.finalizeCalled)
-        assertTrue(engine.registeredArchiveFile?.exists() == true)
+        assertFalse(engine.registeredArchiveFile?.exists() == true)
         assertFalse(harness.workflow.cancelActiveImport())
     }
 
     @Test
-    fun cancellationDuringPreparationKeepsRegisteredArchive() {
+    fun cancellationDuringPreparationKeepsRecordButRemovesSnapshot() {
         val engine = FakeArchiveImportEngine()
         lateinit var harness: WorkflowHarness
 
@@ -130,7 +130,7 @@ class ArchiveImportExecutionWorkflowTest {
         assertNotNull(
             engine.registeredArchiveFile
         )
-        assertTrue(
+        assertFalse(
             engine.registeredArchiveFile
                 ?.exists() == true
         )
@@ -221,7 +221,7 @@ class ArchiveImportExecutionWorkflowTest {
                 "RESULT: CANCELLED"
             )
         )
-        assertTrue(
+        assertFalse(
             engine.registeredArchiveFile
                 ?.exists() == true
         )
@@ -248,6 +248,9 @@ class ArchiveImportExecutionWorkflowTest {
         )
 
         assertFalse(engine.finalizeCalled)
+        assertFalse(engine.registeredArchiveFile!!.exists())
+        assertTrue(harness.sourceArchive.exists())
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
         assertEquals(
             "archive-1",
             harness.shownArchiveRecordId
@@ -418,6 +421,39 @@ class ArchiveImportExecutionWorkflowTest {
         )
     }
 
+    @Test
+    fun repeatedAutomaticImportsNeverAccumulateSnapshotsOrRenameTheMod() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val original = harness.sourceArchive.readBytes()
+        repeat(3) {
+            harness.workflow.importArchive(harness.sourceArchive)
+            assertEquals("Example Archive.zip", engine.registeredArchiveFile!!.name)
+            assertFalse(engine.registeredArchiveFile!!.exists())
+            assertTrue(harness.archiveLibraryFiles().isEmpty())
+            org.junit.Assert.assertArrayEquals(original, harness.sourceArchive.readBytes())
+        }
+        assertEquals(3, harness.finishMessages.size)
+        assertTrue(harness.failures.isEmpty())
+        assertEquals("installed", engine.markedInstalled!!.second)
+    }
+
+    @Test
+    fun failureAfterRegistrationDuringPreparationOrFinalizationRemovesOnlySnapshot() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        engine.beforePrepareCompletes = { throw java.io.IOException("prepare failure") }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(harness.sourceArchive.exists())
+        engine.beforePrepareCompletes = null
+        engine.beforeFinalizeCompletes = { throw java.io.IOException("finalize failure") }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(harness.sourceArchive.exists())
+        assertEquals(2, harness.failures.size)
+    }
+
     private inner class WorkflowHarness(
         engine: FakeArchiveImportEngine?
     ) {
@@ -491,7 +527,7 @@ class ArchiveImportExecutionWorkflowTest {
         fun archiveLibraryFiles(): List<File> {
             return File(
                 external,
-                "downloads/archive_library"
+                "downloads/import_staging"
             ).listFiles()?.toList().orEmpty()
         }
 

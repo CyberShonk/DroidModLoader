@@ -186,7 +186,6 @@ internal class ArchiveImportExecutionWorkflow(
 
         var engine: ArchiveImportEngine? = null
         var archiveLibraryFile: File? = null
-        var archiveRegistered = false
         var prepared: PreparedArchiveInstall? = null
 
         try {
@@ -237,7 +236,7 @@ internal class ArchiveImportExecutionWorkflow(
 
             val copiedArchiveFile =
                 archiveImportFileStore
-                    .copyFileToArchiveLibraryFile(
+                    .copyToTemporarySnapshot(
                         sourceFile = sourceFile,
                         displayName = sanitizedName,
                         cancellationSignal =
@@ -256,10 +255,8 @@ internal class ArchiveImportExecutionWorkflow(
                     sourcePath = sourceFile.canonicalPath
                 )
 
-            archiveRegistered = true
-
             appendLog(
-                "Archive saved to library: " +
+                "Temporary archive snapshot prepared: " +
                         archiveRecord.fileName
             )
             appendLog(
@@ -400,13 +397,6 @@ internal class ArchiveImportExecutionWorkflow(
                 }
             }
 
-            if (!archiveRegistered) {
-                removeUnregisteredArchive(
-                    archiveLibraryFile,
-                    exception
-                )
-            }
-
             appendLog(
                 "Archive import cancellation completed."
             )
@@ -417,26 +407,15 @@ internal class ArchiveImportExecutionWorkflow(
             )
         } catch (exception: ArchiveFormatProbeException) {
             handleArchiveFailure(
-                archiveLibraryFile = archiveLibraryFile,
-                archiveRegistered = archiveRegistered,
                 failureCode = exception.code.name,
                 exception = exception
             )
         } catch (exception: ArchiveReadException) {
             handleArchiveFailure(
-                archiveLibraryFile = archiveLibraryFile,
-                archiveRegistered = archiveRegistered,
                 failureCode = exception.code.name,
                 exception = exception
             )
         } catch (throwable: Throwable) {
-            if (!archiveRegistered) {
-                removeUnregisteredArchive(
-                    archiveLibraryFile,
-                    throwable
-                )
-            }
-
             appendLog(
                 "CRASH TYPE: " +
                         throwable::class.java.name
@@ -449,6 +428,16 @@ internal class ArchiveImportExecutionWorkflow(
                 throwable
             )
         } finally {
+            archiveLibraryFile?.let { snapshot ->
+                try {
+                    archiveImportFileStore.releaseSnapshot(snapshot)
+                } catch (cleanupFailure: Exception) {
+                    appendError(
+                        "Temporary archive cleanup failed; startup will retry: ${cleanupFailure.message}",
+                        cleanupFailure
+                    )
+                }
+            }
             activeCancellationController.compareAndSet(
                 cancellationController,
                 null
@@ -487,18 +476,9 @@ internal class ArchiveImportExecutionWorkflow(
     }
 
     private fun handleArchiveFailure(
-        archiveLibraryFile: File?,
-        archiveRegistered: Boolean,
         failureCode: String,
         exception: Exception
     ) {
-        if (!archiveRegistered) {
-            removeUnregisteredArchive(
-                archiveLibraryFile,
-                exception
-            )
-        }
-
         appendLog(
             "ARCHIVE FAILURE: $failureCode"
         )
@@ -511,37 +491,6 @@ internal class ArchiveImportExecutionWorkflow(
         )
     }
 
-    private fun removeUnregisteredArchive(
-        archiveFile: File?,
-        originalFailure: Throwable
-    ) {
-        if (archiveFile == null || !archiveFile.exists()) {
-            return
-        }
-
-        try {
-            if (!archiveFile.delete()) {
-                originalFailure.addSuppressed(
-                    IllegalStateException(
-                        "Could not remove unregistered archive: " +
-                                archiveFile.absolutePath
-                    )
-                )
-                appendError(
-                    "Could not remove unregistered archive: " +
-                            archiveFile.absolutePath,
-                    null
-                )
-            }
-        } catch (cleanupException: Exception) {
-            originalFailure.addSuppressed(cleanupException)
-            appendError(
-                "Could not remove unregistered archive: " +
-                        archiveFile.absolutePath,
-                cleanupException
-            )
-        }
-    }
 }
 
 internal fun sanitizeArchiveDisplayName(

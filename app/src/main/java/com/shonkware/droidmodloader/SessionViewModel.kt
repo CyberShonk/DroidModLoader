@@ -1167,6 +1167,13 @@ internal class SessionViewModel @JvmOverloads constructor(
     private val appStartupCoordinator by lazy {
         AppStartupCoordinator(
             runInBackground = { task -> runSessionOperation(task = task) },
+            cleanTemporaryArchives = {
+                try {
+                    archiveImportFileStore.cleanAbandonedSnapshots()
+                } catch (exception: Exception) {
+                    operationReporter.appendError("Temporary archive cleanup failed: ${exception.message}", exception)
+                }
+            },
             loadSetupState = profileSessionCoordinator::loadSetupState,
             migrateLegacyProfileStorage = legacyProfileStorageMigrator::migrateIfNeeded,
             refreshGameOptions = profileSessionCoordinator::refreshGameOptions,
