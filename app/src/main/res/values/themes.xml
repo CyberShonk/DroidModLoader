@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.DroidModLoader" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.DroidModLoader" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dml_window_background</item>
+        <item name="android:colorBackground">@color/dml_window_background</item>
+        <item name="android:statusBarColor">@color/dml_window_background</item>
+        <item name="android:navigationBarColor">@color/dml_window_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>
