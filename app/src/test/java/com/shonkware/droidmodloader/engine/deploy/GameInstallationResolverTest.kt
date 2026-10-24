@@ -8,6 +8,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class GameInstallationResolverTest {
 
@@ -81,6 +82,56 @@ class GameInstallationResolverTest {
 
         assertTrue(result.isResolved)
         assertEquals(data.canonicalPath, result.installation?.dataPath)
+    }
+
+    @Test
+    fun `all supported games resolve root and data from installation fixtures`() {
+        val markers = listOf(
+            Triple("skyrim_le", "TESV.exe", "Skyrim.esm"),
+            Triple("oblivion", "Oblivion.exe", "Oblivion.esm"),
+            Triple("fallout_3", "Fallout3.exe", "Fallout3.esm"),
+            Triple("fallout_nv", "FalloutNV.exe", "FalloutNV.esm"),
+            Triple("ttw", "FalloutNV.exe", "FalloutNV.esm")
+        )
+        for ((gameId, executable, master) in markers) {
+            val root = temporaryFolder.newFolder(gameId)
+            File(root, executable).writeText("")
+            val data = File(root, "Data").apply { mkdirs() }
+            File(data, master).writeText("")
+
+            val result = resolver.resolve(gameId, root.absolutePath)
+
+            assertTrue("$gameId: ${result.findings}", result.isResolved)
+            assertEquals(root.canonicalPath, result.installation?.gameRootPath)
+            assertEquals(data.canonicalPath, result.installation?.dataPath)
+        }
+    }
+
+    @Test
+    fun `root alias resolves to the same canonical installation`() {
+        val root = falloutNewVegasInstallation("fnv-aliased")
+        val alias = File(temporaryFolder.root, "root-alias")
+        Files.createSymbolicLink(alias.toPath(), root.toPath())
+
+        val result = resolver.resolve("fallout_nv", alias.absolutePath)
+
+        assertTrue(result.isResolved)
+        assertEquals(root.canonicalPath, result.installation?.gameRootPath)
+        assertEquals(File(root, "Data").canonicalPath, result.installation?.dataPath)
+    }
+
+    @Test
+    fun `data symlink into a different installation is refused`() {
+        val root = temporaryFolder.newFolder("fnv-root-with-external-data")
+        File(root, "FalloutNV.exe").writeText("")
+        val other = falloutNewVegasInstallation("other-fnv-installation")
+        Files.createSymbolicLink(File(root, "Data").toPath(), File(other, "Data").toPath())
+
+        val result = resolver.resolve("fallout_nv", root.absolutePath)
+
+        assertFalse(result.isResolved)
+        assertNull(result.installation)
+        assertTrue(result.findings.any { it.code == "TARGETS_DIFFERENT_INSTALLATIONS" })
     }
 
     private fun falloutNewVegasInstallation(name: String): File {

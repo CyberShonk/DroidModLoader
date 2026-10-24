@@ -79,6 +79,11 @@ internal class DirectFolderSelectionCoordinator(
             )
             return
         }
+        refreshAccessState()
+        if (!allFilesAccessGranted) {
+            requestAllFilesAccess()
+            return
+        }
         val currentPath = browserState.currentPath ?: return
 
         if (folderPickMode.isGameInstallationMode()) {
