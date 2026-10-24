@@ -27,6 +27,8 @@ internal class DashboardActionBindings(
     private val appendLog: (String) -> Unit,
     private val archiveImportExecutionWorkflow: ArchiveImportExecutionWorkflow,
     private val cleanOldArchiveCopies: () -> Unit,
+    private val verifyManagedContent: () -> Unit = {},
+    private val cancelIntegrityCheck: () -> Unit = {},
 
 ) {
     // Do not store Activity callbacks on this binder: its background action
@@ -120,6 +122,8 @@ internal class DashboardActionBindings(
             onCloseOverwriteFolder = overwriteActionWorkflowController::closeOverwriteFolder,
             onBuildResolvedDataGraph = developerToolsWorkflowController::buildResolvedDataGraph,
             onBuildDeploymentPlan = deploymentActionWorkflowController::buildDeployPlan,
+            onVerifyManagedContent = verifyManagedContent,
+            onCancelIntegrityCheck = cancelIntegrityCheck,
             onShowArchiveLibrarySummary = developerToolsWorkflowController::showArchiveLibrarySummary,
             onBuildFullRedeployPlan = deploymentActionWorkflowController::buildFullRedeployPlan,
             onViewLastDeployJournal = deployRecoveryWorkflowController::viewLastJournal,

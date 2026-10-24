@@ -101,6 +101,8 @@ import com.shonkware.droidmodloader.engine.factory.ProfileScopedEngineFactory
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementRecoveryEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.InstallReplacementStartupWorkflow
 import com.shonkware.droidmodloader.ui.workflow.ArchiveImportEngineAdapter
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /** Retains the existing UI/workflow graph, never an Activity or native window. */
 internal class SessionViewModel @JvmOverloads constructor(
@@ -1238,7 +1240,48 @@ internal class SessionViewModel @JvmOverloads constructor(
             archiveImportExecutionWorkflow =
                 archiveImportExecutionWorkflow,
             cleanOldArchiveCopies = ::cleanOldArchiveCopies,
+            verifyManagedContent = ::verifyManagedContent,
+            cancelIntegrityCheck = { integrityCancellation.get()?.set(true) },
         ).build(shareLogs = shareLogs, requestAllFilesAccess = requestAllFilesAccess)
+
+    private val integrityCancellation = AtomicReference<AtomicBoolean?>(null)
+
+    private fun verifyManagedContent() {
+        val cancellation = AtomicBoolean(false)
+        try {
+            runSessionOperation(
+                requireNoPendingInstaller = true,
+                refreshArchives = false,
+                prepare = {
+                    integrityCancellation.set(cancellation)
+                    captureOnUiThread { integrityCheckInProgress = true }
+                    true
+                }
+            ) {
+                try {
+                    val (profileId, gameId, engine) = captureOnUiThread {
+                        Triple(activeProfileId.orEmpty(), selectedGameId,
+                            checkNotNull(profileScopedEngineFactory.create(prepareDirectories = false)))
+                    }
+                    developerDiagnosticsCoordinator.verifyManagedContent(
+                        DeveloperDiagnosticsEngineAdapter(engine), gameId, profileId,
+                        cancelled = cancellation::get,
+                        contextStillCurrent = {
+                            captureOnUiThread { activeProfileId.orEmpty() == profileId && selectedGameId == gameId }
+                        }
+                    )
+                } finally {
+                    integrityCancellation.compareAndSet(cancellation, null)
+                    captureOnUiThread { integrityCheckInProgress = false }
+                }
+            }
+        } catch (failure: Throwable) {
+            if (integrityCancellation.compareAndSet(cancellation, null)) {
+                captureOnUiThread { integrityCheckInProgress = false }
+            }
+            throw failure
+        }
+    }
 
     private fun cleanOldArchiveCopies() {
         runSessionOperation(requireNoPendingInstaller = true) {
@@ -1385,6 +1428,7 @@ internal class SessionViewModel @JvmOverloads constructor(
     override fun onCleared() {
         // Configuration recreation does not clear this owner. On final removal,
         // request cooperative cancellation; never interrupt filesystem promotion.
+        integrityCancellation.get()?.set(true)
         if (archiveImportExecutionWorkflowOwner.isInitialized()) {
             archiveImportExecutionWorkflow.cancelActiveImport()
         }

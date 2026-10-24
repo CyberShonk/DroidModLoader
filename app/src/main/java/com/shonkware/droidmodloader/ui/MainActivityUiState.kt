@@ -37,6 +37,7 @@ interface MainActivityUiState {
     var setupTargetPathText: String
     var setupRootTargetPathText: String
     var operationInProgress: Boolean
+    var integrityCheckInProgress: Boolean
     var activeOperationText: String
     var newProfileNameText: String
     var newProfileGameId: String
@@ -116,6 +117,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var setupTargetPathText by mutableStateOf("")
     override var setupRootTargetPathText by mutableStateOf("")
     override var operationInProgress by mutableStateOf(false)
+    override var integrityCheckInProgress by mutableStateOf(false)
     override var activeOperationText by mutableStateOf("")
     override var newProfileNameText by mutableStateOf("")
     override var newProfileGameId by mutableStateOf("skyrim_le")
@@ -244,6 +246,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             showProfileDialog = showProfileDialog,
             newProfileDataPathText = newProfileDataPathText,
             operationInProgress = operationInProgress,
+            integrityCheckInProgress = integrityCheckInProgress,
             activeOperationText = activeOperationText,
             modContentIndexes = visibleModContentIndexes,
             modFlags = visibleModFlags,

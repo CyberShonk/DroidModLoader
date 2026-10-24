@@ -34,6 +34,10 @@ class GameDeploymentConfigRepository(
         val text = configFile.readText()
         if (text.isBlank()) return emptyList()
 
+        return parse(text)
+    }
+
+    internal fun parse(text: String): List<GameDeploymentConfig> {
         val array = JSONArray(text)
         val results = mutableListOf<GameDeploymentConfig>()
 

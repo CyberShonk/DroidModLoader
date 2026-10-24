@@ -2,6 +2,8 @@ package com.shonkware.droidmodloader.engine
 
 import android.content.Context
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
+import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
+import com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport
 import com.shonkware.droidmodloader.engine.deploy.ScopedDeploymentResult
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
@@ -160,6 +162,21 @@ class ModEngine(
         deploymentService.buildDeploymentPlanForGame(gameId)
     fun buildDeploymentPlanDebugSummary(gameId: String): String =
         deploymentService.buildDeploymentPlanDebugSummary(gameId)
+
+    internal fun verifyManagedContent(
+        gameId: String,
+        cancelled: () -> Boolean
+    ): ManagedIntegrityReport {
+        val integrity = ManagedContentIntegrity
+        return integrity.verify(
+            capture = {
+                deploymentService.captureTargetIntegrityInputs(gameId) +
+                    modInspectionService.captureInstallIntegrityInputs(modsDir, stateFile)
+            },
+            extraRevision = { integrity.revision(stateFile) + integrity.revision(gameConfigFile) },
+            cancelled = cancelled
+        )
+    }
 
     fun discoverPluginsFromCurrentMods(): List<PluginEntry> = pluginManagementService.discoverPluginsFromCurrentMods()
     fun saveDiscoveredPlugins(): List<PluginEntry> = pluginManagementService.saveDiscoveredPlugins()

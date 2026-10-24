@@ -65,6 +65,7 @@ data class DashboardUiState(
     val showProfileDialog: Boolean,
     val newProfileDataPathText: String,
     val operationInProgress: Boolean,
+    val integrityCheckInProgress: Boolean = false,
     val activeOperationText: String,
     val modContentIndexes: Map<String, ModContentIndex>,
     val modFlags: Map<String, Set<ModFlag>>,
@@ -163,6 +164,8 @@ data class DashboardActions(
 
     val onBuildResolvedDataGraph: () -> Unit = {},
     val onBuildDeploymentPlan: () -> Unit = {},
+    val onVerifyManagedContent: () -> Unit = {},
+    val onCancelIntegrityCheck: () -> Unit = {},
     val onShowArchiveLibrarySummary: () -> Unit = {},
     val onCleanOldArchiveCopies: () -> Unit = {},
     val onViewLastDeployJournal: () -> Unit = {},
@@ -276,7 +279,11 @@ private fun MainDashboardScreen(
 
                 ReportCard(
                     logText = state.logText,
-                    onShareLogs = actions.onShareLogs
+                    onShareLogs = actions.onShareLogs,
+                    operationInProgress = state.operationInProgress,
+                    integrityCheckInProgress = state.integrityCheckInProgress,
+                    onVerifyManagedContent = actions.onVerifyManagedContent,
+                    onCancelIntegrityCheck = actions.onCancelIntegrityCheck
                 )
 
                 if (state.developerModeEnabled) {

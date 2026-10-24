@@ -4,6 +4,11 @@ import com.shonkware.droidmodloader.engine.baseline.DataBaselineFileRecord
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineRepository
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
 import com.shonkware.droidmodloader.engine.data.DeploymentManifestRepository
+import com.shonkware.droidmodloader.engine.integrity.IntegrityInput
+import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
+import com.shonkware.droidmodloader.engine.model.ModType
+import org.json.JSONArray
+import java.nio.file.Files
 import com.shonkware.droidmodloader.engine.index.ModContentCategory
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModFileFolderSummary
@@ -39,6 +44,49 @@ internal class ModInspectionService(
         ModFileIndexRepository(modFileIndexDir)
     )
     private val overwriteScanner = OverwriteScanner()
+    private val integrityIndexRepository = ModFileIndexRepository(modFileIndexDir)
+
+    fun captureInstallIntegrityInputs(modsDir: File, stateFile: File): List<IntegrityInput> {
+        val integrity = ManagedContentIntegrity
+        return try {
+            require(!Files.isSymbolicLink(modsDir.toPath())) { "Aliased managed storage root" }
+            val array = JSONArray(integrity.readEvidence(stateFile))
+            require(array.length() <= 1_000) { "Recorded install limit exceeded" }
+            var remainingFiles = integrity.MAX_RECORDED_FILES
+            val ids = mutableSetOf<String>()
+            val roots = mutableSetOf<String>()
+            (0 until array.length()).map { index ->
+                val record = array.getJSONObject(index)
+                val id = record.getString("id")
+                val path = record.getString("installPath")
+                require(id.isNotBlank() && ids.add(id)) { "Invalid or duplicate mod identity" }
+                val root = File(path)
+                val managedPath = modsDir.canonicalFile.toPath()
+                val canonical = root.canonicalFile.toPath()
+                require(root.isAbsolute && canonical != managedPath && canonical.startsWith(managedPath) &&
+                    root.absoluteFile.toPath().normalize().startsWith(modsDir.absoluteFile.toPath().normalize()) &&
+                    roots.add(canonical.toString())) { "Unsafe or duplicate managed install path" }
+                var component = root.toPath()
+                while (component != modsDir.toPath() && component.parent != null) {
+                    require(!Files.isSymbolicLink(component)) { "Aliased managed install path" }
+                    component = component.parent
+                }
+                val mod = Mod(id, record.getString("name"), path, false, 0,
+                    ModType.ARCHIVE)
+                integrity.capture("Installed mod", id, root, integrityIndexRepository.getIndexFile(mod)) {
+                    val records = integrity.indexRecords(it, id, path)
+                    require(records.size <= remainingFiles) { "Aggregate recorded install file limit exceeded" }
+                    remainingFiles -= records.size
+                    records
+                }
+            }
+        } catch (failure: Exception) {
+            listOf(IntegrityInput(
+                "Installed mods", "Recorded install paths", null, stateFile, integrity.revision(stateFile),
+                emptyList(), integrity.evidenceProblem(stateFile, failure)
+            ))
+        }
+    }
 
     private fun getCurrentMods(): List<Mod> = currentMods()
     private fun indexModContent(mod: Mod): ModContentIndex = indexContent(mod)

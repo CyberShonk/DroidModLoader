@@ -19,7 +19,11 @@ import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 @Composable
 fun ReportCard(
     logText: String,
-    onShareLogs: () -> Unit
+    onShareLogs: () -> Unit,
+    operationInProgress: Boolean = false,
+    integrityCheckInProgress: Boolean = false,
+    onVerifyManagedContent: () -> Unit = {},
+    onCancelIntegrityCheck: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -37,6 +41,20 @@ fun ReportCard(
                 onClick = onShareLogs,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            DmlButtons.Secondary(
+                text = "Check Recorded Managed Content",
+                enabled = !operationInProgress,
+                onClick = onVerifyManagedContent,
+                modifier = Modifier.fillMaxWidth()
+            )
+            DmlButtons.Secondary(
+                text = "Cancel Integrity Check",
+                enabled = integrityCheckInProgress,
+                onClick = onCancelIntegrityCheck,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Read-only SHA-256 check of recorded Data, Game Root and installed mod files. Results below are historical observations, not live health; missing evidence is not rebuilt.")
 
             Text(logText)
         }

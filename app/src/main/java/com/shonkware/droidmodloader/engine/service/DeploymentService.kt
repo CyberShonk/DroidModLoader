@@ -23,6 +23,8 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecke
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
+import com.shonkware.droidmodloader.engine.integrity.IntegrityInput
+import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
 import com.shonkware.droidmodloader.engine.model.DeploymentRecord
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
@@ -36,7 +38,7 @@ internal class DeploymentService(
     private val stateFile: File,
     private val deploymentManifestFile: File,
     private val deployRootDir: File,
-    gameConfigFile: File,
+    private val gameConfigFile: File,
     private val currentDataWinningRecords: () -> List<FileRecord>,
     private val currentRootWinningRecords: () -> List<FileRecord>
 ) {
@@ -48,6 +50,40 @@ internal class DeploymentService(
     private fun getCurrentDataWinningRecords(): List<FileRecord> = currentDataWinningRecords()
 
     private fun getCurrentRootWinningRecords(): List<FileRecord> = currentRootWinningRecords()
+
+    fun captureTargetIntegrityInputs(gameId: String): List<IntegrityInput> {
+        val integrity = ManagedContentIntegrity
+        return try {
+            val configText = try {
+                integrity.readEvidence(gameConfigFile)
+            } catch (_: java.nio.file.NoSuchFileException) {
+                null
+            }
+            if (configText != null) {
+                val configs = org.json.JSONArray(configText)
+                val ids = mutableSetOf<String>()
+                for (index in 0 until configs.length()) {
+                    val config = configs.getJSONObject(index)
+                    require(ids.add(config.getString("gameId"))) { "Duplicate game config" }
+                    config.getBoolean("realDeployEnabled")
+                }
+            }
+            val config = configText?.let { gameDeploymentConfigRepository.parse(it).firstOrNull { it.gameId == gameId } }
+            val targets = resolveDeploymentTargets(gameId, config)
+            listOf(targets.data, targets.root).map { target ->
+                integrity.capture(target.targetType.displayName, target.identity.stableKey(), target.deployDirectory,
+                    target.manifestFile, integrity::manifestRecords).let { input ->
+                    if (target.unavailableReason == null) input
+                    else input.copy(unavailable = target.unavailableReason)
+                }
+            }
+        } catch (failure: Exception) {
+            listOf(IntegrityInput(
+                "Deployment targets", gameId, null, gameConfigFile, integrity.revision(gameConfigFile),
+                emptyList(), integrity.evidenceProblem(gameConfigFile, failure)
+            ))
+        }
+    }
 
     fun saveGameDeploymentConfigs(configs: List<GameDeploymentConfig>) {
         gameDeploymentConfigRepository.save(configs)
@@ -388,8 +424,10 @@ internal class DeploymentService(
     }
 
 
-    private fun resolveDeploymentTargets(gameId: String): ResolvedDeploymentTargets {
-        val config = getGameDeploymentConfig(gameId)
+    private fun resolveDeploymentTargets(
+        gameId: String,
+        config: GameDeploymentConfig? = getGameDeploymentConfig(gameId)
+    ): ResolvedDeploymentTargets {
         return ResolvedDeploymentTargets(
             gameId = gameId,
             configSnapshot = config,

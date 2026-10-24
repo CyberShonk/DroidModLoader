@@ -61,7 +61,44 @@ class DeveloperDiagnosticsCoordinatorTest {
         assertEquals(0, refreshCount)
     }
 
+    @Test
+    fun `integrity evidence for superseded profile is stale and never refreshes indexes`() {
+        val log = mutableListOf<String>()
+        val finished = mutableListOf<String>()
+        val coordinator = DeveloperDiagnosticsCoordinator(
+            operationInProgressProvider = { false }, engineProvider = { FakeEngine() },
+            selectedGameIdProvider = { "fallout_nv" }, appendLog = log::add,
+            appendError = { _, _ -> }, beginOperation = {}, finishOperation = finished::add,
+            failOperation = { _, _ -> org.junit.Assert.fail("Unexpected failure") },
+            refreshDashboard = { org.junit.Assert.fail("Read-only checks must not rebuild indexes") }
+        )
+        coordinator.verifyManagedContent(FakeEngine(), "fallout_nv", "profile-a", { false }, { false })
+        assertTrue(log.any { it.contains("profile=profile-a") })
+        assertTrue(log.any { it.contains("STALE") })
+        assertEquals(listOf("Integrity evidence is stale; rerun required."), finished)
+        assertTrue(log.none { it == "RESULT: PASS" })
+    }
+
+    @Test
+    fun `integrity cancellation is partial and not a successful content verdict`() {
+        val log = mutableListOf<String>()
+        val coordinator = DeveloperDiagnosticsCoordinator(
+            operationInProgressProvider = { false }, engineProvider = { FakeEngine() },
+            selectedGameIdProvider = { "fallout_nv" }, appendLog = log::add,
+            appendError = { _, _ -> }, beginOperation = {}, finishOperation = log::add,
+            failOperation = { _, _ -> org.junit.Assert.fail("Unexpected failure") },
+            refreshDashboard = { org.junit.Assert.fail("Unexpected refresh") }
+        )
+        coordinator.verifyManagedContent(FakeEngine(), "fallout_nv", "profile-a", { true }, { true })
+        assertTrue(log.any { it.contains("CANCELLED / PARTIAL") })
+        assertTrue(log.contains("Integrity check cancelled; partial evidence only."))
+    }
+
     private class FakeEngine : DeveloperDiagnosticsEngine {
+        override fun verifyManagedContent(gameId: String, cancelled: () -> Boolean) =
+            com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport(
+                1, "digest", emptyList(), cancelled(), false
+            )
         override fun buildResolvedDataGraphDebugSummary(): String = "resolved"
         override fun buildDeploymentPlanDebugSummary(gameId: String): String = "plan for $gameId"
         override fun buildDownloadedArchiveSummary(): String = "archives"

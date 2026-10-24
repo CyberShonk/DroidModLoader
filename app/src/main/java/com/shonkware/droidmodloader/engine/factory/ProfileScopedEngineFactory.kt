@@ -12,7 +12,7 @@ internal class ProfileScopedEngineFactory(
     private val selectedGameIdProvider: () -> String,
     private val appendError: (String) -> Unit
 ) {
-    fun create(): ModEngine? {
+    fun create(prepareDirectories: Boolean = true): ModEngine? {
         val externalBaseDir = externalFilesDirProvider()
         if (externalBaseDir == null) {
             appendError("External files directory is null")
@@ -38,11 +38,13 @@ internal class ProfileScopedEngineFactory(
             "deploy_target/profiles/${profileStoragePaths.getActiveProfileStorageKey()}/$selectedGameId/Data"
         )
 
-        tempDir.mkdirs()
-        modsDir.mkdirs()
-        profileStateDir.mkdirs()
-        archiveLibraryDir.mkdirs()
-        deployDir.mkdirs()
+        if (prepareDirectories) {
+            tempDir.mkdirs()
+            modsDir.mkdirs()
+            profileStateDir.mkdirs()
+            archiveLibraryDir.mkdirs()
+            deployDir.mkdirs()
+        }
 
         return ModEngine(
             appContext = appContext,

@@ -109,6 +109,20 @@ not tools reserved for developers.
 Use diagnostics when the selected target, plugin state, archive support, or
 deployment result is unclear.
 
+In **Report & Diagnostics**, choose **Check Recorded Managed Content** to compare
+recorded Data, Game Root and installed mod files with their saved SHA-256 hashes.
+**Cancel Integrity Check** stops cooperatively and leaves partial results in the
+report. Missing or invalid evidence is reported as unavailable, never rebuilt by
+this check. Results identify the captured profile, targets, input digest and time;
+they are historical observations, not live health, repair or compatibility proof.
+Rerun after changes. DML mutations are excluded during a check, but external
+programs can still change files; this is not an atomic filesystem snapshot.
+
+Evidence reads are limited to 8 MiB per metadata file, 50,000 files per target,
+and 1,000 recorded installs with 50,000 indexed files in total. Exceeding a limit
+leaves the affected evidence unavailable rather than silently truncating a check.
+Files not named in recorded evidence are not scanned.
+
 If DML reports an unfinished deployment, review that warning before starting
 another risky deployment operation.
 

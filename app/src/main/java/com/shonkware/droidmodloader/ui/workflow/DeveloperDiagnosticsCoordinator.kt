@@ -2,6 +2,7 @@ package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
+import com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport
 import com.shonkware.droidmodloader.engine.model.Mod
 
 internal interface DeveloperDiagnosticsEngine {
@@ -10,6 +11,7 @@ internal interface DeveloperDiagnosticsEngine {
     fun buildDownloadedArchiveSummary(): String
     fun buildFullRedeployPlanDebugSummary(gameId: String): String
     fun indexModContent(mod: Mod): ModContentIndex
+    fun verifyManagedContent(gameId: String, cancelled: () -> Boolean): ManagedIntegrityReport
 }
 
 internal class DeveloperDiagnosticsEngineAdapter(
@@ -28,6 +30,9 @@ internal class DeveloperDiagnosticsEngineAdapter(
         engine.buildFullRedeployPlanDebugSummary(gameId)
 
     override fun indexModContent(mod: Mod): ModContentIndex = engine.indexModContent(mod)
+
+    override fun verifyManagedContent(gameId: String, cancelled: () -> Boolean) =
+        engine.verifyManagedContent(gameId, cancelled)
 }
 
 internal class DeveloperDiagnosticsCoordinator(
@@ -41,6 +46,31 @@ internal class DeveloperDiagnosticsCoordinator(
     private val failOperation: (String, Throwable?) -> Unit,
     private val refreshDashboard: () -> Unit
 ) {
+    fun verifyManagedContent(
+        engine: DeveloperDiagnosticsEngine,
+        gameId: String,
+        profileId: String,
+        cancelled: () -> Boolean,
+        contextStillCurrent: () -> Boolean
+    ) {
+        beginOperation("Checking recorded managed content...")
+        try {
+            val result = engine.verifyManagedContent(gameId, cancelled)
+            val report = result.copy(stale = result.stale || !contextStillCurrent())
+            appendLog("----- Managed Content Integrity: profile=$profileId; game=$gameId -----")
+            report.toSummary().lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
+            finishOperation(when {
+                report.stale -> "Integrity evidence is stale; rerun required."
+                report.cancelled -> "Integrity check cancelled; partial evidence only."
+                report.groups.any { !it.complete } -> "Integrity check partial; some evidence unavailable."
+                else -> "Integrity check completed; review recorded counts."
+            })
+        } catch (failure: Exception) {
+            failOperation("Integrity check failed: ${failure.message}", failure)
+        }
+        // Do not refresh/rebuild indexes after a read-only evidence check.
+    }
+
     fun buildResolvedDataGraphSummary() {
         runSummaryOperation(
             busyMessage = "Ignoring resolved graph request: operation already in progress.",
