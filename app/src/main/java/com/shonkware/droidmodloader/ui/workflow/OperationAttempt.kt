@@ -8,7 +8,8 @@ internal data class OperationContext(
     val gameId: String,
     val realDeployment: Boolean,
     val dataTarget: String,
-    val rootTarget: String
+    val rootTarget: String,
+    val unavailable: Boolean = false
 )
 
 internal enum class OperationKind { ARCHIVE_INSTALL }
@@ -26,7 +27,8 @@ internal data class OperationAttemptRecord(
     val finishedAtMillis: Long?,
     val phase: OperationPhase,
     val outcome: OperationOutcome?,
-    val reason: String
+    val reason: String,
+    val interrupted: Boolean = false
 )
 
 /** One logical attempt. Terminal callbacks are idempotent and cannot reopen it. */

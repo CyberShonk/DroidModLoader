@@ -4,7 +4,7 @@ import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.IOException
 
-/** Strict scalar decoding shared only by the two critical JSON stores. No coercion/defaults. */
+/** Strict scalar decoding for critical metadata and operation history. No coercion/defaults. */
 internal object CriticalMetadataJson {
     fun <T> decode(description: String, text: String, parse: (Any) -> T): T {
         try {

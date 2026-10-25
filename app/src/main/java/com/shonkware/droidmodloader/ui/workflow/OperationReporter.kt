@@ -10,7 +10,8 @@ internal class OperationReporter(
     private val updateLastOperationStatus: (String) -> Unit,
     private val debugLog: (String) -> Unit,
     private val errorLog: (String, Throwable?) -> Unit,
-    private val appendLogFile: (String) -> Unit
+    private val appendLogFile: (String) -> Unit,
+    private val recordAttempt: (OperationAttemptRecord) -> Unit = {}
 ) {
     private var activeAttemptId: String? = null
     @Volatile private var presentationRevision = 0L
@@ -41,6 +42,11 @@ internal class OperationReporter(
 
     @Synchronized
     private fun reportAttempt(record: OperationAttemptRecord, transition: OperationTransition, failure: Throwable?) {
+        try {
+            recordAttempt(record)
+        } catch (failure: Exception) {
+            appendError("Operation history is not saved; operation outcome is unchanged.", failure)
+        }
         val running = transition == OperationTransition.STARTED || transition == OperationTransition.RESUMED
         if (running) activeAttemptId = record.id
         val ownsPresentation = activeAttemptId == record.id

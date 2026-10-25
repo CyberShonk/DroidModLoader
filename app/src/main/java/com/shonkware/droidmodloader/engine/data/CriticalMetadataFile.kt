@@ -12,7 +12,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.StandardCopyOption
 
 /**
- * Persistence primitive for archive records and deployment journals only.
+ * Atomic metadata replacement for archive records, deployment journals and operation history.
  *
  * A missing path is not a read failure. Replacement writes a unique sibling, syncs its
  * contents, closes it, then atomically replaces the destination. Before promotion the
@@ -28,9 +28,10 @@ internal class CriticalMetadataFile(
     private val file: File,
     private val operations: CriticalMetadataFileOperations = SystemCriticalMetadataFileOperations
 ) {
-    fun read(): String? {
+    fun read(maxBytes: Int? = null): String? {
+        require(maxBytes == null || maxBytes in 1 until Int.MAX_VALUE)
         val bytes = try {
-            operations.read(file)
+            if (maxBytes == null) operations.read(file) else operations.readBounded(file, maxBytes)
         } catch (_: NoSuchFileException) {
             return null
         } catch (exception: Exception) {
@@ -68,6 +69,9 @@ internal class CriticalMetadataFile(
 
 internal interface CriticalMetadataFileOperations {
     fun read(file: File): ByteArray
+    fun readBounded(file: File, maxBytes: Int): ByteArray = read(file).also {
+        if (it.size > maxBytes) throw IOException("Metadata exceeds byte limit")
+    }
     fun writeAndSync(file: File, bytes: ByteArray)
     fun promote(source: File, target: File)
 }
@@ -79,6 +83,25 @@ internal object SystemCriticalMetadataFileOperations : CriticalMetadataFileOpera
         )
         if (!attributes.isRegularFile) throw IOException("Metadata is not a regular file: ${file.name}")
         return Files.readAllBytes(file.toPath())
+    }
+
+    override fun readBounded(file: File, maxBytes: Int): ByteArray {
+        val attributes = Files.readAttributes(
+            file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS
+        )
+        if (!attributes.isRegularFile) throw IOException("Metadata is not a regular file: ${file.name}")
+        if (attributes.size() > maxBytes) throw IOException("Metadata exceeds byte limit")
+        return Files.newInputStream(file.toPath(), LinkOption.NOFOLLOW_LINKS).use { input ->
+            val buffer = ByteArray(maxBytes + 1)
+            var count = 0
+            while (count < buffer.size) {
+                val read = input.read(buffer, count, buffer.size - count)
+                if (read < 0) break
+                count += read
+            }
+            if (count > maxBytes) throw IOException("Metadata exceeds byte limit")
+            buffer.copyOf(count)
+        }
     }
 
     override fun writeAndSync(file: File, bytes: ByteArray) {

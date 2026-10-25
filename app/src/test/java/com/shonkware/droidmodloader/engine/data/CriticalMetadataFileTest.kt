@@ -38,6 +38,23 @@ class CriticalMetadataFileTest {
         assertArrayEquals(bytes, file.readBytes())
     }
 
+    @Test fun `bounded reads accept exact byte limit and refuse oversized evidence`() {
+        val file = temporaryFolder.newFile("records.json").apply { writeText("12345678") }
+        assertEquals("12345678", CriticalMetadataFile(file).read(8))
+        assertThrows(IOException::class.java) { CriticalMetadataFile(file).read(7) }
+        assertEquals("12345678", file.readText())
+        assertNull(CriticalMetadataFile(File(temporaryFolder.root, "missing")).read(8))
+    }
+
+    @Test fun `bounded reads refuse symbolic links and malformed UTF8`() {
+        val target = temporaryFolder.newFile("target.json").apply { writeText("valid") }
+        val link = File(temporaryFolder.root, "link.json")
+        Files.createSymbolicLink(link.toPath(), target.toPath())
+        assertThrows(IOException::class.java) { CriticalMetadataFile(link).read(8) }
+        target.writeBytes(byteArrayOf(0xc3.toByte(), 0x28))
+        assertThrows(IOException::class.java) { CriticalMetadataFile(target).read(8) }
+    }
+
     @Test fun `old state stays visible until synced sibling is promoted`() {
         val file = temporaryFolder.newFile("records.json").apply { writeText("old") }
         val events = mutableListOf<String>()

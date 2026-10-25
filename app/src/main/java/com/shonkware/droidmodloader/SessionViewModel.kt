@@ -26,6 +26,8 @@ import android.os.Looper
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
 import com.shonkware.droidmodloader.ui.workflow.OperationAttempt
 import com.shonkware.droidmodloader.ui.workflow.OperationContext
+import com.shonkware.droidmodloader.ui.workflow.OperationHistoryRepository
+import com.shonkware.droidmodloader.ui.workflow.OperationHistoryAvailability
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 import com.shonkware.droidmodloader.ui.workflow.GameConfigurationWorkflow
@@ -249,6 +251,7 @@ internal class SessionViewModel @JvmOverloads constructor(
         ) {
             admittedOperationContext.set(checkNotNull(context))
             try {
+                loadAndReportOperationHistory()
                 task()
             } catch (failure: Throwable) {
                 operationReporter.failOperation("Operation failed: ${failure.message}", failure)
@@ -273,7 +276,30 @@ internal class SessionViewModel @JvmOverloads constructor(
     private val sessionLogWriter by lazy {
         SessionLogWriter { getExternalFilesDir(null) }
     }
-    private val operationReporter by lazy {
+    private val operationHistory by lazy { OperationHistoryRepository(File(filesDir, "operation-history.json")) }
+    private var historyReported = false
+
+    private fun loadAndReportOperationHistory() {
+        if (historyReported) return
+        historyReported = true
+        val history = operationHistory.load()
+        if (history.availability != OperationHistoryAvailability.AVAILABLE) {
+            operationReporter.appendLog(checkNotNull(history.reason))
+            return
+        }
+        operationReporter.appendLog("Recent operation history: ${history.records.size} recorded attempts.")
+        history.records.takeLast(3).reversed().forEach { record ->
+            val outcome = if (record.interrupted) "Interrupted; outcome unknown" else record.outcome?.name ?: "Outcome unknown"
+            val context = if (record.context.unavailable) "context unavailable" else
+                "profile=${record.context.profileId ?: "unassigned"}, game=${record.context.gameId}"
+            operationReporter.appendLog(
+                "RECENT OPERATION [${record.id}]: $outcome; last phase=${record.phase}; $context; " +
+                    "updated=${record.updatedAtMillis}; ${record.reason}"
+            )
+        }
+    }
+
+    private val operationReporter: OperationReporter by lazy {
         OperationReporter(
             runOnUiThread = { action -> runOnUiThread(action) },
             currentLogText = { logText },
@@ -289,7 +315,15 @@ internal class SessionViewModel @JvmOverloads constructor(
                     Log.e(TAG, line, throwable)
                 }
             },
-            appendLogFile = { line -> sessionLogWriter.append(line) }
+            appendLogFile = { line -> sessionLogWriter.append(line) },
+            recordAttempt = { record ->
+                val before = operationHistory.snapshot
+                val after = operationHistory.record(record)
+                if (after.availability != OperationHistoryAvailability.AVAILABLE &&
+                    (before.availability != after.availability || before.reason != after.reason)) {
+                    operationReporter.appendLog(checkNotNull(after.reason))
+                }
+            }
         )
     }
     private val profileContentInspectionCoordinator by lazy {

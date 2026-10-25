@@ -194,9 +194,24 @@ class OperationReporterTest {
         assertEquals("New operation", state.lastOperationStatus)
     }
 
+    @Test
+    fun `history callback failure does not change the install outcome`() {
+        val state = FakeState()
+        val reporter = createReporter(state, recordAttempt = { throw java.io.IOException("history denied") })
+        val attempt = reporter.beginArchiveInstall(OperationContext(null, "skyrim", false, "", ""), "Importing")
+        attempt.startInstalling("Installing")
+        attempt.succeed("Installed")
+        assertEquals(OperationOutcome.SUCCEEDED, attempt.snapshot().outcome)
+        assertFalse(state.operationInProgress)
+        assertTrue(state.lastOperationStatus.startsWith("Installed"))
+        assertTrue(state.logText.contains("Operation history is not saved"))
+        assertFalse(state.logText.contains("OPERATION FAILED"))
+    }
+
     private fun createReporter(
         state: FakeState,
-        runOnUiThread: (() -> Unit) -> Unit = { it() }
+        runOnUiThread: (() -> Unit) -> Unit = { it() },
+        recordAttempt: (OperationAttemptRecord) -> Unit = {}
     ): OperationReporter {
         return OperationReporter(
             runOnUiThread = runOnUiThread,
@@ -210,7 +225,8 @@ class OperationReporterTest {
                 state.errorLines += line
                 state.errorThrowable = throwable
             },
-            appendLogFile = { state.fileLines += it }
+            appendLogFile = { state.fileLines += it },
+            recordAttempt = recordAttempt
         )
     }
 

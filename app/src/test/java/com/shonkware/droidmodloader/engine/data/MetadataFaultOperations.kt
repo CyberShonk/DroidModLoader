@@ -16,6 +16,11 @@ internal class MetadataFaultOperations(private val fault: MetadataFault) :
         return SystemCriticalMetadataFileOperations.read(file)
     }
 
+    override fun readBounded(file: File, maxBytes: Int): ByteArray {
+        if (fault == MetadataFault.READ) throw AccessDeniedException(file.path)
+        return SystemCriticalMetadataFileOperations.readBounded(file, maxBytes)
+    }
+
     override fun writeAndSync(file: File, bytes: ByteArray) {
         if (fault == MetadataFault.OPEN_WRITE) throw AccessDeniedException(file.path)
         if (fault == MetadataFault.WRITE) {
