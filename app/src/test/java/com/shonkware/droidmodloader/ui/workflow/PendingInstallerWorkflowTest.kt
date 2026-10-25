@@ -159,14 +159,15 @@ class PendingInstallerWorkflowTest {
         assertEquals(listOf("Example Archive.zip"), engine.cancelledArchiveNames)
         assertNull(harness.session)
         assertEquals(1, harness.clearCount)
-        assertEquals(listOf("Installer cancelled."), harness.statuses)
+        assertTrue(harness.statuses.isEmpty())
+        assertEquals(listOf("Installer cancelled."), harness.cancelMessages)
         assertTrue(
             harness.logs.contains("Cancelled installer session for: Example Archive.zip")
         )
     }
 
     @Test
-    fun cancelFailureStillClearsStateAndUpdatesStatus() {
+    fun cancelCleanupFailureStillClearsStateButDoesNotClaimCancellationSucceeded() {
         val engine = FakePendingInstallerEngine().apply {
             cancelFailure = IllegalStateException("cleanup failed")
         }
@@ -176,7 +177,9 @@ class PendingInstallerWorkflowTest {
 
         assertNull(harness.session)
         assertEquals(1, harness.clearCount)
-        assertEquals(listOf("Installer cancelled."), harness.statuses)
+        assertTrue(harness.statuses.isEmpty())
+        assertTrue(harness.cancelMessages.isEmpty())
+        assertEquals("Failed to clean installer session: cleanup failed", harness.failures.single().first)
         assertEquals(
             "Failed to clean installer session: cleanup failed",
             harness.errors.single().first
@@ -286,6 +289,8 @@ class PendingInstallerWorkflowTest {
         assertEquals(failure, harness.failures.single().second)
         assertFalse(harness.workflow.cancelActiveInstall())
         assertTrue(engine.savedMods.isEmpty())
+        val failed = checkNotNull(harness.session?.operation).snapshot()
+        assertEquals(OperationOutcome.FAILED, failed.outcome)
 
         harness.engineCreationFailure = null
         harness.workflow.finalizePendingInstall()
@@ -293,6 +298,45 @@ class PendingInstallerWorkflowTest {
         assertEquals(2, harness.engineCreationCount)
         assertEquals(1, engine.savedMods.size)
         assertEquals(1, harness.finishMessages.size)
+        val retry = harness.attempts.attempts.last().snapshot()
+        assertTrue(failed.id != retry.id)
+        assertEquals(failed.id, retry.previousAttemptId)
+        assertEquals(failed.context, retry.context)
+        assertEquals(OperationOutcome.SUCCEEDED, retry.outcome)
+    }
+
+    @Test
+    fun waitingImportIdentitySurvivesSessionCopyAndFinalizationEmitsOneTerminalOutcome() {
+        val recorder = RecordingOperationAttempts()
+        val original = recorder.start("Importing...")
+        original.waitForChoices("Choose")
+        // Activity recreation retains the session; option changes copy it, not the attempt.
+        val retained = session().copy(operation = original).copy(selectedOptionIds = setOf("textures"))
+        val harness = WorkflowHarness(FakePendingInstallerEngine(), retained)
+        val finalization = checkNotNull(harness.workflow.prepareFinalization())
+        finalization.run()
+        finalization.run()
+
+        assertEquals(original.snapshot().id, recorder.records.last().id)
+        assertEquals(OperationOutcome.SUCCEEDED, original.snapshot().outcome)
+        assertEquals(1, recorder.records.count { it.outcome != null })
+        assertEquals(1, harness.clearCount)
+        assertTrue(harness.attempts.attempts.isEmpty())
+    }
+
+    @Test
+    fun cancellingWaitingChoicesEndsTheOriginalAttemptExactlyOnce() {
+        val recorder = RecordingOperationAttempts()
+        val original = recorder.start("Importing...")
+        original.waitForChoices("Choose")
+        val harness = WorkflowHarness(FakePendingInstallerEngine(), session().copy(operation = original))
+        harness.workflow.cancelPendingInstall()
+        harness.workflow.cancelPendingInstall()
+
+        assertEquals(OperationOutcome.CANCELLED, original.snapshot().outcome)
+        assertEquals(1, recorder.records.count { it.outcome != null })
+        assertEquals(1, harness.clearCount)
+        assertTrue(harness.attempts.attempts.isEmpty())
     }
 
     private class WorkflowHarness(
@@ -308,25 +352,25 @@ class PendingInstallerWorkflowTest {
         val logs = mutableListOf<String>()
         val errors = mutableListOf<Pair<String, Throwable?>>()
         val statuses = mutableListOf<String>()
-        val beginMessages = mutableListOf<String>()
-        val finishMessages = mutableListOf<String>()
-
-        val cancelMessages = mutableListOf<String>()
-        val failures = mutableListOf<Pair<String, Throwable?>>()
+        val attempts = RecordingOperationAttempts()
+        val beginMessages = attempts.beginMessages
+        val finishMessages = attempts.finishMessages
+        val cancelMessages = attempts.cancelMessages
+        val failures = attempts.failures
         val selectedIdUpdates = mutableListOf<Set<String>>()
 
         val workflow = PendingInstallerWorkflow(
-            pendingSessionProvider = { session },
+            pendingSessionProvider = { this.session },
             isOperationInProgress = { operationInProgress },
             createEngine = {
                 engineCreationCount++
                 engineCreationFailure?.let { throw it }
                 engine
             },
-            beginOperation = { message -> beginMessages.add(message) },
-            finishOperation = { message -> finishMessages.add(message) },
-            cancelOperation = { message -> cancelMessages.add(message) },
-            failOperation = { message, throwable -> failures.add(message to throwable) },
+            beginOperation = attempts::continueInstall,
+            updatePendingOperation = { operation ->
+                this.session = this.session?.copy(operation = operation)
+            },
             appendLog = { message -> logs.add(message) },
             appendError = { message, throwable -> errors.add(message to throwable) },
             updateLastOperationStatus = { status -> statuses.add(status) },

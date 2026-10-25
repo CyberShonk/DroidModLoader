@@ -137,16 +137,13 @@ internal class ArchiveImportEngineAdapter(
 
 internal class ArchiveImportExecutionWorkflow(
     private val operationInProgressProvider: () -> Boolean,
-    private val beginOperation: (String) -> Unit,
+    private val beginOperation: (String) -> OperationAttempt,
     private val createEngine: () -> ArchiveImportEngine?,
     private val archiveImportFileStore: ArchiveImportFileStore,
     private val showInstallerChoices:
-        (PreparedArchiveInstall, String) -> Unit,
+        (PreparedArchiveInstall, String, OperationAttempt) -> Unit,
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
-    private val finishOperation: (String) -> Unit,
-    private val cancelOperation: (String) -> Unit,
-    private val failOperation: (String, Throwable?) -> Unit,
     private val updateLastOperationStatus: (String) -> Unit,
     private val refreshDashboard: () -> Unit,
     private val updateArchiveImportInProgress:
@@ -187,9 +184,10 @@ internal class ArchiveImportExecutionWorkflow(
         var engine: ArchiveImportEngine? = null
         var archiveLibraryFile: File? = null
         var prepared: PreparedArchiveInstall? = null
+        var operation: OperationAttempt? = null
 
         try {
-            beginOperation("Importing archive...")
+            operation = beginOperation("Importing archive...")
 
             val fileName =
                 sourceFile.name
@@ -224,10 +222,7 @@ internal class ArchiveImportExecutionWorkflow(
             engine = createEngine()
 
             if (engine == null) {
-                failOperation(
-                    "Import archive failed: engine could not be created.",
-                    null
-                )
+                operation.fail("Import archive failed: engine could not be created.")
                 return
             }
 
@@ -294,7 +289,8 @@ internal class ArchiveImportExecutionWorkflow(
             if (preparedInstall.plan.requiresUserChoice) {
                 showInstallerChoices(
                     preparedInstall,
-                    archiveRecord.archiveId
+                    archiveRecord.archiveId,
+                    operation
                 )
 
                 appendLog(
@@ -311,12 +307,11 @@ internal class ArchiveImportExecutionWorkflow(
                     )
                 }
 
-                finishOperation(
-                    "Choose installer options."
-                )
+                operation.waitForChoices("Choose installer options.")
                 return
             }
 
+            operation.startInstalling("Installing archive...")
             val installedMod =
                 engine.finalizePreparedArchiveInstall(
                     prepared = preparedInstall,
@@ -374,9 +369,7 @@ internal class ArchiveImportExecutionWorkflow(
             )
             appendLog("RESULT: PASS")
 
-            finishOperation(
-                "Archive imported successfully."
-            )
+            operation.succeed("Archive imported successfully.")
         } catch (exception: InstallCancelledException) {
             val activeEngine = engine
             val activePrepared = prepared
@@ -402,16 +395,16 @@ internal class ArchiveImportExecutionWorkflow(
             )
             appendLog("RESULT: CANCELLED")
 
-            cancelOperation(
-                "Archive import cancelled."
-            )
+            operation?.cancel("Archive import cancelled.")
         } catch (exception: ArchiveFormatProbeException) {
             handleArchiveFailure(
+                operation = operation,
                 failureCode = exception.code.name,
                 exception = exception
             )
         } catch (exception: ArchiveReadException) {
             handleArchiveFailure(
+                operation = operation,
                 failureCode = exception.code.name,
                 exception = exception
             )
@@ -422,7 +415,7 @@ internal class ArchiveImportExecutionWorkflow(
             )
             appendLog("RESULT: FAIL")
 
-            failOperation(
+            operation?.fail(
                 "Import archive failed: " +
                         throwable.message,
                 throwable
@@ -476,6 +469,7 @@ internal class ArchiveImportExecutionWorkflow(
     }
 
     private fun handleArchiveFailure(
+        operation: OperationAttempt?,
         failureCode: String,
         exception: Exception
     ) {
@@ -484,7 +478,7 @@ internal class ArchiveImportExecutionWorkflow(
         )
         appendLog("RESULT: FAIL")
 
-        failOperation(
+        operation?.fail(
             "Import archive failed: " +
                     exception.message.orEmpty(),
             null

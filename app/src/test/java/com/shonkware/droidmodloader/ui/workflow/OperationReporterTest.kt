@@ -115,6 +115,85 @@ class OperationReporterTest {
         assertEquals("Deploying...", state.activeOperationText)
     }
 
+    @Test
+    fun `choice handoff is waiting not a terminal success and resumes the same attempt`() {
+        val state = FakeState()
+        val reporter = createReporter(state)
+        val context = OperationContext("profile-a", "skyrim", true, "/a/Data", "/a")
+        val attempt = reporter.beginArchiveInstall(context, "Importing...")
+        val original = attempt.snapshot()
+        attempt.waitForChoices("Choose installer options.")
+
+        assertFalse(state.operationInProgress)
+        assertEquals("Choose installer options.", state.lastOperationStatus)
+        assertTrue(state.logText.contains("OPERATION WAITING [${original.id}]"))
+        assertFalse(state.logText.contains("OPERATION SUCCEEDED"))
+
+        reporter.beginOperation("Checking unrelated evidence...")
+        reporter.finishOperation("Check complete.")
+        val resumed = reporter.continueArchiveInstall(
+            attempt, context.copy(profileId = "not-the-original"), "Installing..."
+        )
+        assertEquals(attempt, resumed)
+        assertTrue(state.operationInProgress)
+        resumed.succeed("Installed.")
+        assertFalse(state.operationInProgress)
+        assertEquals(original.id, resumed.snapshot().id)
+        assertEquals(original.startedAtMillis, resumed.snapshot().startedAtMillis)
+        assertEquals(context, resumed.snapshot().context)
+        assertEquals(1, state.fileLines.count { it.contains("OPERATION SUCCEEDED") })
+        assertFalse(attempt.cancel("Duplicate callback"))
+        assertEquals(1, state.fileLines.count { it.contains("OPERATION SUCCEEDED") })
+    }
+
+    @Test
+    fun `retry is linked to a failed attempt and late callbacks cannot finish newer work`() {
+        val state = FakeState()
+        val reporter = createReporter(state)
+        val context = OperationContext("profile-a", "skyrim", true, "/a/Data", "/a")
+        val original = reporter.beginArchiveInstall(context, "Importing...")
+        original.waitForChoices("Choose")
+        reporter.continueArchiveInstall(original, context, "Installing...").fail("Failed")
+        val retry = reporter.continueArchiveInstall(original, context.copy(profileId = "b"), "Retrying...")
+        assertTrue(retry.snapshot().id != original.snapshot().id)
+        assertEquals(original.snapshot().id, retry.snapshot().previousAttemptId)
+        assertEquals(context, retry.snapshot().context)
+        assertFalse(original.succeed("Stale success"))
+        assertTrue(state.operationInProgress)
+        assertEquals("Retrying...", state.activeOperationText)
+        retry.succeed("Installed")
+        assertEquals(OperationOutcome.FAILED, original.snapshot().outcome)
+        assertEquals(OperationOutcome.SUCCEEDED, retry.snapshot().outcome)
+    }
+
+    @Test
+    fun `late waiting failure cannot overwrite an unrelated operation presentation`() {
+        val state = FakeState()
+        val reporter = createReporter(state)
+        val context = OperationContext(null, "skyrim", false, "", "")
+        val attempt = reporter.beginArchiveInstall(context, "Importing...")
+        attempt.waitForChoices("Choose")
+        reporter.beginOperation("Other work")
+        attempt.fail("Late failure")
+        assertTrue(state.operationInProgress)
+        assertEquals("Other work", state.activeOperationText)
+        assertEquals("Other work", state.lastOperationStatus)
+        assertEquals(OperationOutcome.FAILED, attempt.snapshot().outcome)
+    }
+
+    @Test
+    fun `queued attempt publications cannot overwrite newer status`() {
+        val state = FakeState()
+        val queued = mutableListOf<() -> Unit>()
+        val reporter = createReporter(state, queued::add)
+        val attempt = reporter.beginArchiveInstall(OperationContext(null, "skyrim", false, "", ""), "Importing")
+        attempt.waitForChoices("Choose")
+        reporter.beginOperation("New operation")
+        queued.toList().forEach { it() }
+        assertTrue(state.operationInProgress)
+        assertEquals("New operation", state.lastOperationStatus)
+    }
+
     private fun createReporter(
         state: FakeState,
         runOnUiThread: (() -> Unit) -> Unit = { it() }

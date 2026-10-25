@@ -264,8 +264,11 @@ class ArchiveImportExecutionWorkflowTest {
             listOf(
                 "Choose installer options."
             ),
-            harness.finishMessages
+            harness.attempts.waitingMessages
         )
+        assertTrue(harness.finishMessages.isEmpty())
+        assertEquals(OperationPhase.WAITING_FOR_CHOICES, harness.shownOperation!!.snapshot().phase)
+        assertNull(harness.shownOperation!!.snapshot().outcome)
         assertTrue(
             harness.cancelMessages.isEmpty()
         )
@@ -478,19 +481,11 @@ class ArchiveImportExecutionWorkflowTest {
                     Pair<String, Throwable?>
                     >()
 
-        val beginMessages =
-            mutableListOf<String>()
-
-        val finishMessages =
-            mutableListOf<String>()
-
-        val cancelMessages =
-            mutableListOf<String>()
-
-        val failures =
-            mutableListOf<
-                    Pair<String, Throwable?>
-                    >()
+        val attempts = RecordingOperationAttempts()
+        val beginMessages = attempts.beginMessages
+        val finishMessages = attempts.finishMessages
+        val cancelMessages = attempts.cancelMessages
+        val failures = attempts.failures
 
         val statuses =
             mutableListOf<String>()
@@ -500,6 +495,7 @@ class ArchiveImportExecutionWorkflowTest {
                 PreparedArchiveInstall? = null
         var shownArchiveRecordId:
                 String? = null
+        var shownOperation: OperationAttempt? = null
 
         private val fileStore =
             ArchiveImportFileStore(
@@ -537,9 +533,7 @@ class ArchiveImportExecutionWorkflowTest {
                 operationInProgressProvider = {
                     false
                 },
-                beginOperation = { message ->
-                    beginMessages.add(message)
-                },
+                beginOperation = attempts::start,
                 createEngine = {
                     engineCreationCount++
                     engine
@@ -548,8 +542,10 @@ class ArchiveImportExecutionWorkflowTest {
                     fileStore,
                 showInstallerChoices = {
                         prepared,
-                        archiveRecordId ->
+                        archiveRecordId,
+                        operation ->
                     shownPrepared = prepared
+                    shownOperation = operation
                     shownArchiveRecordId =
                         archiveRecordId
                 },
@@ -560,19 +556,6 @@ class ArchiveImportExecutionWorkflowTest {
                         message,
                         throwable ->
                     errors.add(
-                        message to throwable
-                    )
-                },
-                finishOperation = { message ->
-                    finishMessages.add(message)
-                },
-                cancelOperation = { message ->
-                    cancelMessages.add(message)
-                },
-                failOperation = {
-                        message,
-                        throwable ->
-                    failures.add(
                         message to throwable
                     )
                 },

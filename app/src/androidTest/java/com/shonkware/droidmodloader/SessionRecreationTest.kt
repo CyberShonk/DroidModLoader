@@ -229,6 +229,8 @@ class SessionRecreationTest {
         try {
             compose.onNodeWithText("Install Selected").performClick()
             assertTrue("Worker did not reach the controlled boundary", engine.entered.await(5, TimeUnit.SECONDS))
+            compose.waitForIdle()
+            val attemptId = checkNotNull(Regex("""OPERATION STARTED \[([^]]+)]""").find(session.logText)).groupValues[1]
 
             recreate()
 
@@ -287,6 +289,10 @@ class SessionRecreationTest {
                 assertEquals(if (cancel) 0 else 1, engine.markCount.get())
                 assertEquals(if (cancel) 1 else 0, engine.cleanupCount.get())
                 assertEquals(setOf("optional"), engine.selectedIds)
+                val outcome = if (cancel) "CANCELLED" else "SUCCEEDED"
+                assertEquals(1, session.logText.lineSequence().count { it.contains("OPERATION STARTED [$attemptId]") })
+                assertEquals(1, session.logText.lineSequence().count { it.contains("OPERATION $outcome [$attemptId]") })
+                assertFalse(session.logText.contains("OPERATION FAILED [$attemptId]"))
             }
         } finally {
             engine.release.countDown()

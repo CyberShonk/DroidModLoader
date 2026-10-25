@@ -24,6 +24,8 @@ import com.shonkware.droidmodloader.engine.profile.ProfileRepositoryFactory
 import java.io.File
 import android.os.Looper
 import com.shonkware.droidmodloader.ui.workflow.OperationReporter
+import com.shonkware.droidmodloader.ui.workflow.OperationAttempt
+import com.shonkware.droidmodloader.ui.workflow.OperationContext
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 import com.shonkware.droidmodloader.ui.workflow.GameConfigurationWorkflow
@@ -209,6 +211,9 @@ internal class SessionViewModel @JvmOverloads constructor(
     val isOperationAdmitted: Boolean
         get() = activityThreadRunner.isOperationAdmitted
 
+    private val admittedOperationContext = ThreadLocal<OperationContext>()
+    private var pendingInstallerOperation: OperationAttempt? = null
+
     private fun runSessionOperation(
         requireNoPendingInstaller: Boolean = false,
         refreshArchives: Boolean = true,
@@ -216,11 +221,16 @@ internal class SessionViewModel @JvmOverloads constructor(
         prepare: () -> Boolean = { true },
         task: () -> Unit
     ): Boolean {
+        var context: OperationContext? = null
         val accepted = activityThreadRunner.runExclusiveInBackground(
             beforeSchedule = {
                 val allowed = !requireNoPendingInstaller || captureOnUiThread { pendingArchiveInstall == null }
                 if (allowed && prepare()) {
                     captureOnUiThread {
+                        context = OperationContext(
+                            activeProfileId, selectedGameId, realDeployEnabledState,
+                            targetPathText, rootTargetPathText
+                        )
                         if (!preserveHealthEvidence) {
                             integrityObservation.set(null)
                             deploymentHealth = deploymentHealth?.let(DeploymentHealthProjector::invalidate)
@@ -237,11 +247,13 @@ internal class SessionViewModel @JvmOverloads constructor(
                 if (refreshArchives) runOnUiThread { archiveBrowserWorkflow.refreshIfOpen() }
             }
         ) {
+            admittedOperationContext.set(checkNotNull(context))
             try {
                 task()
             } catch (failure: Throwable) {
                 operationReporter.failOperation("Operation failed: ${failure.message}", failure)
             } finally {
+                admittedOperationContext.remove()
                 // Publish queued state (including pending choices) before another request can own it.
                 activityThreadRunner.runOnUiThreadBlocking {}
             }
@@ -384,7 +396,8 @@ internal class SessionViewModel @JvmOverloads constructor(
                     PendingInstallerSession(
                         prepared = prepared,
                         archiveRecordId = pendingInstallerArchiveRecordId,
-                        selectedOptionIds = pendingInstallerSelectedOptionIds
+                        selectedOptionIds = pendingInstallerSelectedOptionIds,
+                        operation = pendingInstallerOperation
                     )
                 }
             },
@@ -400,10 +413,12 @@ internal class SessionViewModel @JvmOverloads constructor(
                     )
                 }
             },
-            beginOperation = { message -> operationReporter.beginOperation(message) },
-            finishOperation = { message -> operationReporter.finishOperation(message) },
-            cancelOperation = { message -> operationReporter.cancelOperation(message) },
-            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            beginOperation = { previous, message ->
+                operationReporter.continueArchiveInstall(previous, checkNotNull(admittedOperationContext.get()), message)
+            },
+            updatePendingOperation = { operation ->
+                activityThreadRunner.runOnUiThreadBlocking { pendingInstallerOperation = operation }
+            },
             appendLog = { message -> operationReporter.appendLog(message) },
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
@@ -413,6 +428,7 @@ internal class SessionViewModel @JvmOverloads constructor(
             clearPendingInstallerState = {
                 runOnUiThread {
                     pendingArchiveInstall = null
+                    pendingInstallerOperation = null
                     pendingInstallerArchiveRecordId = null
                     pendingInstallerSelectedOptionIds = emptySet()
                     showInstallerDialog = false
@@ -956,7 +972,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                 operationInProgress
             },
             beginOperation = { message ->
-                operationReporter.beginOperation(message)
+                operationReporter.beginArchiveInstall(checkNotNull(admittedOperationContext.get()), message)
             },
             createEngine = {
                 profileScopedEngineFactory
@@ -985,9 +1001,11 @@ internal class SessionViewModel @JvmOverloads constructor(
                 archiveImportFileStore,
             showInstallerChoices = {
                     prepared,
-                    archiveRecordId ->
+                    archiveRecordId,
+                    operation ->
                 runOnUiThread {
                     pendingArchiveInstall = prepared
+                    pendingInstallerOperation = operation
                     pendingInstallerArchiveRecordId =
                         archiveRecordId
                     pendingInstallerSelectedOptionIds =
@@ -1004,20 +1022,6 @@ internal class SessionViewModel @JvmOverloads constructor(
                     message,
                     throwable ->
                 operationReporter.appendError(
-                    message,
-                    throwable
-                )
-            },
-            finishOperation = { message ->
-                operationReporter.finishOperation(message)
-            },
-            cancelOperation = { message ->
-                operationReporter.cancelOperation(message)
-            },
-            failOperation = {
-                    message,
-                    throwable ->
-                operationReporter.failOperation(
                     message,
                     throwable
                 )

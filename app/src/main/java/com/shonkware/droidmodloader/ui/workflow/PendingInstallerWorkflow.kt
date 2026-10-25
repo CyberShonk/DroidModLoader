@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicReference
 internal data class PendingInstallerSession(
     val prepared: PreparedArchiveInstall,
     val archiveRecordId: String?,
-    val selectedOptionIds: Set<String>
+    val selectedOptionIds: Set<String>,
+    val operation: OperationAttempt? = null
 )
 
 internal interface PendingInstallerEngine {
@@ -89,10 +90,8 @@ internal class PendingInstallerWorkflow(
     private val pendingSessionProvider: () -> PendingInstallerSession?,
     private val isOperationInProgress: () -> Boolean,
     private val createEngine: () -> PendingInstallerEngine?,
-    private val beginOperation: (String) -> Unit,
-    private val finishOperation: (String) -> Unit,
-    private val cancelOperation: (String) -> Unit,
-    private val failOperation: (String, Throwable?) -> Unit,
+    private val beginOperation: (OperationAttempt?, String) -> OperationAttempt,
+    private val updatePendingOperation: (OperationAttempt) -> Unit,
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
     private val updateLastOperationStatus: (String) -> Unit,
@@ -173,14 +172,14 @@ internal class PendingInstallerWorkflow(
         cancellationController: InstallCancellationController
     ) {
         var cleanupEngine: PendingInstallerEngine? = null
+        var operation: OperationAttempt? = null
         try {
-            beginOperation(
-                "Installing selected options..."
-            )
+            operation = beginOperation(session.operation, "Installing selected options...")
+            updatePendingOperation(operation)
             val engine = createEngine()
             cleanupEngine = engine
             if (engine == null) {
-                failOperation("Install failed: could not create engine.", null)
+                operation.fail("Install failed: could not create engine.")
                 return
             }
             cancellationController.signal.throwIfCancellationRequested()
@@ -258,9 +257,7 @@ internal class PendingInstallerWorkflow(
 
             appendLog("RESULT: PASS")
 
-            finishOperation(
-                "Archive imported successfully."
-            )
+            operation.succeed("Archive imported successfully.")
             refreshDashboard()
         } catch (
             exception: InstallCancelledException
@@ -292,9 +289,7 @@ internal class PendingInstallerWorkflow(
             )
             appendLog("RESULT: CANCELLED")
 
-            cancelOperation(
-                "Installer cancelled."
-            )
+            operation?.cancel("Installer cancelled.")
             refreshDashboard()
         } catch (throwable: Throwable) {
             appendLog(
@@ -303,7 +298,7 @@ internal class PendingInstallerWorkflow(
             )
             appendLog("RESULT: FAIL")
 
-            failOperation(
+            operation?.fail(
                 "Installer finalize failed: " +
                         throwable.message,
                 throwable
@@ -345,6 +340,8 @@ internal class PendingInstallerWorkflow(
         if (cancelActiveInstall()) return
 
         val engine = createEngine() ?: return
+        val operation = beginOperation(session.operation, "Cancelling installer...")
+        updatePendingOperation(operation)
 
         try {
             engine.cancelPreparedArchiveInstall(
@@ -355,18 +352,14 @@ internal class PendingInstallerWorkflow(
                 "Cancelled installer session for: " +
                         session.prepared.archiveName
             )
+            operation.cancel("Installer cancelled.")
         } catch (exception: Exception) {
-            appendError(
-                "Failed to clean installer session: " +
-                        exception.message,
-                exception
-            )
+            val message = "Failed to clean installer session: ${exception.message}"
+            appendError(message, exception)
+            operation.fail(message, exception)
         }
 
         clearPendingInstallerState()
-        updateLastOperationStatus(
-            "Installer cancelled."
-        )
     }
 }
 
