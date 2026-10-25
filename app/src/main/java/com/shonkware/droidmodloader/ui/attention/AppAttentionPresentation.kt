@@ -37,10 +37,10 @@ internal object AppAttentionPresentationMapper {
 
             AppAttentionKind.DEPLOY_RECOVERY -> {
                 AppAttentionPresentation(
-                    title = "Previous deploy may need review",
-                    message = "Droid Mod Loader found a deploy journal that was not marked " +
-                        "completed. Review the previous deployment state before relying on " +
-                        "another deploy.",
+                    title = "Deployment recovery needs attention",
+                    message = "Deployment recovery is unresolved or its evidence is unavailable. " +
+                        "Review and dismissal do not repair files or unblock deployment. " +
+                        "View details for the recorded scope and supported actions.",
                     primaryAction = attention.actions.firstOrNull {
                         it == AppAttentionAction.VIEW_DEPLOY_RECOVERY
                     },
@@ -60,8 +60,8 @@ internal object AppAttentionPresentationMapper {
                     message = "Droid Mod Loader could not automatically recover an " +
                         "interrupted mod installation. Review the state before relying on " +
                         "the affected installation.",
-                    primaryAction = null,
-                    primaryActionLabel = null,
+                    primaryAction = attention.actions.firstOrNull { it == AppAttentionAction.VIEW_DEPLOY_RECOVERY },
+                    primaryActionLabel = "View Details".takeIf { AppAttentionAction.VIEW_DEPLOY_RECOVERY in attention.actions },
                     secondaryAction = null,
                     secondaryActionLabel = null,
                     dismissibleForSession = true,

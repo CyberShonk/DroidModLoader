@@ -25,6 +25,7 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthFacts
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryCapabilities
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentTargetHealth
 import com.shonkware.droidmodloader.engine.deploy.health.TargetReadiness
@@ -102,31 +103,7 @@ internal class DeploymentService(
         gameId: String,
         winningRecords: Pair<List<FileRecord>, List<FileRecord>>?
     ): DeploymentHealthFacts {
-        var recoveryDetails = ""
-        val recovery = try {
-            val file = getDeploymentJournalFile(gameId)
-            val text = try {
-                ManagedContentIntegrity.readEvidence(file)
-            } catch (_: java.nio.file.NoSuchFileException) { null }
-            val journal = text?.let { DeploymentJournalRepository(file).decode(it) }
-            require(journal == null || (journal.profileId == getCurrentProfileIdForJournal() && journal.gameId == gameId)) {
-                "Journal belongs to another profile/game"
-            }
-            if (journal != null) {
-                recoveryDetails = "Operation ${journal.operationId}; recorded targets: " +
-                    listOfNotNull(journal.dataTarget?.identityKey, journal.rootTarget?.identityKey)
-                        .joinToString().ifEmpty { "unknown (legacy journal)" }
-            }
-            when (journal?.status) {
-                DeploymentJournalStatus.STARTED -> DeploymentRecoveryFact.UNFINISHED
-                DeploymentJournalStatus.FAILED -> DeploymentRecoveryFact.FAILED
-                DeploymentJournalStatus.REVIEWED -> DeploymentRecoveryFact.REVIEWED
-                else -> DeploymentRecoveryFact.NONE
-            }
-        } catch (_: Exception) {
-            recoveryDetails = "Journal evidence is unreadable, invalid or belongs to another profile/game."
-            DeploymentRecoveryFact.UNKNOWN
-        }
+        val recovery = collectRecoveryEvidence(gameId)
         var preflight: Boolean? = null
         var preflightDetails = ""
         val targetHealth = try {
@@ -174,9 +151,9 @@ internal class DeploymentService(
             GameTargetType.entries.map { DeploymentTargetHealth(it, null, TargetReadiness.UNKNOWN, null,
                 details = "Target configuration is missing expected fields, unsafe or unreadable.") }
         }
-        return DeploymentHealthFacts(profileId, gameId, targetHealth, recovery,
-            DeploymentIntegrityEvidence(), preflight, System.currentTimeMillis(), recoveryDetails,
-            preflightDetails = preflightDetails)
+        return DeploymentHealthFacts(profileId, gameId, targetHealth, recovery.fact,
+            DeploymentIntegrityEvidence(), preflight, System.currentTimeMillis(), recovery.details,
+            preflightDetails = preflightDetails, recoveryCapabilities = recovery.capabilities)
     }
 
     fun saveGameDeploymentConfigs(configs: List<GameDeploymentConfig>) {
@@ -829,38 +806,52 @@ internal class DeploymentService(
     }
 
 
+    private data class RecoveryEvidence(
+        val fact: DeploymentRecoveryFact,
+        val details: String,
+        val capabilities: DeploymentRecoveryCapabilities = DeploymentRecoveryCapabilities()
+    )
+
+    private fun requireJournalScope(record: DeploymentJournalRecord, gameId: String) {
+        check(record.profileId == getCurrentProfileIdForJournal() && record.gameId == gameId) {
+            "Journal belongs to another profile/game; no recovery action is allowed."
+        }
+    }
+
+    private fun recordedTargetsMatch(record: DeploymentJournalRecord, targets: ResolvedDeploymentTargets): Boolean? {
+        if (record.dataTarget == null || record.rootTarget == null) return null
+        return record.dataTarget == targets.data.toJournalTargetState() &&
+            record.rootTarget == targets.root.toJournalTargetState()
+    }
+
+    private fun collectRecoveryEvidence(gameId: String): RecoveryEvidence = try {
+        val file = getDeploymentJournalFile(gameId)
+        val text = try { ManagedContentIntegrity.readEvidence(file) }
+            catch (_: java.nio.file.NoSuchFileException) { null }
+        val record = text?.let { DeploymentJournalRepository(file).decode(it) }
+        if (record == null) RecoveryEvidence(DeploymentRecoveryFact.NONE, "No deployment journal.") else {
+            requireJournalScope(record, gameId)
+            val matches = runCatching { recordedTargetsMatch(record, resolveInspectionTargets(gameId)) }.getOrNull()
+            val fact = when (record.status) {
+                DeploymentJournalStatus.STARTED -> DeploymentRecoveryFact.UNFINISHED
+                DeploymentJournalStatus.FAILED -> DeploymentRecoveryFact.FAILED
+                DeploymentJournalStatus.REVIEWED -> DeploymentRecoveryFact.REVIEWED
+                DeploymentJournalStatus.COMPLETED -> DeploymentRecoveryFact.NONE
+            }
+            RecoveryEvidence(fact, record.toDebugSummary(), DeploymentRecoveryCapabilities(
+                reviewAllowed = record.status == DeploymentJournalStatus.STARTED && matches == true,
+                recordedTargetsMatch = matches
+            ))
+        }
+    } catch (failure: Exception) {
+        RecoveryEvidence(DeploymentRecoveryFact.UNKNOWN,
+            "Journal evidence is unreadable, invalid or belongs to another profile/game. ${failure.message.orEmpty()}")
+    }
+
     fun getDeploymentJournalStartupWarning(gameId: String): String? {
-        val repository = DeploymentJournalRepository(
-            getDeploymentJournalFile(gameId)
-        )
-        val record = repository.load() ?: return null
-
-        if (record.status != DeploymentJournalStatus.STARTED) {
-            return null
-        }
-
-        return buildString {
-            appendLine("Previous deploy may not have finished cleanly.")
-            appendLine("Game: ${record.gameId}")
-            appendLine("Profile: ${record.profileId}")
-            appendLine("Operation ID: ${record.operationId}")
-            appendLine("Status: ${record.status}")
-            appendLine("Started: ${record.startedAtEpochMillis}")
-            record.dataTarget?.let {
-                appendLine("Data target identity: ${it.identityKey}")
-                appendLine("Data manifest: ${it.manifestFilePath}")
-                appendLine("Data baseline: ${it.baselineFilePath ?: "not recorded"}")
-            } ?: appendLine("Data target identity: not recorded by this legacy journal")
-            record.rootTarget?.let {
-                appendLine("Game Root target identity: ${it.identityKey}")
-                appendLine("Game Root manifest: ${it.manifestFilePath}")
-            } ?: appendLine("Game Root target identity: not recorded by this legacy journal")
-            appendLine("Data operations planned: ${record.planSummary.dataOperationCount}")
-            appendLine("Game Root operations planned: ${record.planSummary.rootOperationCount}")
-            appendLine("Preflight errors: ${record.planSummary.preflightErrorCount}")
-            appendLine("Preflight warnings: ${record.planSummary.preflightWarningCount}")
-            appendLine("Review this warning before starting another deployment.")
-        }
+        val recovery = collectRecoveryEvidence(gameId)
+        if (recovery.fact == DeploymentRecoveryFact.NONE) return null
+        return recovery.details + "\n" + recovery.capabilities.toDebugSummary()
     }
 
 
@@ -871,10 +862,13 @@ internal class DeploymentService(
 
         val record = repository.load() ?: return false
 
-        if (record.status != DeploymentJournalStatus.STARTED) {
-            return false
+        requireJournalScope(record, gameId)
+        if (record.status != DeploymentJournalStatus.STARTED) return false
+        val targets = resolveInspectionTargets(gameId)
+        check(recordedTargetsMatch(record, targets) == true) {
+            "Recorded recovery target evidence is missing or differs from the current target; review refused."
         }
-
+        requireTargetSnapshotStillCurrent(targets)
         repository.markReviewed(record)
         return true
     }

@@ -158,9 +158,19 @@ class ModEngine(
     fun getGameDeploymentConfig(gameId: String): GameDeploymentConfig? =
         deploymentService.getGameDeploymentConfig(gameId)
     fun validateTargetDataPath(path: String): Boolean = deploymentService.validateTargetDataPath(path)
-    fun deployForGame(gameId: String): ScopedDeploymentResult = deploymentService.deployForGame(gameId)
-    fun forceFullRedeployForGame(gameId: String): ScopedDeploymentResult =
-        deploymentService.forceFullRedeployForGame(gameId)
+    fun deployForGame(gameId: String): ScopedDeploymentResult {
+        requireNoPendingInstallRecovery()
+        return deploymentService.deployForGame(gameId)
+    }
+    fun forceFullRedeployForGame(gameId: String): ScopedDeploymentResult {
+        requireNoPendingInstallRecovery()
+        return deploymentService.forceFullRedeployForGame(gameId)
+    }
+    private fun requireNoPendingInstallRecovery() {
+        check(modLibraryService.inspectInstallRecovery().isEmpty()) {
+            "Unresolved or unavailable install transaction evidence blocks deployment. Review is not repair."
+        }
+    }
     fun buildDeploymentPlanForGame(gameId: String): ScopedDeploymentPlan =
         deploymentService.buildDeploymentPlanForGame(gameId)
     fun buildDeploymentPlanDebugSummary(gameId: String): String =
@@ -185,6 +195,7 @@ class ModEngine(
         val winners = try {
             files?.let { modLibraryService.resolveRecordedDeploymentWinners(sources.mods, it) }
         } catch (_: Exception) { null }
+        val installRecovery = modLibraryService.inspectInstallRecovery()
         val facts = deploymentService.collectDeploymentHealthFacts(profileId, gameId, winners)
         val current = managedIntegrityInputDigest(gameId)
         val evidence = DeploymentHealthProjector.integrityEvidence(observation?.report, current,
@@ -192,7 +203,9 @@ class ModEngine(
                 observation.journalRevision == journalRevision)
         return DeploymentHealthProjector.project(facts.copy(
             integrity = evidence,
-            contextStillCurrent = before == current &&
+            installRecoveryRequired = installRecovery.isNotEmpty(),
+            installRecoveryFacts = installRecovery,
+            contextStillCurrent = before == current && installRecovery == modLibraryService.inspectInstallRecovery() &&
                 journalRevision == deploymentService.deploymentHealthJournalRevision(gameId)
         ))
     }

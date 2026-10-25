@@ -3,6 +3,7 @@ package com.shonkware.droidmodloader.engine.deploy.health
 import com.shonkware.droidmodloader.engine.deploy.DeploymentTargetIdentity
 import com.shonkware.droidmodloader.engine.deploy.GameTargetType
 import com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport
+import com.shonkware.droidmodloader.engine.install.InstallRecoveryFact
 
 /** Completion of an operation is deliberately not a health state. */
 enum class DeploymentHealthPhase(val summary: String) {
@@ -39,6 +40,17 @@ data class DeploymentTargetHealth(
     val details: String = ""
 )
 
+/** Read-only capabilities; execution must revalidate journal and target evidence. */
+data class DeploymentRecoveryCapabilities(
+    val reviewAllowed: Boolean = false,
+    val recordedTargetsMatch: Boolean? = null
+) {
+    fun toDebugSummary(): String = "Recorded recovery targets match current targets: ${recordedTargetsMatch ?: "unknown"}\n" +
+        "Mark reviewed: ${if (reviewAllowed) "available (annotation only)" else "unavailable"}\n" +
+        "Retry / rollback unavailable: the journal has no per-file recovery transaction proving a safe action. " +
+        "Backup presence alone is not recovery authority. Review or dismissal does not repair or unblock deployment."
+}
+
 data class DeploymentIntegrityEvidence(
     val fact: DeploymentIntegrityFact = DeploymentIntegrityFact.UNVERIFIED,
     val observedAtEpochMillis: Long? = null,
@@ -63,7 +75,9 @@ data class DeploymentHealth(
     val collectedAtEpochMillis: Long,
     val recoveryDetails: String = "",
     val installRecoveryRequired: Boolean = false,
-    val preflightDetails: String = ""
+    val preflightDetails: String = "",
+    val recoveryCapabilities: DeploymentRecoveryCapabilities = DeploymentRecoveryCapabilities(),
+    val installRecoveryFacts: List<InstallRecoveryFact> = emptyList()
 ) {
     fun isFor(profileId: String?, gameId: String): Boolean =
         this.profileId == profileId.orEmpty() && this.gameId == gameId
@@ -81,6 +95,10 @@ data class DeploymentHealth(
         if (preflightDetails.isNotBlank()) appendLine(preflightDetails)
         appendLine("Recovery: $recovery; install recovery attention: $installRecoveryRequired")
         if (recoveryDetails.isNotBlank()) appendLine(recoveryDetails)
+        appendLine(recoveryCapabilities.toDebugSummary())
+        installRecoveryFacts.take(8).forEach { appendLine("Install recovery: ${it.toDebugSummary()}") }
+        if (installRecoveryFacts.size > 8) appendLine("${installRecoveryFacts.size - 8} additional install recovery records.")
+        if (installRecoveryRequired) appendLine("Manual install retry / rollback unavailable. Existing startup recovery rules remain authoritative; unresolved transactions are preserved.")
         appendLine("Integrity: ${integrity.fact}; observed: ${integrity.observedAtEpochMillis ?: "not checked"}")
         appendLine("  checked=${integrity.checked}, missing=${integrity.missing}, changed=${integrity.changed}, unreadable=${integrity.unreadable}, unavailable=${integrity.unavailable}")
         integrity.inputDigest?.let { appendLine("  Check input digest: $it") }
@@ -106,7 +124,9 @@ internal data class DeploymentHealthFacts(
     val recoveryDetails: String = "",
     val contextStillCurrent: Boolean = true,
     val installRecoveryRequired: Boolean = false,
-    val preflightDetails: String = ""
+    val preflightDetails: String = "",
+    val recoveryCapabilities: DeploymentRecoveryCapabilities = DeploymentRecoveryCapabilities(),
+    val installRecoveryFacts: List<InstallRecoveryFact> = emptyList()
 )
 
 /** Pure deterministic precedence. Lower-priority reasons remain visible in the same result. */
@@ -116,14 +136,17 @@ internal object DeploymentHealthProjector {
         if (health.integrity.observedAtEpochMillis == null) health.integrity
         else health.integrity.copy(fact = DeploymentIntegrityFact.STALE), health.preflightCanDeploy,
         health.collectedAtEpochMillis, health.recoveryDetails, contextStillCurrent = false,
-        installRecoveryRequired = health.installRecoveryRequired, preflightDetails = health.preflightDetails
+        installRecoveryRequired = health.installRecoveryRequired, preflightDetails = health.preflightDetails,
+        recoveryCapabilities = health.recoveryCapabilities.copy(reviewAllowed = false),
+        installRecoveryFacts = health.installRecoveryFacts
     ))
 
     fun project(facts: DeploymentHealthFacts): DeploymentHealth {
         val reasons = linkedSetOf<DeploymentHealthReason>()
+        val installRecoveryRequired = facts.installRecoveryRequired || facts.installRecoveryFacts.isNotEmpty()
         if (facts.profileId.isBlank() || facts.gameId.isBlank()) reasons += DeploymentHealthReason.PROFILE_REQUIRED
         if (!facts.contextStillCurrent) reasons += DeploymentHealthReason.CONTEXT_CHANGED
-        if (facts.installRecoveryRequired) reasons += DeploymentHealthReason.INSTALL_RECOVERY_REQUIRED
+        if (installRecoveryRequired) reasons += DeploymentHealthReason.INSTALL_RECOVERY_REQUIRED
         when (facts.recovery) {
             DeploymentRecoveryFact.UNKNOWN -> reasons += DeploymentHealthReason.JOURNAL_UNKNOWN
             DeploymentRecoveryFact.UNFINISHED -> reasons += DeploymentHealthReason.UNFINISHED_JOURNAL
@@ -159,7 +182,7 @@ internal object DeploymentHealthProjector {
         val phase = when {
             DeploymentHealthReason.PROFILE_REQUIRED in reasons -> DeploymentHealthPhase.UNKNOWN
             DeploymentHealthReason.CONTEXT_CHANGED in reasons -> DeploymentHealthPhase.STALE_CONTEXT
-            facts.installRecoveryRequired || facts.recovery in setOf(DeploymentRecoveryFact.UNFINISHED, DeploymentRecoveryFact.FAILED) -> DeploymentHealthPhase.RECOVERY_ATTENTION
+            installRecoveryRequired || facts.recovery in setOf(DeploymentRecoveryFact.UNFINISHED, DeploymentRecoveryFact.FAILED, DeploymentRecoveryFact.REVIEWED) -> DeploymentHealthPhase.RECOVERY_ATTENTION
             DeploymentHealthReason.TARGET_UNAVAILABLE in reasons || DeploymentHealthReason.RESELECTION_REQUIRED in reasons ||
                 facts.preflightCanDeploy == false -> DeploymentHealthPhase.TARGET_UNAVAILABLE
             DeploymentHealthReason.INTEGRITY_DRIFT in reasons -> DeploymentHealthPhase.INTEGRITY_DRIFT
@@ -174,7 +197,11 @@ internal object DeploymentHealthProjector {
         return DeploymentHealth(facts.profileId, facts.gameId, phase, reasons.sortedBy { it.ordinal },
             facts.targets.sortedBy { it.role.ordinal }, facts.recovery, facts.integrity,
             facts.preflightCanDeploy, facts.collectedAtEpochMillis, facts.recoveryDetails,
-            facts.installRecoveryRequired, facts.preflightDetails)
+            installRecoveryRequired, facts.preflightDetails,
+            facts.recoveryCapabilities.copy(reviewAllowed = facts.contextStillCurrent &&
+                facts.recovery == DeploymentRecoveryFact.UNFINISHED &&
+                facts.recoveryCapabilities.recordedTargetsMatch == true && facts.recoveryCapabilities.reviewAllowed),
+            facts.installRecoveryFacts)
     }
 
     fun integrityEvidence(

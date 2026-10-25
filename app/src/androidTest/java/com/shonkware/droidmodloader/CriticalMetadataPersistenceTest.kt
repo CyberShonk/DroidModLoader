@@ -57,8 +57,12 @@ class CriticalMetadataPersistenceTest {
             reopened.saveStarted(started.copy(operationId = "replacement"))
         }
         reopened.markReviewed(started)
-        reopened.saveStarted(started.copy(operationId = "replacement"))
-        assertEquals("replacement", reopened.load()!!.operationId)
+        val reviewed = file.readText()
+        assertThrows(IllegalStateException::class.java) {
+            reopened.saveStarted(started.copy(operationId = "replacement"))
+        }
+        assertEquals(reviewed, file.readText())
+        assertEquals(DeploymentJournalStatus.REVIEWED, reopened.load()!!.status)
         file.writeText("")
         assertThrows(IOException::class.java) { reopened.saveStarted(started) }
         assertEquals("", file.readText())

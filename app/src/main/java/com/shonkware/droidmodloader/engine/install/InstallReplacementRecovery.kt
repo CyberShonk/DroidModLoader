@@ -2,6 +2,27 @@ package com.shonkware.droidmodloader.engine.install
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.NoSuchFileException
+import java.nio.file.attribute.BasicFileAttributes
+
+/** Metadata observations only; none authorize a manual retry or rollback. */
+data class InstallRecoveryFact(
+    val transactionFileName: String,
+    val recordedState: String? = null,
+    val hadExistingInstall: Boolean? = null,
+    val finalPresent: Boolean? = null,
+    val stagedPresent: Boolean? = null,
+    val backupPresent: Boolean? = null,
+    val problem: String? = null,
+    val installDirectoryName: String? = null
+) {
+    fun toDebugSummary(): String = "$transactionFileName: install=${installDirectoryName ?: "unknown"}; state=${recordedState ?: "unknown"}; " +
+        "replacement=${hadExistingInstall ?: "unknown"}; final=${finalPresent ?: "unknown"}; " +
+        "staged=${stagedPresent ?: "unknown"}; backup=${backupPresent ?: "unknown"}" +
+        (problem?.let { "; $it" } ?: "")
+}
 
 enum class InstallReplacementRecoveryAction {
     DISCARDED_STAGED_INSTALL,
@@ -26,6 +47,33 @@ internal class InstallReplacementRecovery(
     InstallReplacementTransactionStore =
         InstallReplacementTransactionStore()
 ) {
+    /** Does not run recovery, follow transaction paths outside modsDir or modify evidence. */
+    fun inspectAll(modsDir: File): List<InstallRecoveryFact> = try {
+        if (!directoryPresent(modsDir)) emptyList() else transactionStore.listTransactionFiles(modsDir).also {
+            check(it.size <= 1_000) { "Install recovery inspection exceeds 1,000 transaction limit" }
+        }.map { file ->
+            try {
+                check(!Files.isSymbolicLink(file.toPath()) && file.isFile) { "Transaction is not a regular local file" }
+                val transaction = transactionStore.load(file)
+                InstallRecoveryFact(file.name, transaction.state.name, transaction.hadExistingInstall,
+                    directoryPresent(File(modsDir, transaction.finalDirectoryName)),
+                    directoryPresent(File(modsDir, transaction.stagedDirectoryName)),
+                    directoryPresent(File(modsDir, transaction.backupDirectoryName)),
+                    installDirectoryName = transaction.finalDirectoryName)
+            } catch (failure: Exception) {
+                InstallRecoveryFact(file.name, problem = failure.message ?: "Transaction evidence unavailable")
+            }
+        }
+    } catch (failure: Exception) {
+        listOf(InstallRecoveryFact("Installed-mod recovery", problem = failure.message ?: "Recovery evidence unavailable"))
+    }
+
+    private fun directoryPresent(file: File): Boolean = try {
+        val attributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        check(attributes.isDirectory && !attributes.isSymbolicLink) { "Recovery path is not a local directory: ${file.name}" }
+        true
+    } catch (_: NoSuchFileException) { false }
+
     fun recoverAll(
         modsDir: File
     ): List<InstallReplacementRecoveryResult> {

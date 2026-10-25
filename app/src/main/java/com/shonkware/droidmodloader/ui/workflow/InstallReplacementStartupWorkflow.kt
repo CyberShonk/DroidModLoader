@@ -59,13 +59,13 @@ internal class InstallReplacementStartupWorkflow(
                                     ?: exception::class.java.simpleName
                                 )
             )
-            return
+            null
         }
 
-        results.forEach { result ->
+        results?.forEach { result ->
             reportResult(result)
         }
-        val requiresAttention = results.any { it.action == null }
+        val requiresAttention = results == null || results.any { it.action == null }
         postToUiThread {
             synchronized(evaluationLock) {
                 if (newestEvaluationByScope[scope] === evaluation) {

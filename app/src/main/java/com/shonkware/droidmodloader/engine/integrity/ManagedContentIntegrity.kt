@@ -76,12 +76,10 @@ internal object ManagedContentIntegrity {
     fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it) }
 
-    fun readEvidence(file: File): String {
-        Files.newInputStream(file.toPath(), LinkOption.NOFOLLOW_LINKS).use { input ->
-            val bytes = input.readBytesBounded()
-            return bytes.toString(Charsets.UTF_8)
-        }
-    }
+    fun readEvidence(file: File): String = readEvidenceBytes(file).toString(Charsets.UTF_8)
+
+    fun readEvidenceBytes(file: File): ByteArray =
+        Files.newInputStream(file.toPath(), LinkOption.NOFOLLOW_LINKS).use { it.readBytesBounded() }
 
     private fun java.io.InputStream.readBytesBounded(): ByteArray {
         val output = java.io.ByteArrayOutputStream()

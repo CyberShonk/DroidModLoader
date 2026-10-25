@@ -108,7 +108,7 @@ class InstallReplacementStartupWorkflowTest {
             listOf("Could not check interrupted mod installations: Forced recovery failure"),
             errors
         )
-        assertTrue(attention.isEmpty())
+        assertEquals(listOf(true), attention)
     }
 
     @Test

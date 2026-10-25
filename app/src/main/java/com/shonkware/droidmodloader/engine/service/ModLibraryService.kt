@@ -155,6 +155,8 @@ internal class ModLibraryService(
         }
     }
 
+    fun inspectInstallRecovery() = installReplacementRecovery.inspectAll(modsDir)
+
     fun recoverInterruptedInstallReplacements():
             List<InstallReplacementRecoveryResult> {
         return installReplacementRecovery.recoverAll(modsDir)

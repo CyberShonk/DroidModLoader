@@ -135,8 +135,20 @@ and 1,000 recorded installs with 50,000 indexed files in total. Exceeding a limi
 leaves the affected evidence unavailable rather than silently truncating a check.
 Files not named in recorded evidence are not scanned.
 
-If DML reports an unfinished deployment, review that warning before starting
-another risky deployment operation.
+**Recovery Details** identifies recorded deployment targets and pending install
+transactions, including missing or unavailable backup evidence. Transaction
+inspection stops at 1,000 records; exceeding this limit leaves recovery unknown.
+**Mark Warning
+Reviewed** is available only for an unfinished journal whose recorded profile,
+game and targets match the current scope. It annotates the warning, not the files.
+Reviewing or dismissing a notice does not resolve recovery or unlock deployment.
+
+DML preserves unfinished, failed and reviewed journals and blocks another deploy
+or full redeploy from replacing them. Deployment retry and rollback are not
+currently supported because the journal does not prove a safe recovery action.
+Do not delete recovery evidence to bypass this guard. Existing automatic install
+recovery still runs at startup and profile activation; unresolved install
+transactions also block deployment.
 
 ## Current limitations
 

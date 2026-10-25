@@ -59,13 +59,13 @@ class DeployRecoveryWorkflowTest {
     }
 
     @Test
-    fun `mark reviewed clears attention and refreshes`() {
+    fun `mark reviewed reloads unresolved attention and refreshes`() {
         val recoveryStates = mutableListOf<RecoveryState>()
         val statuses = mutableListOf<String>()
         val logs = mutableListOf<String>()
         var refreshes = 0
         val workflow = createWorkflow(
-            engine = FakeEngine(markChanged = true),
+            engine = FakeEngine(warning = "reviewed not repaired", markChanged = true),
             recoveryStates = recoveryStates,
             statuses = statuses,
             logs = logs,
@@ -77,14 +77,14 @@ class DeployRecoveryWorkflowTest {
         assertEquals(
             listOf(
                 RecoveryState(
-                    warningText = "",
-                    attentionRequired = false,
+                    warningText = "reviewed not repaired",
+                    attentionRequired = true,
                     showDetails = false
                 )
             ),
             recoveryStates
         )
-        assertEquals(listOf("Previous deploy warning reviewed."), statuses)
+        assertEquals(listOf("Previous deploy warning reviewed.", "Previous deploy may need review."), statuses)
         assertTrue(logs.contains("Marked unfinished deploy journal as reviewed."))
         assertEquals(1, refreshes)
     }

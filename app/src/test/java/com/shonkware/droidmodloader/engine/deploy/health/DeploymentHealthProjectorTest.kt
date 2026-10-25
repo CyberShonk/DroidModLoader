@@ -135,8 +135,26 @@ class DeploymentHealthProjectorTest {
         assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION,
             projector.project(facts().copy(recovery = DeploymentRecoveryFact.FAILED)).phase)
         val reviewed = projector.project(facts().copy(recovery = DeploymentRecoveryFact.REVIEWED))
-        assertEquals(DeploymentHealthPhase.UNVERIFIED, reviewed.phase)
+        assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, reviewed.phase)
         assertTrue(DeploymentHealthReason.REVIEWED_NOT_REPAIRED in reviewed.reasons)
+        val matched = projector.project(facts().copy(recovery = DeploymentRecoveryFact.REVIEWED,
+            integrity = DeploymentIntegrityEvidence(DeploymentIntegrityFact.MATCHED_AT_CHECK)))
+        assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, matched.phase)
+        assertEquals(DeploymentIntegrityFact.MATCHED_AT_CHECK, matched.integrity.fact)
+    }
+
+    @Test fun `review requires current unfinished evidence and matching recorded targets`() {
+        val base = facts().copy(recovery = DeploymentRecoveryFact.UNFINISHED,
+            recoveryCapabilities = DeploymentRecoveryCapabilities(true, true))
+        assertTrue(projector.project(base).recoveryCapabilities.reviewAllowed)
+        assertFalse(projector.project(base.copy(contextStillCurrent = false)).recoveryCapabilities.reviewAllowed)
+        for (match in listOf(false, null)) {
+            assertFalse(projector.project(base.copy(recoveryCapabilities =
+                DeploymentRecoveryCapabilities(true, match))).recoveryCapabilities.reviewAllowed)
+        }
+        for (fact in DeploymentRecoveryFact.entries.filter { it != DeploymentRecoveryFact.UNFINISHED }) {
+            assertFalse(projector.project(base.copy(recovery = fact)).recoveryCapabilities.reviewAllowed)
+        }
     }
 
     @Test fun `unreadable journal or plan is unknown rather than clean`() {

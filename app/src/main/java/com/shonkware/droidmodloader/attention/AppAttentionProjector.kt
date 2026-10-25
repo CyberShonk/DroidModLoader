@@ -21,7 +21,9 @@ internal object AppAttentionProjector {
 
         val health = input.deploymentHealth.takeIf { it.isFor(profileId, gameId) } ?: return emptyList()
         val installRecovery = health.installRecoveryRequired
-        val deployRecovery = health.recovery in setOf(DeploymentRecoveryFact.UNFINISHED, DeploymentRecoveryFact.FAILED)
+        val deployRecovery = health.recovery in setOf(DeploymentRecoveryFact.UNFINISHED,
+            DeploymentRecoveryFact.FAILED, DeploymentRecoveryFact.REVIEWED) ||
+            (health.recovery == DeploymentRecoveryFact.UNKNOWN && health.collectedAtEpochMillis > 0)
         val reselection = health.targets.any {
             it.reselectionRequired || it.readiness == TargetReadiness.UNAVAILABLE
         }
@@ -36,7 +38,7 @@ internal object AppAttentionProjector {
                     ),
                     kind = AppAttentionKind.INSTALL_RECOVERY,
                     severity = AppAttentionSeverity.WARNING,
-                    actions = emptyList()
+                    actions = listOf(AppAttentionAction.VIEW_DEPLOY_RECOVERY)
                 )
             )
         }
@@ -51,7 +53,7 @@ internal object AppAttentionProjector {
                     ),
                     kind = AppAttentionKind.DEPLOY_RECOVERY,
                     severity = AppAttentionSeverity.WARNING,
-                    actions = if (health.recovery == DeploymentRecoveryFact.FAILED) {
+                    actions = if (!health.recoveryCapabilities.reviewAllowed) {
                         listOf(AppAttentionAction.VIEW_DEPLOY_RECOVERY)
                     } else listOf(
                         AppAttentionAction.VIEW_DEPLOY_RECOVERY,

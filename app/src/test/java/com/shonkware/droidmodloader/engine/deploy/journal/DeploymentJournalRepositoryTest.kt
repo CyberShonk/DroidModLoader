@@ -72,7 +72,7 @@ class DeploymentJournalRepositoryTest {
     }
 
     @Test
-    fun `unfinished journal cannot be overwritten before review`() {
+    fun `unfinished journal cannot be overwritten even after review`() {
         val file = journalFile("unfinished")
         val repository = DeploymentJournalRepository(file)
         val first = record("operation-a")
@@ -88,8 +88,10 @@ class DeploymentJournalRepositoryTest {
         assertEquals("operation-a", repository.load()!!.operationId)
 
         repository.markReviewed(first)
-        repository.saveStarted(record("operation-b"))
-        assertEquals("operation-b", repository.load()!!.operationId)
+        val reviewed = file.readBytes()
+        assertThrows(IllegalStateException::class.java) { repository.saveStarted(record("operation-b")) }
+        assertArrayEquals(reviewed, file.readBytes())
+        assertEquals(DeploymentJournalStatus.REVIEWED, repository.load()!!.status)
     }
 
     @Test
@@ -145,11 +147,11 @@ class DeploymentJournalRepositoryTest {
             assertThrows(IllegalStateException::class.java) { healthy.saveStarted(record("operation-b")) }
             assertTrue(file.parentFile!!.listFiles()!!.none { it.name.endsWith(".tmp") })
 
-            // Starting after review must also preserve the reviewed record on every I/O failure.
-            healthy.markReviewed(started)
-            val reviewed = file.readBytes()
+            // A completed operation permits replacement, but failed persistence preserves it.
+            healthy.markCompleted(started, result())
+            val completed = file.readBytes()
             assertThrows(IOException::class.java) { failing.saveStarted(record("operation-b")) }
-            assertArrayEquals(reviewed, file.readBytes())
+            assertArrayEquals(completed, file.readBytes())
         }
     }
 
@@ -170,6 +172,9 @@ class DeploymentJournalRepositoryTest {
         assertArrayEquals(before, file.readBytes())
         repository.markFailed(second, "expected failure")
         assertEquals(DeploymentJournalStatus.FAILED, repository.load()!!.status)
+        val failed = file.readBytes()
+        assertThrows(IllegalStateException::class.java) { repository.saveStarted(record("operation-c")) }
+        assertArrayEquals(failed, file.readBytes())
     }
 
     @Test
@@ -184,16 +189,29 @@ class DeploymentJournalRepositoryTest {
     }
 
     @Test
-    fun `unsupported new journal is refused without replacing reviewed evidence`() {
+    fun `unsupported new journal is refused without replacing completed evidence`() {
         val file = journalFile("unsupported-new")
         val repository = DeploymentJournalRepository(file)
         val started = record("operation-a")
         repository.saveStarted(started)
-        repository.markReviewed(started)
+        repository.markCompleted(started, result())
         val before = file.readBytes()
         assertThrows(IOException::class.java) {
             repository.saveStarted(record("operation-b").copy(schemaVersion = 99))
         }
+        assertArrayEquals(before, file.readBytes())
+    }
+
+    @Test
+    fun `completed foreign journal cannot be replaced under another profile or game`() {
+        val file = journalFile("wrong-scope")
+        val repo = DeploymentJournalRepository(file)
+        val started = record("operation-a")
+        repo.saveStarted(started)
+        repo.markCompleted(started, result())
+        val before = file.readBytes()
+        assertThrows(IllegalStateException::class.java) { repo.saveStarted(record("other").copy(profileId = "other-profile")) }
+        assertThrows(IllegalStateException::class.java) { repo.saveStarted(record("other").copy(gameId = "other-game")) }
         assertArrayEquals(before, file.readBytes())
     }
 

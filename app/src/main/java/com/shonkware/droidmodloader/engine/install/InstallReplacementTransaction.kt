@@ -1,5 +1,6 @@
 package com.shonkware.droidmodloader.engine.install
 
+import com.shonkware.droidmodloader.engine.integrity.ManagedContentIntegrity
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -95,9 +96,8 @@ internal class InstallReplacementTransactionStore {
         val properties = Properties()
 
         try {
-            transactionFile.inputStream()
-                .buffered()
-                .use(properties::load)
+            ManagedContentIntegrity.readEvidenceBytes(transactionFile)
+                .inputStream().use(properties::load)
         } catch (exception: Exception) {
             throw IOException(
                 "Could not read install transaction record: " +
@@ -192,11 +192,9 @@ internal class InstallReplacementTransactionStore {
     fun listTransactionFiles(
         modsDir: File
     ): List<File> {
-        return modsDir.listFiles()
-            .orEmpty()
+        return (modsDir.listFiles() ?: throw IOException("Could not list install recovery records."))
             .filter { file ->
-                file.isFile &&
-                        file.name.startsWith(FILE_PREFIX) &&
+                file.name.startsWith(FILE_PREFIX) &&
                         file.name.endsWith(FILE_SUFFIX) &&
                         !file.name.endsWith("$FILE_SUFFIX.tmp")
             }

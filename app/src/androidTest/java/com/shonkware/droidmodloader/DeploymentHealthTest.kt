@@ -101,15 +101,20 @@ class DeploymentHealthTest {
             stateRepo.saveMods(listOf(mod))
 
             val journalRepo = DeploymentJournalRepository(File(state, "deployment_journal_fallout_nv.json"))
-            journalRepo.saveStarted(DeploymentJournalRecord(operationId = "health-fixture", gameId = "fallout_nv",
+            val interrupted = DeploymentJournalRecord(operationId = "health-fixture", gameId = "fallout_nv",
                 profileId = state.name, status = DeploymentJournalStatus.STARTED, startedAtEpochMillis = 1,
                 completedAtEpochMillis = null, planSummary = DeploymentJournalPlanSummary(0, 0, 0, null, null, true, 0, 0),
-                resultSummary = null, failureMessage = null))
+                resultSummary = null, failureMessage = null)
+            journalRepo.saveStarted(interrupted)
             assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, health(observation).phase)
-            assertTrue(engine.markDeploymentJournalReviewed("fallout_nv"))
+            assertFalse(health(observation).recoveryCapabilities.reviewAllowed)
+            journalRepo.markReviewed(interrupted) // legacy annotation remains unresolved
             val reviewed = health(observation)
-            assertEquals(DeploymentHealthPhase.INTEGRITY_STALE, reviewed.phase)
+            assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, reviewed.phase)
+            assertEquals(DeploymentIntegrityFact.STALE, reviewed.integrity.fact)
             assertTrue(DeploymentHealthReason.REVIEWED_NOT_REPAIRED in reviewed.reasons)
+            assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, health(observe()).phase)
+            check(File(state, "deployment_journal_fallout_nv.json").delete()) // owned fixture only; not a recovery API
             val fresh = observe()
             assertEquals(DeploymentHealthPhase.MATCHED_AT_CHECK, health(fresh).phase)
 

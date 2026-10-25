@@ -117,14 +117,21 @@ class DeploymentHealthCollectorTest {
         again.markFailed(started, "fixture failure")
         assertEquals(DeploymentRecoveryFact.FAILED, f.health().recovery)
         assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, f.health().phase)
+        assertFalse(f.health().recoveryCapabilities.reviewAllowed)
+        assertNotNull(f.service.getDeploymentJournalStartupWarning("fallout_nv"))
+        val before = File(f.state, "deployment_journal_fallout_nv.json").readText()
+        assertFalse(f.service.markDeploymentJournalReviewed("fallout_nv"))
+        assertEquals(before, File(f.state, "deployment_journal_fallout_nv.json").readText())
     }
 
     @Test fun `review cannot repair or verify and corrupt journal is unknown`() {
         val f = fixture()
-        journal(f)
-        assertTrue(f.service.markDeploymentJournalReviewed("fallout_nv"))
+        val (repo, record) = journal(f)
+        assertFalse(f.health().recoveryCapabilities.reviewAllowed)
+        assertThrows(IllegalStateException::class.java) { f.service.markDeploymentJournalReviewed("fallout_nv") }
+        repo.markReviewed(record) // legacy annotation remains readable, but is never repair
         val reviewed = f.health()
-        assertEquals(DeploymentHealthPhase.UNVERIFIED, reviewed.phase)
+        assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, reviewed.phase)
         assertEquals(DeploymentRecoveryFact.REVIEWED, reviewed.recovery)
         File(f.state, "deployment_journal_fallout_nv.json").writeText("broken")
         assertEquals(DeploymentHealthPhase.UNKNOWN, f.health().phase)

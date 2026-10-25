@@ -20,16 +20,19 @@ class DeploymentJournalRepository internal constructor(
     fun saveStarted(record: DeploymentJournalRecord) {
         check(record.status == DeploymentJournalStatus.STARTED) { "Expected STARTED journal" }
         val existing = load()
-        check(existing?.status != DeploymentJournalStatus.STARTED) {
+        check(existing == null || (existing.profileId == record.profileId && existing.gameId == record.gameId)) {
+            "Refusing to replace deployment journal evidence belonging to another profile/game."
+        }
+        check(existing == null || existing.status == DeploymentJournalStatus.COMPLETED) {
             buildString {
-                append("Refusing to overwrite unfinished deployment journal")
+                append("Refusing to overwrite unresolved deployment journal")
                 existing?.let {
                     append(" ${it.operationId}")
                     it.dataTarget?.let { target ->
                         append(" for ${target.mode}:${target.target}")
                     }
                 }
-                append(". Review the previous deployment warning before starting another deploy.")
+                append(". Review is not repair. Retry and rollback are unsupported; preserve this evidence.")
             }
         }
         save(record)

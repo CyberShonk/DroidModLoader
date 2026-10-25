@@ -53,6 +53,7 @@ internal class DeployRecoveryWorkflow(
             updateLastOperationStatus("Previous deploy may need review.")
         } catch (e: Exception) {
             appendError("Failed to check previous deploy journal: ${e.message}", e)
+            updateRecoveryState("Deployment journal could not be checked. Recovery remains unknown.", true, false)
         }
     }
 
@@ -71,7 +72,7 @@ internal class DeployRecoveryWorkflow(
             } else {
                 appendLog("No unfinished deploy journal needed review.")
             }
-            updateRecoveryState("", false, false)
+            checkStartup(engine)
         } catch (e: Exception) {
             appendError("Failed to mark deploy journal reviewed: ${e.message}", e)
         }

@@ -36,9 +36,10 @@ Check:
 5. A normal deployment completed after the mod state changed.
 6. Any plugin supplied by the mod is enabled when required.
 
-If the physical target was changed outside DML and its state is uncertain, use
-the available recovery or full redeploy tools rather than assuming the existing
-manifest proves every physical file is still correct.
+If the physical target was changed outside DML and its state is uncertain, inspect
+Deployment Health and run **Check Recorded Managed Content**. A saved manifest
+does not prove every physical file is still correct. Full redeploy is not repair
+and is blocked while recovery evidence is unresolved or unavailable.
 
 ## A plugin is missing or has the wrong order
 
@@ -56,13 +57,15 @@ Review DML's plugin warnings before changing files manually.
 An unfinished journal means the previous deployment may not have completed
 cleanly.
 
-1. Review the warning before starting another deployment.
-2. Confirm the active profile and selected target are the ones you intend to repair.
-3. Use DML's recovery or full redeploy tools when appropriate.
+1. Open **Recovery Details** and inspect the recorded profile, game and targets.
+2. Confirm they match the installation you intended to change.
+3. Preserve journals, manifests, backups and pending install transactions.
 4. Do not manually delete deployment state just to remove the warning.
 
-An unfinished deployment record is safety information. Preserve it until you
-understand the interrupted operation.
+Review or dismissal is not repair. Unfinished, failed and reviewed journals block
+another deployment, including full redeploy. Corrupt or unreadable journals also
+block replacement. Deployment retry and rollback are not currently supported;
+backup presence alone does not prove that either action is safe.
 
 ## An archive is rejected
 

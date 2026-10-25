@@ -226,7 +226,7 @@ class DeploymentTargetTransitionTest {
             fixture.service.deployForGame(GAME_ID)
             fail("Expected unfinished target A journal to block target B deployment.")
         } catch (expected: IllegalStateException) {
-            assertTrue(expected.message.orEmpty().contains("unfinished deployment journal"))
+            assertTrue(expected.message, expected.message.orEmpty().contains("unresolved deployment journal"))
         }
 
         val retained = repository.load()!!
@@ -261,6 +261,40 @@ class DeploymentTargetTransitionTest {
         assertThrows(IOException::class.java) { fixture.service.forceFullRedeployForGame(GAME_ID) }
         assertEquals("preserve", sentinel.readText())
         assertFalse(File(fixture.simulatedData, MANAGED_PATH).exists())
+    }
+
+    @Test
+    fun `review refuses wrong targets and foreign scope and never unlocks deployment`() {
+        val fixture = fixture("review-guards")
+        val targetA = validDataTarget(fixture.root, "target-a")
+        val targetB = validDataTarget(fixture.root, "target-b")
+        fixture.selectPhysical(targetA)
+        fixture.service.deployForGame(GAME_ID)
+        val repo = DeploymentJournalRepository(fixture.journalFile)
+        val started = repo.load()!!.copy(operationId = "interrupted", status = DeploymentJournalStatus.STARTED,
+            completedAtEpochMillis = null, resultSummary = null)
+        repo.saveStarted(started)
+        val before = fixture.journalFile.readBytes()
+        fixture.selectPhysical(targetB)
+        assertThrows(IllegalStateException::class.java) { fixture.service.markDeploymentJournalReviewed(GAME_ID) }
+        assertArrayEquals(before, fixture.journalFile.readBytes())
+        fixture.selectPhysical(targetA)
+        assertTrue(fixture.service.markDeploymentJournalReviewed(GAME_ID))
+        assertFalse(fixture.service.markDeploymentJournalReviewed(GAME_ID))
+        val reviewed = fixture.journalFile.readBytes()
+        assertThrows(IllegalStateException::class.java) { fixture.service.deployForGame(GAME_ID) }
+        assertThrows(IllegalStateException::class.java) { fixture.service.forceFullRedeployForGame(GAME_ID) }
+        assertArrayEquals(reviewed, fixture.journalFile.readBytes())
+        assertEquals("managed fixture", File(targetA, MANAGED_PATH).readText())
+        assertTrue(fixture.service.getDeploymentJournalStartupWarning(GAME_ID)!!.contains("Review or dismissal does not repair"))
+
+        // A foreign record in this profile's journal slot is evidence, not review authority.
+        val foreign = started.copy(profileId = "other-profile")
+        fixture.journalFile.delete()
+        repo.saveStarted(foreign)
+        val foreignBytes = fixture.journalFile.readBytes()
+        assertThrows(IllegalStateException::class.java) { fixture.service.markDeploymentJournalReviewed(GAME_ID) }
+        assertArrayEquals(foreignBytes, fixture.journalFile.readBytes())
     }
 
     private fun fixture(name: String): Fixture {
@@ -369,7 +403,7 @@ class DeploymentTargetTransitionTest {
         return DeploymentJournalRecord(
             operationId = "unfinished-target-a",
             gameId = GAME_ID,
-            profileId = "profile",
+            profileId = "state",
             status = DeploymentJournalStatus.STARTED,
             startedAtEpochMillis = 1000,
             completedAtEpochMillis = null,

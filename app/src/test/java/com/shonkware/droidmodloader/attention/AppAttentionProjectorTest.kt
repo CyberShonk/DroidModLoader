@@ -65,7 +65,7 @@ class AppAttentionProjectorTest {
     }
 
     @Test
-    fun `install recovery produces one scoped warning without actions`() {
+    fun `install recovery offers read only scoped details`() {
         val result = project(installRecoveryRequiresAttention = true)
 
         assertEquals(1, result.size)
@@ -75,7 +75,7 @@ class AppAttentionProjectorTest {
             result.single().id.value
         )
         assertEquals(AppAttentionSeverity.WARNING, result.single().severity)
-        assertTrue(result.single().actions.isEmpty())
+        assertEquals(listOf(AppAttentionAction.VIEW_DEPLOY_RECOVERY), result.single().actions)
     }
 
     @Test
@@ -131,6 +131,19 @@ class AppAttentionProjectorTest {
         assertTrue(first.id != third.id)
     }
 
+    @Test
+    fun `observed unknown and reviewed journals retain details without repair or review actions`() {
+        for (fact in listOf(DeploymentRecoveryFact.UNKNOWN, DeploymentRecoveryFact.REVIEWED)) {
+            val health = DeploymentHealthProjector.project(DeploymentHealthFacts("profile-a", "fallout_nv",
+                emptyList(), fact, DeploymentIntegrityEvidence(), null, 1))
+            val input = AppAttentionProjectionInput(true, "profile-a", "fallout_nv", health)
+            val attention = AppAttentionProjector.project(input).single()
+            assertEquals(AppAttentionKind.DEPLOY_RECOVERY, attention.kind)
+            assertEquals(listOf(AppAttentionAction.VIEW_DEPLOY_RECOVERY), attention.actions)
+            assertTrue(AppAttentionProjector.project(input.copy(activeProfileId = "profile-b")).isEmpty())
+        }
+    }
+
     private fun project(
         profileSessionReady: Boolean = true,
         activeProfileId: String? = "profile-a",
@@ -148,7 +161,8 @@ class AppAttentionProjectorTest {
                     activeProfileId.orEmpty(), selectedGameId, GameTargetType.entries.map {
                         DeploymentTargetHealth(it, null, TargetReadiness.UNKNOWN, null, gameInstallationReselectionRequired)
                     }, if (deployRecoveryRequired) DeploymentRecoveryFact.UNFINISHED else DeploymentRecoveryFact.NONE,
-                    DeploymentIntegrityEvidence(), null, 0, installRecoveryRequired = installRecoveryRequiresAttention
+                    DeploymentIntegrityEvidence(), null, 0, installRecoveryRequired = installRecoveryRequiresAttention,
+                    recoveryCapabilities = DeploymentRecoveryCapabilities(reviewAllowed = deployRecoveryRequired, recordedTargetsMatch = true)
                 ))
             )
         )

@@ -25,6 +25,7 @@ import com.shonkware.droidmodloader.attention.AppAttention
 import com.shonkware.droidmodloader.attention.AppAttentionAction
 import com.shonkware.droidmodloader.attention.AppAttentionId
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
 import com.shonkware.droidmodloader.engine.flags.ModFlag
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModFilePreview
@@ -303,6 +304,9 @@ private fun MainDashboardScreen(
                 RecoveryToolsCard(
                     operationInProgress = state.operationInProgress,
                     deployRecoveryAttentionRequired = state.deployRecoveryAttentionRequired,
+                    deploymentBlockedByRecovery = state.deploymentHealth?.let {
+                        it.installRecoveryRequired || it.recovery != DeploymentRecoveryFact.NONE
+                    } ?: true,
                     onViewLastDeployJournal = actions.onViewLastDeployJournal,
                     onBuildFullRedeployPlan = actions.onBuildFullRedeployPlan,
                     onRequestForceFullRedeploy = actions.onRequestForceFullRedeploy,
@@ -313,7 +317,7 @@ private fun MainDashboardScreen(
                     AlertDialog(
                         onDismissRequest = actions.onCloseDeployRecoveryDetails,
                         title = {
-                            Text("Previous Deploy Warning")
+                            Text("Recovery Details")
                         },
                         text = {
                             Text(state.deployRecoveryWarningText, modifier = Modifier.verticalScroll(rememberScrollState()))

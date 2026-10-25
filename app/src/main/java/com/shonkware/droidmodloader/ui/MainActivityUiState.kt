@@ -15,6 +15,7 @@ import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthPhase
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryFact
+import com.shonkware.droidmodloader.engine.deploy.health.DeploymentRecoveryCapabilities
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentTargetHealth
 import com.shonkware.droidmodloader.engine.deploy.health.TargetReadiness
 import com.shonkware.droidmodloader.engine.flags.ModFlag
@@ -132,8 +133,12 @@ interface MainActivityUiState {
             snapshot?.collectedAtEpochMillis ?: 0, recoveryDetails,
             contextStillCurrent = !operationInProgress && snapshot?.phase != DeploymentHealthPhase.STALE_CONTEXT &&
                 (snapshot != null || deploymentHealth == null),
-            installRecoveryRequired = installRecovery,
-            preflightDetails = snapshot?.preflightDetails.orEmpty()
+            installRecoveryRequired = installRecovery || snapshot?.installRecoveryRequired == true,
+            preflightDetails = snapshot?.preflightDetails.orEmpty(),
+            recoveryCapabilities = snapshot?.recoveryCapabilities?.copy(
+                reviewAllowed = snapshotCurrent && snapshot.recoveryCapabilities.reviewAllowed
+            ) ?: DeploymentRecoveryCapabilities(),
+            installRecoveryFacts = snapshot?.installRecoveryFacts.orEmpty()
         ))
     }
 
@@ -303,7 +308,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             overwriteBaselineExists = overwriteBaselineExists,
             overwriteMessage = overwriteMessage,
             deployRecoveryWarningText = health.toDebugSummary(),
-            deployRecoveryAttentionRequired = health.recovery == DeploymentRecoveryFact.UNFINISHED,
+            deployRecoveryAttentionRequired = health.recoveryCapabilities.reviewAllowed,
             appAttention = appAttention,
             dismissedAttentionIds = dismissedAttentionIds,
             suppressedAttentionPromptIds = suppressedAttentionPromptIds,

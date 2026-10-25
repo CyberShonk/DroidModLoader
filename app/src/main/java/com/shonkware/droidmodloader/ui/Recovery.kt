@@ -20,6 +20,7 @@ import com.shonkware.droidmodloader.ui.theme.DmlDefaults
 fun RecoveryToolsCard(
     operationInProgress: Boolean,
     deployRecoveryAttentionRequired: Boolean,
+    deploymentBlockedByRecovery: Boolean,
     onViewLastDeployJournal: () -> Unit,
     onMarkDeployRecoveryReviewed: () -> Unit,
     onRequestForceFullRedeploy: () -> Unit,
@@ -40,7 +41,7 @@ fun RecoveryToolsCard(
             )
 
             Text(
-                text = "Tools for reviewing deploy state after a failed or interrupted deploy. Only journal review is active right now.",
+                text = "Review recorded state without changing game files. Marking reviewed is an annotation, not repair, and does not unblock deployment.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -71,54 +72,22 @@ fun RecoveryToolsCard(
             )
 
             Text(
-                text = "Coming later:",
-                fontWeight = FontWeight.Bold
-            )
-
-            DmlButtons.Secondary(
-                text = "Resume Interrupted Deploy",
-                enabled = false,
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            DmlButtons.Secondary(
-                text = "Rollback Last Deploy",
-                enabled = false,
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
+                text = "Retry / rollback unavailable: current journals do not prove a safe per-file recovery action. Backup presence alone is insufficient.",
+                style = MaterialTheme.typography.bodySmall
             )
 
             DmlButtons.Danger(
                 text = "Force Full Redeploy",
-                enabled = !operationInProgress,
+                enabled = !operationInProgress && !deploymentBlockedByRecovery,
                 onClick = onRequestForceFullRedeploy,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Text(
-                text = "Rewrites all current managed files from the active mod list. Use this after an interrupted deploy or if the target folder looks out of sync.",
+                text = "Rewrites current managed files; this is not recovery. Unresolved or unavailable recovery evidence blocks this action.",
                 style = MaterialTheme.typography.bodySmall
             )
 
-            DmlButtons.Secondary(
-                text = "Rebuild Deploy Manifest",
-                enabled = false,
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            DmlButtons.Secondary(
-                text = "Rebuild Data Baseline",
-                enabled = false,
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                text = "Disabled tools are planned recovery actions. They are shown here early so testers know where this system is going.",
-                style = MaterialTheme.typography.bodySmall
-            )
         }
     }
 }
