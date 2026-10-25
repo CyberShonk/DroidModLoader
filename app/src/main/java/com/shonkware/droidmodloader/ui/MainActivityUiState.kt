@@ -57,6 +57,7 @@ interface MainActivityUiState {
     var developerTapCount: Int
     var developerModeEnabled: Boolean
     var lastOperationStatus: String
+    var operationHistoryPresentation: OperationHistoryPresentation
     var logText: String
     var summaryText: String
     var deploymentHealth: DeploymentHealth?
@@ -179,6 +180,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var developerTapCount = 0
     override var developerModeEnabled by mutableStateOf(false)
     override var lastOperationStatus by mutableStateOf("Ready.")
+    override var operationHistoryPresentation by mutableStateOf(OperationHistoryPresentation())
     override var logText by mutableStateOf("")
     override var summaryText by mutableStateOf("Loading...")
     override var deploymentHealth by mutableStateOf<DeploymentHealth?>(null)
@@ -244,6 +246,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             versionLabel = BuildConfig.VERSION_NAME,
             developerModeEnabled = developerModeEnabled,
             lastOperationStatus = lastOperationStatus,
+            operationHistory = operationHistoryPresentation,
             summaryText = summaryText,
             deploymentHealth = health,
             mods = visibleMods,

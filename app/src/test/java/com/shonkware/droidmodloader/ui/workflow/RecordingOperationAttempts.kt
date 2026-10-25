@@ -21,10 +21,18 @@ internal class RecordingOperationAttempts {
         return create(message, previous, OperationPhase.INSTALLING)
     }
 
-    private fun create(message: String, previous: OperationAttempt?, phase: OperationPhase): OperationAttempt =
+    fun startRecorded(kind: OperationKind, message: String): OperationAttempt =
+        create(message, null, OperationPhase.EXECUTING, kind)
+
+    private fun create(
+        message: String,
+        previous: OperationAttempt?,
+        phase: OperationPhase,
+        kind: OperationKind = OperationKind.ARCHIVE_INSTALL
+    ): OperationAttempt =
         OperationAttempt.start(
             previous?.snapshot()?.context ?: context, message,
-            previousAttemptId = previous?.snapshot()?.id, phase = phase
+            previousAttemptId = previous?.snapshot()?.id, phase = phase, kind = kind
         ) { record, transition, failure ->
             records += record
             when (transition) {

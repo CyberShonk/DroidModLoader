@@ -168,6 +168,32 @@ class PluginManagementWorkflowTest {
         )
     }
 
+    @Test
+    fun togglesAndOrderEditsDoNotCreateHistoryButExplicitApplyDoes() {
+        val engine = FakePluginManagementEngine(listOf(plugin("first.esm", 1), plugin("second.esp", 2)))
+        val harness = WorkflowHarness(engine)
+        harness.workflow.togglePluginEnabled("second.esp")
+        harness.workflow.movePluginUp("second.esp")
+        harness.workflow.movePluginDown("second.esp")
+        harness.workflow.applyPluginOrder(listOf("first.esm", "second.esp"))
+        assertTrue(harness.attempts.attempts.isEmpty())
+        harness.workflow.writeLoadOrderFiles()
+        val record = harness.attempts.attempts.single().snapshot()
+        assertEquals(OperationKind.PLUGIN_OUTPUT, record.kind)
+        assertEquals(OperationOutcome.SUCCEEDED, record.outcome)
+        assertEquals(1, harness.attempts.records.count { it.outcome != null })
+    }
+
+    @Test
+    fun engineFactoryExceptionClosesTheExplicitPluginAttemptAsFailure() {
+        val harness = WorkflowHarness(null)
+        val failure = IllegalStateException("factory failed")
+        harness.engineCreationFailure = failure
+        harness.workflow.writeLoadOrderFiles()
+        assertEquals(failure, harness.failedOperations.single().second)
+        assertEquals(OperationOutcome.FAILED, harness.attempts.attempts.single().snapshot().outcome)
+    }
+
     private class WorkflowHarness(
         engine: FakePluginManagementEngine?,
         operationInProgress: Boolean = false,
@@ -176,17 +202,17 @@ class PluginManagementWorkflowTest {
         val logs = mutableListOf<String>()
         val errors = mutableListOf<Pair<String, Throwable?>>()
         val statuses = mutableListOf<String>()
-        val startedOperations = mutableListOf<String>()
-        val finishedOperations = mutableListOf<String>()
-        val failedOperations = mutableListOf<Pair<String, Throwable?>>()
+        val attempts = RecordingOperationAttempts()
+        val startedOperations = attempts.beginMessages
+        val finishedOperations = attempts.finishMessages
+        val failedOperations = attempts.failures
         var refreshCount = 0
+        var engineCreationFailure: Exception? = null
 
         val workflow = PluginManagementWorkflow(
-            createEngine = { engine },
+            createEngine = { engineCreationFailure?.let { throw it }; engine },
             isOperationInProgress = { operationInProgress },
-            beginOperation = { text -> startedOperations.add(text) },
-            finishOperation = { text -> finishedOperations.add(text) },
-            failOperation = { message, throwable -> failedOperations.add(message to throwable) },
+            beginOperation = { text -> attempts.startRecorded(OperationKind.PLUGIN_OUTPUT, text) },
             appendLog = { message -> logs.add(message) },
             appendError = { message, throwable -> errors.add(message to throwable) },
             updateLastOperationStatus = { status -> statuses.add(status) },

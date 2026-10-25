@@ -10,6 +10,7 @@ import com.shonkware.droidmodloader.ui.workflow.OperationContext
 import com.shonkware.droidmodloader.ui.workflow.OperationHistoryAvailability
 import com.shonkware.droidmodloader.ui.workflow.OperationHistoryRepository
 import com.shonkware.droidmodloader.ui.workflow.OperationOutcome
+import com.shonkware.droidmodloader.ui.workflow.OperationKind
 import com.shonkware.droidmodloader.ui.workflow.OperationPhase
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -44,6 +45,13 @@ class OperationHistoryPersistenceTest {
         success.startInstalling("Installing")
         success.succeed("Installed")
         repository.record(success.snapshot())
+        val completed = mutableListOf(success.snapshot())
+        for (kind in listOf(OperationKind.DEPLOYMENT, OperationKind.FULL_REDEPLOY, OperationKind.PLUGIN_OUTPUT)) {
+            val operation = OperationAttempt.start(context, "Running fixture", kind = kind, phase = OperationPhase.EXECUTING) { _, _, _ -> }
+            operation.succeed("Fixture complete")
+            completed += operation.snapshot()
+            repository.record(operation.snapshot())
+        }
         val originalBytes = file.readBytes()
 
         val reloaded = OperationHistoryRepository(file).load()
@@ -55,7 +63,7 @@ class OperationHistoryPersistenceTest {
         assertNull(interrupted.finishedAtMillis)
         assertEquals(waiting.snapshot().id, interrupted.id)
         assertEquals(context, interrupted.context)
-        assertEquals(success.snapshot(), reloaded.records.last())
+        assertEquals(completed, reloaded.records.drop(1))
         assertArrayEquals(originalBytes, file.readBytes())
     }
 

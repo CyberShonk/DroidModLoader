@@ -12,8 +12,8 @@ internal data class OperationContext(
     val unavailable: Boolean = false
 )
 
-internal enum class OperationKind { ARCHIVE_INSTALL }
-internal enum class OperationPhase { PREPARING, WAITING_FOR_CHOICES, INSTALLING }
+internal enum class OperationKind { ARCHIVE_INSTALL, DEPLOYMENT, FULL_REDEPLOY, PLUGIN_OUTPUT }
+internal enum class OperationPhase { PREPARING, WAITING_FOR_CHOICES, INSTALLING, EXECUTING }
 internal enum class OperationOutcome { SUCCEEDED, FAILED, CANCELLED }
 internal enum class OperationTransition { STARTED, WAITING, RESUMED, FINISHED }
 
@@ -44,14 +44,14 @@ internal class OperationAttempt private constructor(
 
     @Synchronized
     fun waitForChoices(message: String): Boolean {
-        if (current.outcome != null || current.phase != OperationPhase.PREPARING) return false
+        if (current.kind != OperationKind.ARCHIVE_INSTALL || current.outcome != null || current.phase != OperationPhase.PREPARING) return false
         update(OperationPhase.WAITING_FOR_CHOICES, message, OperationTransition.WAITING)
         return true
     }
 
     @Synchronized
     fun startInstalling(message: String): Boolean {
-        if (current.outcome != null || current.phase == OperationPhase.INSTALLING) return false
+        if (current.kind != OperationKind.ARCHIVE_INSTALL || current.outcome != null || current.phase == OperationPhase.INSTALLING) return false
         update(OperationPhase.INSTALLING, message, OperationTransition.RESUMED)
         return true
     }
@@ -64,7 +64,8 @@ internal class OperationAttempt private constructor(
     private fun finish(outcome: OperationOutcome, message: String, failure: Throwable?): Boolean {
         if (current.outcome != null) return false
         // Preparation or waiting is not successful installation. Failure/cancellation can close either.
-        if (outcome == OperationOutcome.SUCCEEDED && current.phase != OperationPhase.INSTALLING) return false
+        if (outcome == OperationOutcome.SUCCEEDED &&
+            current.kind == OperationKind.ARCHIVE_INSTALL && current.phase != OperationPhase.INSTALLING) return false
         val now = maxOf(clock(), current.updatedAtMillis)
         current = current.copy(updatedAtMillis = now, finishedAtMillis = now, outcome = outcome, reason = message)
         onTransition(current, OperationTransition.FINISHED, failure)
@@ -82,13 +83,15 @@ internal class OperationAttempt private constructor(
             message: String,
             previousAttemptId: String? = null,
             phase: OperationPhase = OperationPhase.PREPARING,
+            kind: OperationKind = OperationKind.ARCHIVE_INSTALL,
             clock: () -> Long = System::currentTimeMillis,
             onTransition: (OperationAttemptRecord, OperationTransition, Throwable?) -> Unit
         ): OperationAttempt {
             require(phase != OperationPhase.WAITING_FOR_CHOICES)
+            require((kind == OperationKind.ARCHIVE_INSTALL) == (phase != OperationPhase.EXECUTING))
             val now = clock()
             val record = OperationAttemptRecord(
-                UUID.randomUUID().toString(), previousAttemptId, OperationKind.ARCHIVE_INSTALL,
+                UUID.randomUUID().toString(), previousAttemptId, kind,
                 context, now, now, null, phase, null, message
             )
             return OperationAttempt(record, clock, onTransition).also {

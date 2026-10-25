@@ -182,6 +182,25 @@ class OperationHistoryRepositoryTest {
         assertEquals(OperationOutcome.SUCCEEDED, loaded.outcome)
     }
 
+    @Test fun explicitDeploymentAndPluginAttemptsRoundTripWithoutClosingAWaitingImport() {
+        val repository = OperationHistoryRepository(file())
+        val waiting = attempt().apply { waitForChoices("Choose") }.snapshot()
+        repository.record(waiting)
+        for (kind in listOf(OperationKind.DEPLOYMENT, OperationKind.FULL_REDEPLOY, OperationKind.PLUGIN_OUTPUT)) {
+            val operation = OperationAttempt.start(context, "Running", phase = OperationPhase.EXECUTING, kind = kind) { record, _, _ ->
+                repository.record(record)
+            }
+            operation.succeed("Done")
+        }
+        val reloaded = OperationHistoryRepository(file()).load()
+        assertEquals(OperationHistoryAvailability.AVAILABLE, reloaded.availability)
+        assertEquals(4, reloaded.records.size)
+        assertTrue(reloaded.records.first().interrupted)
+        assertNull(reloaded.records.first().outcome)
+        assertEquals(OperationKind.entries, reloaded.records.map { it.kind })
+        assertTrue(reloaded.records.drop(1).all { it.outcome == OperationOutcome.SUCCEEDED })
+    }
+
     @Test fun invalidTypesDuplicateIdsAndImpossibleOutcomesAreUnavailable() {
         OperationHistoryRepository(file()).record(finished())
         val root = JSONObject(file().readText())

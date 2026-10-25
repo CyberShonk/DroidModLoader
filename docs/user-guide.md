@@ -109,6 +109,14 @@ not tools reserved for developers.
 Use diagnostics when the selected target, plugin state, archive support, or
 deployment result is unclear.
 
+**Recent operations** on the dashboard shows the latest five retained attempts
+across profiles. **Details** identifies the captured profile, game, configured
+target intent, times, reason and any previous attempt. History retains at most
+50 attempts within 256 KiB; it is not current health or recovery authority.
+Waiting for installer choices is not success. Unfinished attempts from a prior
+session have an unknown outcome and are never replayed. History save failures
+do not change the operation result, and unavailable history stays explicit.
+
 **Report & Diagnostics** shows one Deployment Health summary shared with its
 details, relevant App Attention notices and support reports. **Refresh Deployment
 Evidence** collects current target readiness, recorded pending changes and journal

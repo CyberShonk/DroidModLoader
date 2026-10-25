@@ -65,9 +65,7 @@ internal class DeploymentExecutionWorkflow(
     private val saveActiveProfile: () -> Unit,
     private val saveSelectedGameConfig: () -> Unit,
     private val createEngine: () -> DeploymentExecutionEngine?,
-    private val beginOperation: (String) -> Unit,
-    private val finishOperation: (String) -> Unit,
-    private val failOperation: (String, Throwable?) -> Unit,
+    private val beginOperation: (OperationKind, String) -> OperationAttempt,
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
     private val refreshDashboard: () -> Unit
@@ -78,7 +76,7 @@ internal class DeploymentExecutionWorkflow(
             return
         }
 
-        beginOperation("Deploying mods...")
+        val operation = beginOperation(OperationKind.DEPLOYMENT, "Deploying mods...")
 
         try {
             saveActiveProfile()
@@ -159,9 +157,10 @@ internal class DeploymentExecutionWorkflow(
 
             appendJournal(engine, gameId)
             appendLog("RESULT: PASS")
-            finishOperation("Deploy succeeded ($effectiveMode).")
+            operation.succeed("Deploy succeeded ($effectiveMode).")
         } catch (e: DeploymentPreflightException) {
             appendPreflightFailure(
+                operation = operation,
                 heading = "Deploy",
                 failureMessage = "Deploy blocked by readiness check.",
                 exception = e
@@ -169,7 +168,7 @@ internal class DeploymentExecutionWorkflow(
         } catch (e: Exception) {
             appendError("Deploy workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            failOperation("Deploy failed: ${e.message}", e)
+            operation.fail("Deploy failed: ${e.message}", e)
         }
 
         refreshDashboard()
@@ -182,7 +181,7 @@ internal class DeploymentExecutionWorkflow(
             return
         }
 
-        beginOperation("Force full redeploy...")
+        val operation = beginOperation(OperationKind.FULL_REDEPLOY, "Force full redeploy...")
 
         try {
             saveActiveProfile()
@@ -226,9 +225,10 @@ internal class DeploymentExecutionWorkflow(
             engine.syncPlugins()
 
             appendLog("RESULT: PASS")
-            finishOperation("Full redeploy succeeded.")
+            operation.succeed("Full redeploy succeeded.")
         } catch (e: DeploymentPreflightException) {
             appendPreflightFailure(
+                operation = operation,
                 heading = "Full redeploy",
                 failureMessage = "Full redeploy blocked by readiness check.",
                 exception = e
@@ -236,7 +236,7 @@ internal class DeploymentExecutionWorkflow(
         } catch (e: Exception) {
             appendError("Full redeploy failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            failOperation("Full redeploy failed: ${e.message}", e)
+            operation.fail("Full redeploy failed: ${e.message}", e)
         }
 
         refreshDashboard()
@@ -281,6 +281,7 @@ internal class DeploymentExecutionWorkflow(
     }
 
     private fun appendPreflightFailure(
+        operation: OperationAttempt,
         heading: String,
         failureMessage: String,
         exception: DeploymentPreflightException
@@ -293,6 +294,6 @@ internal class DeploymentExecutionWorkflow(
         appendLog("----- Deploy Readiness Check Failed End -----")
         appendLog("No files were changed.")
         appendLog("RESULT: FAIL")
-        failOperation(failureMessage, exception)
+        operation.fail(failureMessage, exception)
     }
 }

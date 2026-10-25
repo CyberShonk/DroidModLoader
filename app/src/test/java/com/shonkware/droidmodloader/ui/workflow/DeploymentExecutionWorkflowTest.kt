@@ -260,6 +260,18 @@ class DeploymentExecutionWorkflowTest {
         )
     }
 
+    @Test
+    fun deployAndFullRedeployHaveDistinctTypedAttemptsAndOneTerminalOutcomeEach() {
+        val harness = Harness(FakeDeploymentExecutionEngine(config = config()))
+        harness.workflow.deploy()
+        harness.workflow.forceFullRedeploy()
+        val records = harness.attempts.attempts.map { it.snapshot() }
+        assertEquals(listOf(OperationKind.DEPLOYMENT, OperationKind.FULL_REDEPLOY), records.map { it.kind })
+        assertEquals(2, records.map { it.id }.distinct().size)
+        assertTrue(records.all { it.outcome == OperationOutcome.SUCCEEDED && it.phase == OperationPhase.EXECUTING })
+        assertEquals(2, harness.attempts.records.count { it.outcome != null })
+    }
+
     private class Harness(
         private val engine: DeploymentExecutionEngine?,
         private val operationInProgress: Boolean = false
@@ -267,9 +279,10 @@ class DeploymentExecutionWorkflowTest {
         var saveProfileCount = 0
         var saveConfigCount = 0
         var refreshCount = 0
-        val begunOperations = mutableListOf<String>()
-        val finishedOperations = mutableListOf<String>()
-        val failedOperations = mutableListOf<Pair<String, Throwable?>>()
+        val attempts = RecordingOperationAttempts()
+        val begunOperations = attempts.beginMessages
+        val finishedOperations = attempts.finishMessages
+        val failedOperations = attempts.failures
         val logs = mutableListOf<String>()
         val errors = mutableListOf<Pair<String, Throwable?>>()
 
@@ -280,11 +293,7 @@ class DeploymentExecutionWorkflowTest {
             saveActiveProfile = { saveProfileCount++ },
             saveSelectedGameConfig = { saveConfigCount++ },
             createEngine = { engine },
-            beginOperation = { begunOperations += it },
-            finishOperation = { finishedOperations += it },
-            failOperation = { message, throwable ->
-                failedOperations += message to throwable
-            },
+            beginOperation = attempts::startRecorded,
             appendLog = { logs += it },
             appendError = { message, throwable ->
                 errors += message to throwable

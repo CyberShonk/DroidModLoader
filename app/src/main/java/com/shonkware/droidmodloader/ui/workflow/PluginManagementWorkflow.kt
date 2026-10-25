@@ -47,9 +47,7 @@ internal class PluginManagementEngineAdapter(
 internal class PluginManagementWorkflow(
     private val createEngine: () -> PluginManagementEngine?,
     private val isOperationInProgress: () -> Boolean,
-    private val beginOperation: (String) -> Unit,
-    private val finishOperation: (String) -> Unit,
-    private val failOperation: (String, Throwable?) -> Unit,
+    private val beginOperation: (String) -> OperationAttempt,
     private val appendLog: (String) -> Unit,
     private val appendError: (String, Throwable?) -> Unit,
     private val updateLastOperationStatus: (String) -> Unit,
@@ -139,15 +137,14 @@ internal class PluginManagementWorkflow(
             return
         }
 
-        beginOperation("Applying plugin configuration...")
-
-        val engine = createEngine()
-        if (engine == null) {
-            failOperation("Applying plugin configuration failed: engine could not be created.", null)
-            return
-        }
+        val operation = beginOperation("Applying plugin configuration...")
 
         try {
+            val engine = createEngine()
+            if (engine == null) {
+                operation.fail("Applying plugin configuration failed: engine could not be created.")
+                return
+            }
             val savedPlugins = engine.loadPlugins().sortedBy { it.priority }
 
             if (savedPlugins.isEmpty()) {
@@ -162,7 +159,7 @@ internal class PluginManagementWorkflow(
             if (pluginsAfterFallback.isEmpty()) {
                 appendLog("No plugins available to apply.")
                 appendLog("RESULT: FAIL")
-                failOperation("Applying plugin configuration failed: no plugins available.", null)
+                operation.fail("Applying plugin configuration failed: no plugins available.")
                 return
             }
 
@@ -196,11 +193,11 @@ internal class PluginManagementWorkflow(
             }
 
             appendLog("RESULT: PASS")
-            finishOperation("Plugin configuration applied successfully.")
+            operation.succeed("Plugin configuration applied successfully.")
         } catch (e: Exception) {
             appendError("Apply plugin configuration workflow failed: ${e.message}", e)
             appendLog("RESULT: FAIL")
-            failOperation("Applying plugin configuration failed: ${e.message}", e)
+            operation.fail("Applying plugin configuration failed: ${e.message}", e)
         }
 
         refreshDashboard()

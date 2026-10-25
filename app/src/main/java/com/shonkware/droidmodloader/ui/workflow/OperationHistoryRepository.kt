@@ -196,7 +196,9 @@ internal class OperationHistoryRepository(private val metadata: CriticalMetadata
                 require((record.outcome == null) == (record.finishedAtMillis == null))
                 require(record.finishedAtMillis == null || record.finishedAtMillis == record.updatedAtMillis)
                 require(!record.interrupted || record.outcome == null)
-                require(record.outcome != OperationOutcome.SUCCEEDED || record.phase == OperationPhase.INSTALLING)
+                require((record.kind == OperationKind.ARCHIVE_INSTALL) == (record.phase != OperationPhase.EXECUTING))
+                require(record.outcome != OperationOutcome.SUCCEEDED || record.kind != OperationKind.ARCHIVE_INSTALL ||
+                    record.phase == OperationPhase.INSTALLING)
                 require(record.reason.length <= MAX_REASON_CHARS)
                 require(listOfNotNull(record.context.profileId, record.context.gameId, record.context.dataTarget,
                     record.context.rootTarget).all { it.length <= MAX_CONTEXT_CHARS })

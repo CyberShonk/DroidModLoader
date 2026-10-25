@@ -28,6 +28,8 @@ import com.shonkware.droidmodloader.ui.workflow.OperationAttempt
 import com.shonkware.droidmodloader.ui.workflow.OperationContext
 import com.shonkware.droidmodloader.ui.workflow.OperationHistoryRepository
 import com.shonkware.droidmodloader.ui.workflow.OperationHistoryAvailability
+import com.shonkware.droidmodloader.ui.workflow.OperationKind
+import com.shonkware.droidmodloader.ui.OperationHistoryPresentationMapper
 import com.shonkware.droidmodloader.ui.workflow.DeploymentConfigUiMapper
 import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 import com.shonkware.droidmodloader.ui.workflow.GameConfigurationWorkflow
@@ -283,6 +285,8 @@ internal class SessionViewModel @JvmOverloads constructor(
         if (historyReported) return
         historyReported = true
         val history = operationHistory.load()
+        val presentation = OperationHistoryPresentationMapper.present(history)
+        runOnUiThread { operationHistoryPresentation = presentation }
         if (history.availability != OperationHistoryAvailability.AVAILABLE) {
             operationReporter.appendLog(checkNotNull(history.reason))
             return
@@ -319,6 +323,8 @@ internal class SessionViewModel @JvmOverloads constructor(
             recordAttempt = { record ->
                 val before = operationHistory.snapshot
                 val after = operationHistory.record(record)
+                val presentation = OperationHistoryPresentationMapper.present(after)
+                runOnUiThread { operationHistoryPresentation = presentation }
                 if (after.availability != OperationHistoryAvailability.AVAILABLE &&
                     (before.availability != after.availability || before.reason != after.reason)) {
                     operationReporter.appendLog(checkNotNull(after.reason))
@@ -394,9 +400,9 @@ internal class SessionViewModel @JvmOverloads constructor(
                 }
             },
             isOperationInProgress = { operationInProgress },
-            beginOperation = { text -> operationReporter.beginOperation(text) },
-            finishOperation = { text -> operationReporter.finishOperation(text) },
-            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            beginOperation = { text ->
+                operationReporter.beginRecordedOperation(OperationKind.PLUGIN_OUTPUT, checkNotNull(admittedOperationContext.get()), text)
+            },
             appendLog = { message -> operationReporter.appendLog(message) },
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             updateLastOperationStatus = { status -> lastOperationStatus = status },
@@ -787,9 +793,9 @@ internal class SessionViewModel @JvmOverloads constructor(
                     )
                 }
             },
-            beginOperation = { message -> operationReporter.beginOperation(message) },
-            finishOperation = { message -> operationReporter.finishOperation(message) },
-            failOperation = { message, throwable -> operationReporter.failOperation(message, throwable) },
+            beginOperation = { kind, message ->
+                operationReporter.beginRecordedOperation(kind, checkNotNull(admittedOperationContext.get()), message)
+            },
             appendLog = { message -> operationReporter.appendLog(message) },
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) },
             refreshDashboard = dashboardRefreshCoordinator::refresh

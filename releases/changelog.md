@@ -6,7 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
-- feat: Archive operation history retains up to 50 attempts within 256 KiB and shows recent details in startup logs. Unfinished attempts from a prior session have an unknown outcome and are never replayed. Unavailable history and save failures remain separate from installation results.
+- feat: The dashboard shows recent archive installs, deployments, full redeployments and plugin output with captured context and details. History retains up to 50 attempts within 256 KiB. Unfinished attempts have an unknown outcome and are never replayed; unavailable history and save failures remain separate from operation results.
 - feat: Deployment Health shares scoped readiness, pending-change, recovery and integrity facts across dashboard details, App Attention and support reports. Unknown or stale evidence stays explicit; successful operations and warning review do not prove disk integrity, and routine refreshes never rebuild expected hashes. <!-- commits: 2975d4fa6e4fa54debc4b5ff6d11789c58919e99 -->
 - feat: Report & Diagnostics offers a cancellable, read-only SHA-256 check of recorded Data, Game Root and installed mod files, reporting missing, changed, unreadable or unavailable evidence. Results identify captured inputs and remain historical observations, not live health or compatibility proof; checks never rebuild missing expected hashes. <!-- commits: de2614ec50a76c773008bba4e38c8d6ce75d04c0 -->
 - feat: Mods show warnings for missing installation folders or no recognized game data. <!-- commits: 29119e8019f06089ea276fcae8ecaadaaf29ce44 -->

@@ -19,6 +19,12 @@ internal class OperationReporter(
     fun beginArchiveInstall(context: OperationContext, text: String): OperationAttempt =
         OperationAttempt.start(context, text, onTransition = ::reportAttempt)
 
+    fun beginRecordedOperation(kind: OperationKind, context: OperationContext, text: String): OperationAttempt {
+        require(kind != OperationKind.ARCHIVE_INSTALL)
+        return OperationAttempt.start(context, text, phase = OperationPhase.EXECUTING, kind = kind,
+            onTransition = ::reportAttempt)
+    }
+
     fun continueArchiveInstall(
         previous: OperationAttempt?,
         context: OperationContext,

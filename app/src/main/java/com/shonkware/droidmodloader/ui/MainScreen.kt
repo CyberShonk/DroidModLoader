@@ -105,6 +105,7 @@ data class DashboardUiState(
     val newProfileRootPathText: String = "",
     val dataTargetReady: Boolean = false,
     val rootTargetReady: Boolean = false,
+    val operationHistory: OperationHistoryPresentation = OperationHistoryPresentation(),
 )
 
 data class DashboardActions(
@@ -241,6 +242,8 @@ private fun MainDashboardScreen(
                             }
                         )
                     }
+
+                RecentOperationsCard(state.operationHistory)
 
                 QuickStartCard()
 

@@ -6,6 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -239,7 +242,9 @@ class SessionRecreationTest {
                 assertTrue(session.isOperationAdmitted)
                 assertSame(prepared, session.pendingArchiveInstall)
             }
-            compose.onNodeWithText("Installing selected options...").assertIsDisplayed()
+            compose.onNode(
+                hasText("Installing selected options...") and hasAnyAncestor(isDialog())
+            ).assertIsDisplayed()
             compose.runOnIdle {
                 val gameId = session.selectedGameId
                 val profileId = session.activeProfileId
