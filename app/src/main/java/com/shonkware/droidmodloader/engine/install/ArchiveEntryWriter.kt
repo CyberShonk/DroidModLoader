@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.engine.install
 
 import android.util.Log
+import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
@@ -27,9 +28,7 @@ class ArchiveEntryWriter internal constructor(
         outputDir = outputDir,
         limits = limits,
         debugLog = debugLog,
-        usableSpaceBytes = { path ->
-            path.usableSpace.takeIf { it > 0L }
-        },
+        usableSpaceBytes = AndroidStorageCapacityProbe::availableBytes,
         cancellationSignal = cancellationSignal
     )
 
@@ -45,9 +44,7 @@ class ArchiveEntryWriter internal constructor(
         debugLog = { message ->
             Log.d(TAG, message)
         },
-        usableSpaceBytes = { path ->
-            path.usableSpace.takeIf { it > 0L }
-        },
+        usableSpaceBytes = AndroidStorageCapacityProbe::availableBytes,
         cancellationSignal = cancellationSignal
     )
 

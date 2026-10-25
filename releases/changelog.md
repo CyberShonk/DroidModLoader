@@ -28,6 +28,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Archive snapshots and installer copies check measurable free space before opening destination files and during long copies. Unknown capacity still relies on normal filesystem errors; extraction keeps its existing storage checks.
 - fix: Archive import and installer choices share one operation attempt. Waiting for choices is not reported as success; cancellation and retries keep distinct outcomes, and failed installer cleanup is reported as a failure.
 - fix: Rotating the device preserves open panels, installer choices and operation state instead of restarting the app session. <!-- commits: 31eb08c63b141621d441e62f77f0b6aa2e5d6484 -->
 - fix: Replace the light native window background that caused white flashes during launch and Activity recreation. <!-- commits: 6a41efa7442a903d4486500e55d47493f1e6d26f -->

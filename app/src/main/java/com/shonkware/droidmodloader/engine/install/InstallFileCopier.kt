@@ -1,5 +1,6 @@
 package com.shonkware.droidmodloader.engine.install
 
+import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
 import java.io.File
 import java.io.IOException
 
@@ -12,27 +13,29 @@ internal object InstallFileCopier {
         cancellationSignal:
         InstallCancellationSignal =
             InstallCancellationSignal.NONE
+    ) = copyRecursively(
+        source, target, cancellationSignal,
+        usableSpaceBytes = AndroidStorageCapacityProbe::availableBytes
+    )
+
+    internal fun copyRecursively(
+        source: File,
+        target: File,
+        cancellationSignal: InstallCancellationSignal,
+        spaceCheckIntervalBytes: Long = ExtractionLimits.DEFAULT_SPACE_CHECK_INTERVAL_BYTES,
+        usableSpaceBytes: (File) -> Long?
     ) {
+        require(spaceCheckIntervalBytes > 0L)
         cancellationSignal
             .throwIfCancellationRequested()
 
         when {
             source.isDirectory -> {
-                copyDirectory(
-                    source = source,
-                    target = target,
-                    cancellationSignal =
-                        cancellationSignal
-                )
+                copyDirectory(source, target, cancellationSignal, spaceCheckIntervalBytes, usableSpaceBytes)
             }
 
             source.isFile -> {
-                copyFile(
-                    source = source,
-                    target = target,
-                    cancellationSignal =
-                        cancellationSignal
-                )
+                copyFile(source, target, cancellationSignal, spaceCheckIntervalBytes, usableSpaceBytes)
             }
 
             else -> {
@@ -48,8 +51,9 @@ internal object InstallFileCopier {
     private fun copyDirectory(
         source: File,
         target: File,
-        cancellationSignal:
-        InstallCancellationSignal
+        cancellationSignal: InstallCancellationSignal,
+        spaceCheckIntervalBytes: Long,
+        usableSpaceBytes: (File) -> Long?
     ) {
         cancellationSignal
             .throwIfCancellationRequested()
@@ -81,8 +85,9 @@ internal object InstallFileCopier {
             copyRecursively(
                 source = child,
                 target = File(target, child.name),
-                cancellationSignal =
-                    cancellationSignal
+                cancellationSignal = cancellationSignal,
+                spaceCheckIntervalBytes = spaceCheckIntervalBytes,
+                usableSpaceBytes = usableSpaceBytes
             )
         }
     }
@@ -90,8 +95,9 @@ internal object InstallFileCopier {
     private fun copyFile(
         source: File,
         target: File,
-        cancellationSignal:
-        InstallCancellationSignal
+        cancellationSignal: InstallCancellationSignal,
+        spaceCheckIntervalBytes: Long,
+        usableSpaceBytes: (File) -> Long?
     ) {
         cancellationSignal
             .throwIfCancellationRequested()
@@ -109,6 +115,21 @@ internal object InstallFileCopier {
                         target.absolutePath
             )
 
+        // Check before opening the destination, so rejection cannot truncate it.
+        var probePath = parent
+        while (!probePath.exists() && probePath.parentFile != null) {
+            probePath = probePath.parentFile!!
+        }
+        fun requireSpace(additionalBytes: Long) {
+            val available = usableSpaceBytes(probePath)?.takeIf { it >= 0L } ?: return
+            val headroom = ExtractionLimits.DEFAULT_MINIMUM_FREE_SPACE_BYTES
+            if (available < headroom || additionalBytes > available - headroom) {
+                throw IOException("Not enough free storage remains to copy the installer file safely.")
+            }
+        }
+        requireSpace(source.length())
+        cancellationSignal.throwIfCancellationRequested()
+
         if (!parent.exists() && !parent.mkdirs()) {
             throw IOException(
                 "Could not create installer destination parent: " +
@@ -120,6 +141,7 @@ internal object InstallFileCopier {
             source.inputStream().buffered().use { input ->
                 target.outputStream().buffered().use { output ->
                     val buffer = ByteArray(BUFFER_SIZE)
+                    var bytesSinceSpaceCheck = 0L
 
                     while (true) {
                         cancellationSignal
@@ -138,7 +160,12 @@ internal object InstallFileCopier {
                         cancellationSignal
                             .throwIfCancellationRequested()
 
+                        if (bytesSinceSpaceCheck >= spaceCheckIntervalBytes) {
+                            requireSpace(read.toLong())
+                            bytesSinceSpaceCheck = 0L
+                        }
                         output.write(buffer, 0, read)
+                        bytesSinceSpaceCheck += read
                     }
                 }
             }
