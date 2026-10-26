@@ -109,6 +109,24 @@ class SupportReportCoordinatorTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test
+    fun `support preserves scoped storage observations as historical logs without a new scan`() {
+        val root = Files.createTempDirectory("dml-storage-support-").toFile()
+        try {
+            val storage = "Storage scope: profile=profile-a; game=fallout_nv\n" +
+                com.shonkware.droidmodloader.engine.storage.StorageDiagnostics(0L, emptyList(),
+                    com.shonkware.droidmodloader.engine.storage.ManagedArchiveInventory(details = listOf("Unavailable fixture")),
+                    emptyList()).toSummary()
+            val report = SupportReportCoordinator({ FakeEngine() },
+                { AppDiagnosticInfo("test", 1, "com.test", "36", "Fixture") }, { "Ready" }, { false },
+                { storage }, SessionLogWriter { root }).buildShareText()
+            assertTrue(report.contains(storage))
+            assertTrue(report.contains("historical observation"))
+            assertTrue(report.contains("observed logical size: unknown"))
+            assertTrue(report.contains("profile=profile-a; game=fallout_nv"))
+        } finally { root.deleteRecursively() }
+    }
+
     private class FakeEngine : SupportReportEngine {
         override fun getCurrentMods(): List<Mod> = listOf(
             Mod("mod", "Mod", "/mods/mod", true, 1, ModType.LOOSE)

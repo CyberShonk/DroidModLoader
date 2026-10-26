@@ -17,6 +17,10 @@ internal class ArchiveImportFileStore(
 ) {
     private val activeAttempts = mutableSetOf<Path>()
 
+    companion object {
+        fun snapshotDirectory(base: File): File = File(base, "downloads/import_staging")
+    }
+
     @Synchronized
     fun copyToTemporarySnapshot(
         sourceFile: File,
@@ -88,7 +92,7 @@ internal class ArchiveImportFileStore(
         val base = externalFilesDirProvider()?.canonicalFile
             ?: throw IOException("External files directory is unavailable.")
         val downloads = File(base, "downloads").toPath()
-        val root = downloads.resolve("import_staging")
+        val root = snapshotDirectory(base).toPath()
         if (Files.isSymbolicLink(downloads) || Files.isSymbolicLink(root)) {
             throw IOException("Archive staging must not use symbolic links.")
         }

@@ -28,6 +28,7 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentStorageCapacity
 import com.shonkware.droidmodloader.engine.storage.StorageCapacityMeasurement
 import com.shonkware.droidmodloader.engine.storage.StorageCapacityProbe
 import com.shonkware.droidmodloader.engine.storage.StorageCapacityStatus
+import com.shonkware.droidmodloader.engine.storage.StorageWriteRequirement
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthFacts
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
@@ -709,6 +710,25 @@ internal class DeploymentService(
         }
     }
 
+
+    fun storageDiagnosticRequirements(gameId: String): Pair<List<StorageWriteRequirement>, List<String>> {
+        val targets = try { resolveInspectionTargets(gameId) } catch (_: Exception) {
+            return emptyList<StorageWriteRequirement>() to listOf("Deployment target configuration is unavailable; no simulated fallback was assumed.")
+        }
+        val notes = mutableListOf("Operation requirements are unknown in this location inspection; deployment preflight sizes its own plan.")
+        val requirements = mutableListOf<StorageWriteRequirement>()
+        listOf(targets.data, targets.root).forEach { target ->
+            val name = target.targetType.displayName
+            if (target.deployDirectory == null) notes.add("$name target unavailable: ${target.unavailableReason}") else {
+                requirements.add(StorageWriteRequirement("$name deployment copies", target.deployDirectory,
+                    if (target.identity.mode in setOf("simulated", "root_simulated")) "DML managed simulated target"
+                    else "Selected target; DML manages only recorded files"))
+            }
+            requirements.add(StorageWriteRequirement("$name new backups", target.backupDirectory,
+                "DML managed backup directory"))
+        }
+        return requirements to notes
+    }
 
     private fun checkPreflight(targets: ResolvedDeploymentTargets, plan: ScopedDeploymentPlan): DeploymentPreflightResult {
         val base = deploymentPreflightChecker.check(targets.configSnapshot, plan)

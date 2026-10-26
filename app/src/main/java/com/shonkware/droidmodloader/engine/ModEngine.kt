@@ -2,6 +2,13 @@ package com.shonkware.droidmodloader.engine
 
 import android.content.Context
 import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
+import com.shonkware.droidmodloader.engine.storage.ManagedArchiveInventory
+import com.shonkware.droidmodloader.engine.storage.StorageCapacity
+import com.shonkware.droidmodloader.engine.storage.StorageCapacityMeasurement
+import com.shonkware.droidmodloader.engine.storage.StorageCapacityProbe
+import com.shonkware.droidmodloader.engine.storage.StorageDiagnostics
+import com.shonkware.droidmodloader.engine.storage.StorageWriteRequirement
+import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
@@ -348,6 +355,33 @@ class ModEngine(
         downloadedArchiveService.markDownloadedArchiveInstalled(archiveId, installedModId)
     fun buildDownloadedArchiveSummary(): String =
         downloadedArchiveService.buildDownloadedArchiveSummary()
+
+    internal fun buildStorageDiagnosticSummary(gameId: String): String {
+        val base = appContext.getExternalFilesDir(null)
+        val locations = mutableListOf(
+            StorageWriteRequirement("Managed archive copies", archiveLibraryDir, "DML managed legacy archive location",
+                details = "No new archive was selected for sizing; imports are temporary, not a permanent cache."),
+            StorageWriteRequirement("Extraction and prepared sessions", tempDir, "DML managed profile temporary content",
+                details = "Expanded archive size and selected installer content were not sized by this observation."),
+            StorageWriteRequirement("Installed mods and installation staging", modsDir, "DML managed profile content",
+                details = "A new staged copy needs selected content size; rename-only replacement backups are not new copies.")
+        )
+        if (base != null) locations.add(StorageWriteRequirement("Temporary import snapshots",
+            ArchiveImportFileStore.snapshotDirectory(base), "DML managed temporary copies"))
+        val (deployment, notes) = deploymentService.storageDiagnosticRequirements(gameId)
+        locations.addAll(deployment)
+        val platform = AndroidStorageCapacityProbe(appContext)
+        val probe = StorageCapacityProbe { path ->
+            if (base == null && path == archiveLibraryDir) StorageCapacityMeasurement(details = "External storage is unavailable.")
+            else platform.read(path)
+        }
+        return StorageDiagnostics(System.currentTimeMillis(), StorageCapacity.assess(locations, probe),
+            ManagedArchiveInventory.read(base, archiveLibraryDir), notes + listOfNotNull(
+                if (base == null) "Temporary import location is unavailable." else null,
+                "Archive inventory covers the managed legacy location across profiles, not selected source libraries or history records.",
+                "Operation requirements remain unknown here. Deployment preflight sizes its plan; this read-only inspection never rebuilds source indexes."
+            )).toSummary()
+    }
     fun recoverInterruptedInstallReplacements():
             List<InstallReplacementRecoveryResult> =
         modLibraryService.recoverInterruptedInstallReplacements()

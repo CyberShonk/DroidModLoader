@@ -95,6 +95,31 @@ class DeploymentStoragePreflightTest {
         assertFalse(f.deploy.exists())
     }
 
+    @Test
+    fun `location diagnostics never resolve source content or turn unknown requirements into an empty plan`() = fixture { f ->
+        val service = DeploymentService(f.root, File(f.root, "temp"), File(f.root, "state/mods.json"),
+            File(f.root, "state/manifest.json"), f.deploy, File(f.root, "state/config.json"),
+            { throw AssertionError("Read-only location inspection must not build source indexes") },
+            { throw AssertionError("Read-only location inspection must not resolve source content") })
+        val before = f.snapshot()
+        val (locations, notes) = service.storageDiagnosticRequirements(GAME)
+        assertEquals(4, locations.size)
+        assertTrue(locations.all { it.minimumBytes == null && !it.complete })
+        assertTrue(notes.any { it.contains("requirements are unknown") })
+        assertEquals(before, f.snapshot())
+        assertFalse(f.deploy.exists())
+    }
+
+    @Test
+    fun `corrupt diagnostic target configuration cannot silently select simulated storage`() = fixture { f ->
+        File(f.root, "state/config.json").apply { parentFile!!.mkdirs(); writeText("broken config") }
+        val before = f.snapshot()
+        val (locations, notes) = f.service.storageDiagnosticRequirements(GAME)
+        assertTrue(locations.isEmpty())
+        assertTrue(notes.any { it.contains("no simulated fallback") })
+        assertEquals(before, f.snapshot())
+    }
+
     private fun fixture(test: (Fixture) -> Unit) {
         val root = Files.createTempDirectory("dml-capacity-preflight-").toFile()
         try { test(Fixture(root)) } finally { root.deleteRecursively() }

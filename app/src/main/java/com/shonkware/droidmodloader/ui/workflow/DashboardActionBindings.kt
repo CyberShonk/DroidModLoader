@@ -29,6 +29,7 @@ internal class DashboardActionBindings(
     private val cleanOldArchiveCopies: () -> Unit,
     private val verifyManagedContent: () -> Unit = {},
     private val refreshDeploymentHealth: () -> Unit = {},
+    private val inspectStorage: () -> Unit = {},
     private val cancelIntegrityCheck: () -> Unit = {},
 
 ) {
@@ -125,6 +126,7 @@ internal class DashboardActionBindings(
             onBuildDeploymentPlan = deploymentActionWorkflowController::buildDeployPlan,
             onVerifyManagedContent = verifyManagedContent,
             onRefreshDeploymentHealth = refreshDeploymentHealth,
+            onInspectStorage = inspectStorage,
             onCancelIntegrityCheck = cancelIntegrityCheck,
             onShowArchiveLibrarySummary = developerToolsWorkflowController::showArchiveLibrarySummary,
             onBuildFullRedeployPlan = deploymentActionWorkflowController::buildFullRedeployPlan,

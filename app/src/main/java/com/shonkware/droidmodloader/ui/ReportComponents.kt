@@ -30,7 +30,8 @@ fun ReportCard(
     onVerifyManagedContent: () -> Unit = {},
     onCancelIntegrityCheck: () -> Unit = {},
     deploymentHealth: DeploymentHealth? = null,
-    onRefreshDeploymentHealth: () -> Unit = {}
+    onRefreshDeploymentHealth: () -> Unit = {},
+    onInspectStorage: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -59,6 +60,14 @@ fun ReportCard(
                 onClick = onRefreshDeploymentHealth,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            DmlButtons.Secondary(
+                text = "Inspect Storage",
+                enabled = !operationInProgress,
+                onClick = onInspectStorage,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Read-only storage facts appear in the log and shared reports as historical observations. Inspect again after changing files or targets; no archives are removed.")
 
             DmlButtons.Secondary(
                 text = "Share Logs",

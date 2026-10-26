@@ -9,6 +9,7 @@ internal interface DeveloperDiagnosticsEngine {
     fun buildResolvedDataGraphDebugSummary(): String
     fun buildDeploymentPlanDebugSummary(gameId: String): String
     fun buildDownloadedArchiveSummary(): String
+    fun buildStorageDiagnosticSummary(gameId: String): String
     fun buildFullRedeployPlanDebugSummary(gameId: String): String
     fun indexModContent(mod: Mod): ModContentIndex
     fun verifyManagedContent(gameId: String, cancelled: () -> Boolean): ManagedIntegrityReport
@@ -25,6 +26,8 @@ internal class DeveloperDiagnosticsEngineAdapter(
 
     override fun buildDownloadedArchiveSummary(): String =
         engine.buildDownloadedArchiveSummary()
+
+    override fun buildStorageDiagnosticSummary(gameId: String): String = engine.buildStorageDiagnosticSummary(gameId)
 
     override fun buildFullRedeployPlanDebugSummary(gameId: String): String =
         engine.buildFullRedeployPlanDebugSummary(gameId)
@@ -71,6 +74,29 @@ internal class DeveloperDiagnosticsCoordinator(
             null
         }
         // The caller may reproject recorded metadata, but must not rebuild expected indexes.
+    }
+
+    fun inspectStorage(
+        engine: DeveloperDiagnosticsEngine,
+        context: OperationContext,
+        contextStillCurrent: () -> Boolean
+    ) {
+        beginOperation("Inspecting managed storage...")
+        try {
+            check(!context.unavailable) { "Storage context is unavailable." }
+            val summary = engine.buildStorageDiagnosticSummary(context.gameId)
+            if (!contextStillCurrent()) {
+                finishOperation("Storage facts discarded: profile, game or targets changed.")
+                return
+            }
+            appendLog("Storage scope: profile=${context.profileId ?: "unassigned"}; game=${context.gameId}")
+            appendLog("Captured target intent: real=${context.realDeployment}; Data=${context.dataTarget}; Game Root=${context.rootTarget}")
+            appendLog("Intent is not validated target evidence; measured locations use saved configuration.")
+            summary.lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
+            finishOperation("Storage facts collected; requirements may be unknown.")
+        } catch (failure: Exception) {
+            failOperation("Storage inspection failed: ${failure.message}", failure)
+        }
     }
 
     fun buildResolvedDataGraphSummary() {

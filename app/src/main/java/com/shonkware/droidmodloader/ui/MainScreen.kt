@@ -170,6 +170,7 @@ data class DashboardActions(
     val onBuildDeploymentPlan: () -> Unit = {},
     val onVerifyManagedContent: () -> Unit = {},
     val onRefreshDeploymentHealth: () -> Unit = {},
+    val onInspectStorage: () -> Unit = {},
     val onCancelIntegrityCheck: () -> Unit = {},
     val onShowArchiveLibrarySummary: () -> Unit = {},
     val onCleanOldArchiveCopies: () -> Unit = {},
@@ -291,6 +292,7 @@ private fun MainDashboardScreen(
                     integrityCheckInProgress = state.integrityCheckInProgress,
                     deploymentHealth = state.deploymentHealth,
                     onRefreshDeploymentHealth = actions.onRefreshDeploymentHealth,
+                    onInspectStorage = actions.onInspectStorage,
                     onVerifyManagedContent = actions.onVerifyManagedContent,
                     onCancelIntegrityCheck = actions.onCancelIntegrityCheck
                 )

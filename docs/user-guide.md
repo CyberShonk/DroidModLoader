@@ -125,6 +125,15 @@ source indexes leave pending changes unknown. Details identify each target role,
 collection time and reason codes; simulated targets never imply a physical deploy.
 Readiness, pending changes and integrity remain separate facts, not a health score.
 
+**Inspect Storage** reports write locations, ownership and available capacity in
+historical diagnostic logs, which are also included in shared reports. Operation
+requirements stay unknown here; deployment preflight sizes its own copy budget.
+The managed archive inventory inspects at most 2,000 entries through eight directory
+levels, deduplicates known file identities and never follows symbolic links or
+removes files. It reports observed logical bytes, not allocated disk size, archive
+validity or deletion eligibility. User source libraries and import history are not
+inventory. Partial or unavailable facts stay explicit; inspect again after changes.
+
 In **Report & Diagnostics**, choose **Check Recorded Managed Content** to compare
 recorded Data, Game Root and installed mod files with their saved SHA-256 hashes.
 **Cancel Integrity Check** stops cooperatively and leaves partial results in the

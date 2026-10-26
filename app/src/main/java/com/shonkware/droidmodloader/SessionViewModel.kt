@@ -231,10 +231,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                 val allowed = !requireNoPendingInstaller || captureOnUiThread { pendingArchiveInstall == null }
                 if (allowed && prepare()) {
                     captureOnUiThread {
-                        context = OperationContext(
-                            activeProfileId, selectedGameId, realDeployEnabledState,
-                            targetPathText, rootTargetPathText
-                        )
+                        context = captureOperationContext()
                         if (!preserveHealthEvidence) {
                             integrityObservation.set(null)
                             deploymentHealth = deploymentHealth?.let(DeploymentHealthProjector::invalidate)
@@ -268,6 +265,10 @@ internal class SessionViewModel @JvmOverloads constructor(
         }
         return accepted
     }
+
+    private fun captureOperationContext() = OperationContext(
+        activeProfileId, selectedGameId, realDeployEnabledState, targetPathText, rootTargetPathText
+    )
 
     private fun <T> captureOnUiThread(capture: () -> T): T {
         var result: Result<T>? = null
@@ -1297,6 +1298,7 @@ internal class SessionViewModel @JvmOverloads constructor(
             cleanOldArchiveCopies = ::cleanOldArchiveCopies,
             verifyManagedContent = ::verifyManagedContent,
             refreshDeploymentHealth = ::refreshDeploymentHealth,
+            inspectStorage = ::inspectStorage,
             cancelIntegrityCheck = { integrityCancellation.get()?.set(true) },
         ).build(shareLogs = shareLogs, requestAllFilesAccess = requestAllFilesAccess)
 
@@ -1309,6 +1311,19 @@ internal class SessionViewModel @JvmOverloads constructor(
             operationReporter.beginOperation("Refreshing deployment evidence...")
             check(dashboardRefreshCoordinator.refresh()) { "Could not collect deployment evidence." }
             operationReporter.finishOperation("Deployment evidence collected; review health details.")
+        }
+    }
+
+    private fun inspectStorage() {
+        runSessionOperation(refreshArchives = false, preserveHealthEvidence = true) {
+            val context = checkNotNull(admittedOperationContext.get())
+            val factory = ProfileScopedEngineFactory(applicationContext, { getExternalFilesDir(null) },
+                ProfileStoragePaths(filesDir, { context.profileId }, { context.gameId }), { context.gameId },
+                { message -> operationReporter.appendError(message) })
+            val engine = checkNotNull(factory.create(prepareDirectories = false)) { "Storage engine is unavailable." }
+            developerDiagnosticsCoordinator.inspectStorage(DeveloperDiagnosticsEngineAdapter(engine), context) {
+                captureOnUiThread { context == captureOperationContext() }
+            }
         }
     }
 

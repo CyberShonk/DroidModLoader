@@ -94,7 +94,48 @@ class DeveloperDiagnosticsCoordinatorTest {
         assertTrue(log.contains("Integrity check cancelled; partial evidence only."))
     }
 
-    private class FakeEngine : DeveloperDiagnosticsEngine {
+    @Test
+    fun `storage inspection uses captured game and logs scoped historical facts without refreshing`() {
+        val log = mutableListOf<String>()
+        var game = ""
+        val engine = FakeEngine { game = it; "Storage facts (historical observation)\nAvailable: unknown" }
+        val coordinator = storageCoordinator(log)
+        val context = OperationContext("profile-a", "fallout_nv", false, "/intent/Data", "/intent")
+        coordinator.inspectStorage(engine, context) { true }
+        assertEquals("fallout_nv", game)
+        assertTrue(log.any { it.contains("profile=profile-a; game=fallout_nv") })
+        assertTrue(log.any { it.contains("Data=/intent/Data") })
+        assertTrue(log.contains("Available: unknown"))
+        assertTrue(log.contains("Storage facts collected; requirements may be unknown."))
+        assertTrue(log.none { it == "RESULT: PASS" })
+    }
+
+    @Test
+    fun `storage facts for superseded targets are discarded before publication`() {
+        val log = mutableListOf<String>()
+        var current = true
+        val engine = FakeEngine { current = false; "OLD TARGET FACTS MUST NOT APPEAR" }
+        storageCoordinator(log).inspectStorage(engine, OperationContext("profile-a", "fallout_nv", true, "/A/Data", "/A")) { current }
+        assertTrue(log.any { it.contains("Storage facts discarded") })
+        assertTrue(log.none { it.contains("OLD TARGET FACTS") || it.contains("Storage scope:") })
+    }
+
+    @Test
+    fun `unavailable storage context never starts a filesystem inspection`() {
+        val log = mutableListOf<String>()
+        val engine = FakeEngine { throw AssertionError("Unavailable context must not inspect storage") }
+        storageCoordinator(log).inspectStorage(engine, OperationContext(null, "game", false, "", "", true)) { true }
+        assertTrue(log.any { it.contains("Storage inspection failed") })
+    }
+
+    private fun storageCoordinator(log: MutableList<String>) = DeveloperDiagnosticsCoordinator(
+        { false }, { null }, { "different mutable game" }, log::add, { message, _ -> log.add(message) },
+        log::add, log::add, { message, _ -> log.add(message) },
+        { throw AssertionError("Storage inspection must not refresh or rebuild indexes") }
+    )
+
+    private class FakeEngine(private val storageRead: (String) -> String = { "storage $it" }) : DeveloperDiagnosticsEngine {
+        override fun buildStorageDiagnosticSummary(gameId: String): String = storageRead(gameId)
         override fun verifyManagedContent(gameId: String, cancelled: () -> Boolean) =
             com.shonkware.droidmodloader.engine.integrity.ManagedIntegrityReport(
                 1, "digest", emptyList(), cancelled(), false
