@@ -4,6 +4,8 @@ import com.shonkware.droidmodloader.engine.build.DiffEngine
 import com.shonkware.droidmodloader.engine.build.FileChange
 import com.shonkware.droidmodloader.engine.model.DeploymentRecord
 import com.shonkware.droidmodloader.engine.model.FileRecord
+import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
+import com.shonkware.droidmodloader.engine.storage.StorageCapacity
 import java.io.File
 import java.io.IOException
 
@@ -22,7 +24,8 @@ class DeploymentManager(
     private val backupRootDir: File = File(
         deployRootDir.parentFile ?: deployRootDir,
         "_dml_deployment_backups/${deployRootDir.name}"
-    )
+    ),
+    private val usableSpaceBytes: (File) -> Long? = AndroidStorageCapacityProbe::availableBytes
 ) {
     private data class BackupInfo(
         val backupFilePath: String,
@@ -194,6 +197,7 @@ class DeploymentManager(
                     filesHaveSameContent(sourceFile, targetFile)
 
         if (!targetAlreadyMatchesSource) {
+            StorageCapacity.requireCopySpace(targetFile, sourceFile.length(), usableSpaceBytes)
             sourceFile.copyTo(targetFile, overwrite = true)
         }
 
@@ -243,6 +247,7 @@ class DeploymentManager(
         targetFile: File
     ): BackupInfo {
         val backupFile = resolveInsideBackupRoot(normalizedPath)
+        StorageCapacity.requireCopySpace(backupFile, targetFile.length(), usableSpaceBytes)
         backupFile.parentFile?.mkdirs()
 
         targetFile.copyTo(backupFile, overwrite = true)
@@ -280,13 +285,21 @@ class DeploymentManager(
             ".dml_restore_${targetFile.name}_${System.currentTimeMillis()}"
         )
 
+        val restoreBudget = try {
+            Math.multiplyExact(backupFile.length(), 2L)
+        } catch (failure: ArithmeticException) {
+            throw IOException("Restore copy budget overflowed.", failure)
+        }
+        StorageCapacity.requireCopySpace(restoreTemp, restoreBudget, usableSpaceBytes)
         backupFile.copyTo(restoreTemp, overwrite = true)
+        StorageCapacity.requireCopySpace(targetFile, backupFile.length(), usableSpaceBytes)
 
         if (targetFile.exists() && targetFile.isFile) {
             targetFile.delete()
         }
 
         if (!restoreTemp.renameTo(targetFile)) {
+            StorageCapacity.requireCopySpace(targetFile, restoreTemp.length(), usableSpaceBytes)
             restoreTemp.copyTo(targetFile, overwrite = true)
             restoreTemp.delete()
         }

@@ -28,6 +28,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Deployment preflight reports capacity by volume, including new backups and restore staging. Copy checks refuse measurable shortages before overwriting targets; unknown capacity remains an explicit warning rather than a space guarantee.
 - fix: Archive snapshots and installer copies check measurable free space before opening destination files and during long copies. Unknown capacity still relies on normal filesystem errors; extraction keeps its existing storage checks.
 - fix: Archive import and installer choices share one operation attempt. Waiting for choices is not reported as success; cancellation and retries keep distinct outcomes, and failed installer cleanup is reported as a failure.
 - fix: Rotating the device preserves open panels, installer choices and operation state instead of restarting the app session. <!-- commits: 31eb08c63b141621d441e62f77f0b6aa2e5d6484 -->

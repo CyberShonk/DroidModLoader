@@ -22,6 +22,12 @@ import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPlanScope
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightChecker
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightException
 import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightResult
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightIssue
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentPreflightSeverity
+import com.shonkware.droidmodloader.engine.deploy.plan.DeploymentStorageCapacity
+import com.shonkware.droidmodloader.engine.storage.StorageCapacityMeasurement
+import com.shonkware.droidmodloader.engine.storage.StorageCapacityProbe
+import com.shonkware.droidmodloader.engine.storage.StorageCapacityStatus
 import com.shonkware.droidmodloader.engine.deploy.plan.ScopedDeploymentPlan
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthFacts
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentIntegrityEvidence
@@ -46,7 +52,10 @@ internal class DeploymentService(
     private val deployRootDir: File,
     private val gameConfigFile: File,
     private val currentDataWinningRecords: () -> List<FileRecord>,
-    private val currentRootWinningRecords: () -> List<FileRecord>
+    private val currentRootWinningRecords: () -> List<FileRecord>,
+    private val storageCapacityProbe: StorageCapacityProbe = StorageCapacityProbe {
+        StorageCapacityMeasurement(details = "No backing volume probe is available.")
+    }
 ) {
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
     private val directPathValidator = DirectPathValidator()
@@ -128,7 +137,7 @@ internal class DeploymentService(
                 } catch (_: Exception) { null }
             }
             if (plans.all { it != null }) {
-                val result = deploymentPreflightChecker.check(targets.configSnapshot,
+                val result = checkPreflight(targets,
                     ScopedDeploymentPlan(checkNotNull(plans[0]), checkNotNull(plans[1])))
                 preflight = result.canDeploy
                 preflightDetails = result.issues.take(8).joinToString("\n") { "${it.severity}: ${it.title} ${it.details}" }
@@ -181,10 +190,7 @@ internal class DeploymentService(
     fun deployForGame(gameId: String): ScopedDeploymentResult {
         val targets = resolveDeploymentTargets(gameId)
         val plan = buildDeploymentPlanForTargets(targets)
-        val preflight = deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = plan
-        )
+        val preflight = checkPreflight(targets, plan)
 
         if (!preflight.canDeploy) {
             throw DeploymentPreflightException(preflight)
@@ -263,10 +269,7 @@ internal class DeploymentService(
     fun forceFullRedeployForGame(gameId: String): ScopedDeploymentResult {
         val targets = resolveDeploymentTargets(gameId)
         val plan = buildFullRedeployPlanForTargets(targets)
-        val preflight = deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = plan
-        )
+        val preflight = checkPreflight(targets, plan)
 
         if (!preflight.canDeploy) {
             throw DeploymentPreflightException(preflight)
@@ -429,10 +432,7 @@ internal class DeploymentService(
     fun buildDeploymentPlanDebugSummary(gameId: String): String {
         val targets = resolveDeploymentTargets(gameId)
         val plan = buildDeploymentPlanForTargets(targets)
-        val preflight = deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = plan
-        )
+        val preflight = checkPreflight(targets, plan)
 
         return buildString {
             appendLine(buildDeploymentPlanContextSummary(gameId, targets.configSnapshot, plan))
@@ -710,20 +710,32 @@ internal class DeploymentService(
     }
 
 
+    private fun checkPreflight(targets: ResolvedDeploymentTargets, plan: ScopedDeploymentPlan): DeploymentPreflightResult {
+        val base = deploymentPreflightChecker.check(targets.configSnapshot, plan)
+        if (!base.canDeploy) return base
+        val capacityIssues = DeploymentStorageCapacity.assess(targets, plan, storageCapacityProbe).map { fact ->
+            val (severity, title) = when (fact.status) {
+                StorageCapacityStatus.INSUFFICIENT -> DeploymentPreflightSeverity.ERROR to
+                    "Not enough free storage for the deployment copy budget."
+                StorageCapacityStatus.ENOUGH_FOR_MEASURED_BYTES -> DeploymentPreflightSeverity.INFO to
+                    "Measured deployment copy budget fits available storage."
+                StorageCapacityStatus.UNKNOWN -> DeploymentPreflightSeverity.WARNING to
+                    "Deployment storage capacity is unknown or incomplete."
+            }
+            DeploymentPreflightIssue(severity, title, fact.toDebugSummary())
+        }
+        if (capacityIssues.isEmpty()) return base
+        return DeploymentPreflightResult(base.issues.filterNot { it.title == "No preflight issues found." } + capacityIssues)
+    }
+
     fun buildDeploymentPreflightForGame(gameId: String): DeploymentPreflightResult {
         val targets = resolveDeploymentTargets(gameId)
-        return deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = buildDeploymentPlanForTargets(targets)
-        )
+        return checkPreflight(targets, buildDeploymentPlanForTargets(targets))
     }
 
     fun requireDeploymentPreflightForGame(gameId: String): DeploymentPreflightResult {
         val targets = resolveDeploymentTargets(gameId)
-        val result = deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = buildDeploymentPlanForTargets(targets)
-        )
+        val result = checkPreflight(targets, buildDeploymentPlanForTargets(targets))
 
         if (!result.canDeploy) {
             throw DeploymentPreflightException(result)
@@ -906,10 +918,7 @@ internal class DeploymentService(
     fun buildFullRedeployPlanDebugSummary(gameId: String): String {
         val targets = resolveDeploymentTargets(gameId)
         val plan = buildFullRedeployPlanForTargets(targets)
-        val preflight = deploymentPreflightChecker.check(
-            config = targets.configSnapshot,
-            plan = plan
-        )
+        val preflight = checkPreflight(targets, plan)
 
         return buildString {
             appendLine("Full Redeploy Plan")

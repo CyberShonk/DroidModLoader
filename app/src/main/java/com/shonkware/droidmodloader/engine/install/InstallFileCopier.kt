@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.engine.install
 
 import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
+import com.shonkware.droidmodloader.engine.storage.StorageCapacity
 import java.io.File
 import java.io.IOException
 
@@ -116,18 +117,7 @@ internal object InstallFileCopier {
             )
 
         // Check before opening the destination, so rejection cannot truncate it.
-        var probePath = parent
-        while (!probePath.exists() && probePath.parentFile != null) {
-            probePath = probePath.parentFile!!
-        }
-        fun requireSpace(additionalBytes: Long) {
-            val available = usableSpaceBytes(probePath)?.takeIf { it >= 0L } ?: return
-            val headroom = ExtractionLimits.DEFAULT_MINIMUM_FREE_SPACE_BYTES
-            if (available < headroom || additionalBytes > available - headroom) {
-                throw IOException("Not enough free storage remains to copy the installer file safely.")
-            }
-        }
-        requireSpace(source.length())
+        StorageCapacity.requireCopySpace(parent, source.length(), usableSpaceBytes)
         cancellationSignal.throwIfCancellationRequested()
 
         if (!parent.exists() && !parent.mkdirs()) {
@@ -161,7 +151,7 @@ internal object InstallFileCopier {
                             .throwIfCancellationRequested()
 
                         if (bytesSinceSpaceCheck >= spaceCheckIntervalBytes) {
-                            requireSpace(read.toLong())
+                            StorageCapacity.requireCopySpace(parent, read.toLong(), usableSpaceBytes)
                             bytesSinceSpaceCheck = 0L
                         }
                         output.write(buffer, 0, read)

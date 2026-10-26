@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.engine
 
 import android.content.Context
+import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
@@ -70,7 +71,8 @@ class ModEngine(
         deployRootDir = deployRootDir,
         gameConfigFile = gameConfigFile,
         currentDataWinningRecords = modLibraryService::getCurrentDataWinningRecords,
-        currentRootWinningRecords = modLibraryService::getCurrentRootWinningRecords
+        currentRootWinningRecords = modLibraryService::getCurrentRootWinningRecords,
+        storageCapacityProbe = AndroidStorageCapacityProbe(appContext)
     )
     private val modInspectionService = ModInspectionService(
         modFileIndexDir = File(stateFile.parentFile, "mod_file_indexes"),

@@ -124,6 +124,26 @@ class StorageCapacityTest {
         assertEquals(StorageCapacityStatus.INSUFFICIENT, result.status)
     }
 
+    @Test
+    fun `diagnostic summary never renders unknown bytes as zero`() {
+        val fact = assess(listOf(write("extract", null))) { StorageCapacityMeasurement(details = "Permission unavailable") }.single()
+        val summary = fact.toDebugSummary()
+        assertTrue(summary.contains("Available: unknown"))
+        assertTrue(summary.contains("Copy budget: unknown"))
+        assertTrue(summary.contains("Permission unavailable"))
+        assertFalse(summary.contains("Available: 0 bytes"))
+        assertFalse(summary.contains("Copy budget: 0 bytes"))
+    }
+
+    @Test
+    fun `diagnostic summary identifies a partial budget and observation limits`() {
+        val fact = assess(listOf(write("archive", 60), write("extract", null))) { measured("shared", 100) }.single()
+        val summary = fact.toDebugSummary()
+        assertTrue(summary.contains("at least 60 bytes (incomplete)"))
+        assertTrue(summary.contains("not a reservation"))
+        assertTrue(summary.contains("do not credit reclaimed bytes"))
+    }
+
     private fun write(name: String, bytes: Long?) =
         StorageWriteRequirement(name, File("/test/$name"), "DML owned", bytes, bytes != null)
 
