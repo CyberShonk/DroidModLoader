@@ -180,7 +180,7 @@ transactions also block deployment.
 ## Current limitations
 
 - DML remains beta software.
-- RAR5 support is limited to single volume, unencrypted archives using methods `m0`, `m3` or `m5`, including solid archives. Limits are a 32 MiB declared dictionary, 4 MiB of metadata input, 8,192 metadata read calls, 4,096 entries and 64 path segments. Output limits and free space checks also apply. A bounded stored quick open index is ignored; canonical archive headers remain authoritative. Links, other service records, unknown sizes and other compression variants are refused.
+- RAR5 support is limited to single volume, unencrypted archives using standard methods `m0` through `m5` (Store through Best), including solid archives. Limits are a 32 MiB declared dictionary, 4 MiB of metadata input, 8,192 metadata read calls, 4,096 entries and 64 path segments. Output limits and free space checks also apply. A bounded stored quick open index is ignored; canonical archive headers remain authoritative. Links, other service records, unknown sizes and other compression variants are refused.
 - RAR archives protected by a password, encrypted RAR archives, and multipart RAR archives are not supported.
 - Some uncommon 7z compression or encryption variants may be unsupported.
 - Android can block access to another application's protected private storage.

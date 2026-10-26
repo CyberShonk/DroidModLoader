@@ -100,8 +100,28 @@ class Rar5ArchiveReaderTest {
         }
     }
 
-    @Test fun `unqualified compression methods and versions refuse`() {
-        for (compression in listOf(1 shl 7, 2 shl 7, 4 shl 7, 7 shl 7, 1)) {
+    @Test fun `standard method tags accept empty files`() {
+        // Header-policy coverage only; empty entries do not qualify compressed payloads.
+        for (method in 0..5) {
+            val out = read(RarTestArchives.rar5(RarTestArchives.entry("empty", compression = method shl 7)))
+            assertTrue(File(out, "empty").isFile)
+            assertEquals(0L, File(out, "empty").length())
+        }
+    }
+
+    @Test fun `newly supported methods retain dictionary and path checks`() {
+        for (method in listOf(1, 2, 4)) {
+            refused(ArchiveReadFailureCode.DECODER_MEMORY_LIMIT_EXCEEDED) {
+                read(RarTestArchives.rar5(RarTestArchives.entry("empty", compression = (13 shl 10) or (method shl 7))))
+            }
+            refused(ArchiveReadFailureCode.UNSAFE_ENTRY_PATH) {
+                read(RarTestArchives.rar5(RarTestArchives.entry("../outside", compression = method shl 7)))
+            }
+        }
+    }
+
+    @Test fun `reserved compression methods and newer versions refuse`() {
+        for (compression in listOf(6 shl 7, 7 shl 7) + (0..5).map { (it shl 7) or 1 }) {
             refused(ArchiveReadFailureCode.UNSUPPORTED_VARIANT) {
                 read(RarTestArchives.rar5(RarTestArchives.entry("file", compression = compression)))
             }

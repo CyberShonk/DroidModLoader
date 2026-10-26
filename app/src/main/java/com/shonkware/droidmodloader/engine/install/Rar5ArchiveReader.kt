@@ -162,7 +162,7 @@ class Rar5ArchiveReader internal constructor(
         )
         if (header.redirection != null) unsupported("links and file references")
         if (header.unpVersion.toInt() != 50 ||
-            (header.unpMethod.toInt() and 0xff) !in setOf(0, 3, 5)
+            (header.unpMethod.toInt() and 0xff) !in 0..5
         ) unsupported("this compression method or version")
         if (header.isUnpSizeUnknown || header.fileVersion != 0L) unsupported(
             "unknown sizes or versioned files"
