@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- feat: Extract single volume, unencrypted RAR5 archives using methods `m0`, `m3` and `m5`, including solid archives, with bounded dictionary and header processing. Entries use existing path, output and storage checks; unsupported variants are refused.
 - feat: Inspect Environment reports selected game markers, folder access, app and Android versions, API level and permission facts using bounded local checks. Missing and unavailable evidence stay distinct; historical observations in diagnostic and support logs do not imply game version or runtime compatibility.
 - feat: Inspect Storage reports managed write locations, backing volumes, available space and unknown requirements. Its bounded archive inventory deduplicates file identities, never follows symbolic links or removes files, and keeps partial results explicit. Facts remain historical observations in diagnostic and support logs.
 - feat: The dashboard shows recent archive installs, deployments, full redeployments and plugin output with captured context and details. History retains up to 50 attempts within 256 KiB. Unfinished attempts have an unknown outcome and are never replayed; unavailable history and save failures remain separate from operation results.
@@ -25,7 +26,7 @@ This file records release changes visible to users and known limitations.
 - feat: First setup, active settings and new profiles select the game's main folder. DML validates it, derives the Data folder and enables physical deployment intent after successful selection. <!-- commits: 6814fdcff26cef81502e515020bd5f2f6a3c6262, 0f864263d685becc1f66c615f4764e2c13450747 -->
 - feat: Target diagnostics report the selected target role, canonical path, validation result and structured findings. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c -->
 - feat: A clean Fallout New Vegas target remains valid for selecting Tale of Two Wastelands before its first deployment. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c, 6814fdcff26cef81502e515020bd5f2f6a3c6262 -->
-- fix: Archive imports check format and reader support before making a temporary snapshot. Unsupported RAR5 archives and unknown signatures are rejected without making a copy or opening an installer session. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d, bbe5e19d9d2477fc4361d13db663d0d8c4be9f89 -->
+- fix: Archive imports check format and reader availability before making a temporary snapshot. Unknown signatures and formats without a reader are rejected without making a copy or opening an installer session.
 - fix: Archive diagnostics distinguish RAR4 and RAR5 while retaining compatibility with existing stored RAR metadata. ZIP and 7z failures provide clearer corruption, memory limit and cleanup diagnostics. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d, 00c4de3491d3448d08d7c584ad1a7e11895151df -->
 
 ### Fixed
@@ -51,7 +52,7 @@ This file records release changes visible to users and known limitations.
 
 - Legacy archive cleanup is not automatic. Files are retained when originals cannot be verified or the copy is still needed by a source or library selection. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
 - Game folder validation checks known executable and master file markers; game store layouts and runtime compatibility are not exhaustively qualified. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c, 6814fdcff26cef81502e515020bd5f2f6a3c6262 -->
-- RAR5 is detected but is not supported for installation. <!-- commits: 9fd8eb9f34bbe635f02c8f0b86f921977f9d192d -->
+- RAR5 is limited to a 32 MiB declared dictionary, 4 MiB of metadata input, 8,192 metadata read calls, 4,096 entries and 64 path segments. Links, unknown sizes, unqualified compression variants and service records other than a bounded stored quick open index are not supported.
 - Password protected, encrypted and multipart RAR archives are not supported. <!-- commits: dc70fece68f8e5daef06bdbe55d8a0379612827f -->
 - Some uncommon 7z compression or encryption variants may remain unsupported. <!-- commits: 00c4de3491d3448d08d7c584ad1a7e11895151df -->
 - Returning to a previous deployment target does not automatically verify every managed file against changes made outside DML. <!-- commits: 2fdabecdf4ca22f123525801815d077e9b1b6c4e -->

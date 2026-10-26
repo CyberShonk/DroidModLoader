@@ -10,7 +10,7 @@ kotlin = "2.2.10"
 composeBom = "2026.05.00"
 commonsCompress = "1.28.0"
 xz = "1.12"
-junrar = "7.6.0"
+junrar = "8.1.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

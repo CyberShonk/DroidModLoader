@@ -292,12 +292,12 @@ class ArchiveImportExecutionWorkflowTest {
 
 
     @Test
-    fun rar5PreflightRejectsBeforeCopyOrRegistration() {
+    fun rar5PreflightLogsDistinctFormatAndContinues() {
         val engine = FakeArchiveImportEngine()
         val harness = WorkflowHarness(engine)
         val sourceArchive =
             harness.newSourceArchive(
-                name = "Unsupported RAR5.rar",
+                name = "Supported RAR5.rar",
                 bytes = byteArrayOf(
                     0x52, 0x61, 0x72, 0x21,
                     0x1A, 0x07, 0x01, 0x00
@@ -306,31 +306,12 @@ class ArchiveImportExecutionWorkflowTest {
 
         harness.workflow.importArchive(sourceArchive)
 
-        assertNull(engine.registeredArchiveFile)
-        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertNotNull(engine.registeredArchiveFile)
         assertTrue(sourceArchive.exists())
-        assertTrue(
-            harness.logs.contains(
-                "Archive preflight format: rar5"
-            )
-        )
-        assertTrue(
-            harness.logs.contains(
-                "ARCHIVE FAILURE: UNSUPPORTED_VARIANT"
-            )
-        )
-        assertFalse(
-            harness.logs.any {
-                it.startsWith("CRASH TYPE:")
-            }
-        )
-        assertEquals(1, harness.failures.size)
-        assertTrue(
-            harness.failures.single().first.contains(
-                "RAR5 archives are not supported"
-            )
-        )
-        assertNull(harness.failures.single().second)
+        assertTrue(harness.logs.contains("Archive preflight format: rar5"))
+        assertTrue(harness.logs.contains("Archive format: rar5"))
+        assertTrue(harness.logs.contains("RESULT: PASS"))
+        assertTrue(harness.failures.isEmpty())
     }
 
     @Test

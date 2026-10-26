@@ -60,6 +60,14 @@ class ArchiveEntryWriter internal constructor(
     private var estimatedUsableSpaceBytes: Long? = null
     private var bytesWrittenSinceSpaceCheck = 0L
 
+    internal fun checkCancellation() {
+        cancellationSignal.throwIfCancellationRequested()
+    }
+
+    internal fun reportMetadata(message: String) {
+        debugLog(message)
+    }
+
     fun writeDirectory(rawEntryName: String) {
         cancellationSignal
             .throwIfCancellationRequested()

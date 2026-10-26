@@ -1,7 +1,6 @@
 package com.shonkware.droidmodloader.engine.install
 
 import com.github.junrar.Archive
-import com.github.junrar.rarfile.FileHeader
 import java.io.Closeable
 import java.io.File
 import java.io.OutputStream
@@ -33,7 +32,7 @@ internal class JunrarArchiveSession(
         val header = archive.nextFileHeader() ?: return null
 
         return RarArchiveEntry(
-            name = getEntryName(header),
+            name = header.fileName.orEmpty(),
             directory = header.isDirectory,
             encrypted = header.isEncrypted,
             splitBefore = header.isSplitBefore,
@@ -48,15 +47,4 @@ internal class JunrarArchiveSession(
         archive.close()
     }
 
-    private fun getEntryName(
-        header: FileHeader
-    ): String {
-        val unicodeName = header.fileNameW
-
-        if (!unicodeName.isNullOrBlank()) {
-            return unicodeName
-        }
-
-        return header.fileNameString ?: ""
-    }
 }

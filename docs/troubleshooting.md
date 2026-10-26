@@ -73,7 +73,8 @@ DML identifies archive format from its signature, not just the filename.
 
 Common unsupported cases include:
 
-- RAR5 installation;
+- RAR5 methods other than `m0`, `m3` or `m5`, newer compression versions, links and service records other than a bounded stored quick open index;
+- RAR5 archives that exceed the dictionary, metadata, entry or path depth limits;
 - archives protected by a password or encrypted archives;
 - multipart RAR archives; and
 - uncommon unsupported 7z variants.

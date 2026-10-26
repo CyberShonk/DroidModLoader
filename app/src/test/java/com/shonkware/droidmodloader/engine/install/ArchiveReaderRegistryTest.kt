@@ -9,6 +9,15 @@ import java.nio.file.Files
 
 class ArchiveReaderRegistryTest {
     @Test
+    fun `production registry selects rar5 without changing other readers`() {
+        val registry = ArchiveReaderRegistry()
+        assertTrue(registry.findReader(ArchiveFormat.RAR5, "example.zip") is Rar5ArchiveReader)
+        assertTrue(registry.findReader(ArchiveFormat.RAR4, "example.rar") is RarArchiveReader)
+        assertTrue(registry.findReader(ArchiveFormat.ZIP, "example.zip") is ZipArchiveReader)
+        assertTrue(registry.findReader(ArchiveFormat.SEVEN_Z, "example.7z") is SevenZipArchiveReader)
+    }
+
+    @Test
     fun `zip signature selects zip reader`() {
         withFixture("zip") { fixture ->
             val archive = writeArchive(
@@ -66,7 +75,7 @@ class ArchiveReaderRegistryTest {
     }
 
     @Test
-    fun `rar5 signature fails as an unsupported variant`() {
+    fun `rar5 signature fails when the reader is unavailable`() {
         withFixture("rar5") { fixture ->
             val archive = writeArchive(
                 root = fixture.root,
@@ -92,7 +101,7 @@ class ArchiveReaderRegistryTest {
     }
 
     @Test
-    fun `rar5 format selection fails before archive copying`() {
+    fun `unavailable rar5 reader fails format selection before copying`() {
         withFixture("rar5-format") { fixture ->
             val failure = expectReadFailure {
                 fixture.registry.findReader(

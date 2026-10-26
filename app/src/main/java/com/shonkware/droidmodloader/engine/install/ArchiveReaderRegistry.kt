@@ -14,7 +14,7 @@ class ArchiveReaderRegistry internal constructor(
         zipReader = ZipArchiveReader(),
         sevenZipReader = SevenZipArchiveReader(),
         rar4Reader = RarArchiveReader(),
-        rar5Reader = null
+        rar5Reader = Rar5ArchiveReader()
     )
 
     fun findReader(archive: File): ArchiveReader {
