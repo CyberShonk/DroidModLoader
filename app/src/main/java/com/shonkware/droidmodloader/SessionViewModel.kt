@@ -88,6 +88,7 @@ import com.shonkware.droidmodloader.ui.workflow.OverwriteActionWorkflowControlle
 import com.shonkware.droidmodloader.ui.workflow.FullscreenPanelActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowController
 import com.shonkware.droidmodloader.ui.workflow.AppDiagnosticInfo
+import com.shonkware.droidmodloader.ui.workflow.EnvironmentDiagnostics
 import com.shonkware.droidmodloader.ui.workflow.SupportReportCoordinator
 import com.shonkware.droidmodloader.ui.workflow.SupportReportEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionCoordinator
@@ -360,21 +361,24 @@ internal class SessionViewModel @JvmOverloads constructor(
             appendError = { message, throwable -> operationReporter.appendError(message, throwable) }
         )
     }
+    private fun appDiagnosticInfo(): AppDiagnosticInfo {
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        return AppDiagnosticInfo(
+            versionName = packageInfo.versionName ?: "unknown",
+            versionCode = packageInfo.longVersionCode,
+            packageName = packageName,
+            androidVersion = android.os.Build.VERSION.RELEASE,
+            deviceModel = android.os.Build.MODEL,
+            sdkInt = android.os.Build.VERSION.SDK_INT
+        )
+    }
+
     private val supportReportCoordinator by lazy {
         SupportReportCoordinator(
             engineProvider = {
                 profileScopedEngineFactory.create(prepareDirectories = false)?.let(::SupportReportEngineAdapter)
             },
-            diagnosticInfoProvider = {
-                val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                AppDiagnosticInfo(
-                    versionName = packageInfo.versionName ?: "unknown",
-                    versionCode = packageInfo.longVersionCode,
-                    packageName = packageName,
-                    androidVersion = android.os.Build.VERSION.RELEASE,
-                    deviceModel = android.os.Build.MODEL
-                )
-            },
+            diagnosticInfoProvider = ::appDiagnosticInfo,
             lastOperationStatusProvider = { lastOperationStatus },
             developerModeEnabledProvider = { developerModeEnabled },
             currentLogTextProvider = { logText },
@@ -1299,6 +1303,7 @@ internal class SessionViewModel @JvmOverloads constructor(
             verifyManagedContent = ::verifyManagedContent,
             refreshDeploymentHealth = ::refreshDeploymentHealth,
             inspectStorage = ::inspectStorage,
+            inspectEnvironment = ::inspectEnvironment,
             cancelIntegrityCheck = { integrityCancellation.get()?.set(true) },
         ).build(shareLogs = shareLogs, requestAllFilesAccess = requestAllFilesAccess)
 
@@ -1311,6 +1316,20 @@ internal class SessionViewModel @JvmOverloads constructor(
             operationReporter.beginOperation("Refreshing deployment evidence...")
             check(dashboardRefreshCoordinator.refresh()) { "Could not collect deployment evidence." }
             operationReporter.finishOperation("Deployment evidence collected; review health details.")
+        }
+    }
+
+    private fun inspectEnvironment() {
+        runSessionOperation(refreshArchives = false, preserveHealthEvidence = true) {
+            val context = checkNotNull(admittedOperationContext.get())
+            val permission = allFilesAccessManager.state()
+            developerDiagnosticsCoordinator.inspectEnvironment(
+                collect = { EnvironmentDiagnostics.inspect(context, appDiagnosticInfo(), permission) },
+                contextStillCurrent = {
+                    captureOnUiThread { context == captureOperationContext() } &&
+                        permission == allFilesAccessManager.state()
+                }
+            )
         }
     }
 

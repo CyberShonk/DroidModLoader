@@ -76,6 +76,24 @@ internal class DeveloperDiagnosticsCoordinator(
         // The caller may reproject recorded metadata, but must not rebuild expected indexes.
     }
 
+    fun inspectEnvironment(
+        collect: () -> EnvironmentDiagnostics,
+        contextStillCurrent: () -> Boolean
+    ) {
+        beginOperation("Inspecting environment...")
+        try {
+            val observation = collect()
+            if (!contextStillCurrent()) {
+                finishOperation("Environment facts discarded: profile, game, targets or permission changed.")
+                return
+            }
+            observation.toSummary().lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
+            finishOperation("Environment observation collected; version and runtime compatibility remain unverified.")
+        } catch (failure: Exception) {
+            failOperation("Environment inspection failed: ${failure.message}", failure)
+        }
+    }
+
     fun inspectStorage(
         engine: DeveloperDiagnosticsEngine,
         context: OperationContext,

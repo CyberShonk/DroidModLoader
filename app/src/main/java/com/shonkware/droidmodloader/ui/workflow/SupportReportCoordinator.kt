@@ -12,7 +12,8 @@ internal data class AppDiagnosticInfo(
     val versionCode: Long,
     val packageName: String,
     val androidVersion: String,
-    val deviceModel: String
+    val deviceModel: String,
+    val sdkInt: Int? = null
 )
 
 internal interface SupportReportEngine {
@@ -62,6 +63,7 @@ internal class SupportReportCoordinator(
             appendLine("Display Version: ${info.versionName}")
             appendLine("Package: ${info.packageName}")
             appendLine("Android Version: ${info.androidVersion}")
+            appendLine("Android API: ${info.sdkInt ?: "unavailable"}")
             appendLine("Device: ${info.deviceModel}")
             appendLine()
             appendLine("Installed Mods: ${mods.size}")

@@ -31,7 +31,8 @@ fun ReportCard(
     onCancelIntegrityCheck: () -> Unit = {},
     deploymentHealth: DeploymentHealth? = null,
     onRefreshDeploymentHealth: () -> Unit = {},
-    onInspectStorage: () -> Unit = {}
+    onInspectStorage: () -> Unit = {},
+    onInspectEnvironment: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -60,6 +61,14 @@ fun ReportCard(
                 onClick = onRefreshDeploymentHealth,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            DmlButtons.Secondary(
+                text = "Inspect Environment",
+                enabled = !operationInProgress,
+                onClick = onInspectEnvironment,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Read-only checks of selected game markers, folder access, Android/app version and permission. Historical results appear below and in shared logs, not proof of game version or runtime compatibility.")
 
             DmlButtons.Secondary(
                 text = "Inspect Storage",

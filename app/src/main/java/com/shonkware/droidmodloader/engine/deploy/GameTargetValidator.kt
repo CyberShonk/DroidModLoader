@@ -3,6 +3,7 @@ package com.shonkware.droidmodloader.engine.deploy
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.util.Locale
 
 enum class GameTargetType(val displayName: String) {
@@ -71,8 +72,10 @@ class GameTargetValidator(
     fun validateTarget(
         gameId: String,
         targetType: GameTargetType,
-        path: String
+        path: String,
+        maxEntries: Int? = null
     ): GameTargetValidationResult {
+        require(maxEntries == null || maxEntries > 0)
         val definition = GAME_DEFINITIONS[gameId]
         if (definition == null) {
             return GameTargetValidationResult(
@@ -129,11 +132,27 @@ class GameTargetValidator(
 
         val folder = File(directValidation.canonicalPath)
 
-        val names = folder.listFiles()
-            ?.asSequence()
-            ?.filter { it.isFile }
-            ?.mapTo(linkedSetOf()) { it.name.lowercase(Locale.ROOT) }
-            ?: return GameTargetValidationResult(
+        val names = try {
+            if (maxEntries == null) {
+                folder.listFiles()?.asSequence()?.filter { it.isFile }
+                    ?.mapTo(linkedSetOf()) { it.name.lowercase(Locale.ROOT) }
+            } else {
+                boundedFileNames(folder, maxEntries)
+            }
+        } catch (_: InspectionLimitExceeded) {
+            return GameTargetValidationResult(
+                gameId, targetType, folder.absolutePath,
+                listOf(GameTargetValidationFinding(
+                    "TARGET_INSPECTION_LIMIT", GameTargetValidationSeverity.ERROR,
+                    "${targetType.displayName} marker check is unavailable: inspection limit reached.",
+                    "More than $maxEntries top-level entries; no missing-marker conclusion was drawn."
+                ))
+            )
+        } catch (failure: Exception) {
+            // The bounded diagnostic must not mistake permission or enumeration failure for absence.
+            if (maxEntries == null) throw failure
+            null
+        } ?: return GameTargetValidationResult(
                 gameId = gameId,
                 targetType = targetType,
                 canonicalPath = folder.absolutePath,
@@ -296,6 +315,20 @@ class GameTargetValidator(
                 details = rootFolder.absolutePath
             )
         )
+    }
+
+    private class InspectionLimitExceeded : IOException()
+
+    private fun boundedFileNames(folder: File, maxEntries: Int): Set<String> {
+        val names = linkedSetOf<String>()
+        Files.newDirectoryStream(folder.toPath()).use { entries ->
+            var count = 0
+            for (entry in entries) {
+                if (++count > maxEntries) throw InspectionLimitExceeded()
+                if (entry.toFile().isFile) names.add(entry.fileName.toString().lowercase(Locale.ROOT))
+            }
+        }
+        return names
     }
 
     private fun findForeignMarkers(

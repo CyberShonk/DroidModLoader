@@ -125,6 +125,16 @@ source indexes leave pending changes unknown. Details identify each target role,
 collection time and reason codes; simulated targets never imply a physical deploy.
 Readiness, pending changes and integrity remain separate facts, not a health score.
 
+**Inspect Environment** checks the selected game's setup markers and folder access,
+then records app and Android versions, API level and all files access permission.
+It checks captured folder choices, not whether they were saved or used for deployment.
+Each folder check examines at most 4,096 entries without scanning subfolders.
+Incomplete or inaccessible checks remain unavailable, not missing markers. TTW uses
+Fallout: New Vegas markers; its own master is optional before initial deployment.
+File names do not prove file contents, game version or runtime compatibility.
+Launcher and Wine details are not inspected. Results are historical observations
+in the log and shared reports; inspect again after changing folders or permissions.
+
 **Inspect Storage** reports write locations, ownership and available capacity in
 historical diagnostic logs, which are also included in shared reports. Operation
 requirements stay unknown here; deployment preflight sizes its own copy budget.
