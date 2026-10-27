@@ -7,5 +7,6 @@ data class PreparedArchiveInstall(
     val sessionRootPath: String,
     val extractedRootPath: String,
     val installRootPath: String,
-    val plan: InstallerPlan
+    val plan: InstallerPlan,
+    val inspection: ArchiveInspection? = null
 )

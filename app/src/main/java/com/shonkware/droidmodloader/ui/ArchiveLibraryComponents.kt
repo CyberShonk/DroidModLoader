@@ -40,8 +40,6 @@ import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiItem
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.theme.DmlColors
 import com.shonkware.droidmodloader.ui.theme.DmlDefaults
-import java.text.DateFormat
-import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -133,12 +131,11 @@ fun ArchiveLibraryPanelDialog(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Archive Library",
                             style = MaterialTheme.typography.titleLarge,
@@ -151,6 +148,7 @@ fun ArchiveLibraryPanelDialog(
                     }
 
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -178,7 +176,7 @@ fun ArchiveLibraryPanelDialog(
                             TextButton(
                                 onClick = onCancelArchiveImport
                             ) {
-                                Text("Cancel Import")
+                                Text("Cancel Archive Work")
                             }
                         } else {
                             Button(onClick = onClose) {
@@ -199,53 +197,51 @@ fun ArchiveLibraryPanelDialog(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
-                TextButton(
-                    enabled = controlsEnabled,
-                    onClick = { showCleanupConfirmation = true }
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Clean Old DML Copies…")
-                }
-
-                OutlinedTextField(
-                    value = searchText,
-                    onValueChange = onSearchTextChanged,
-                    label = { Text("Search archives") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                state.errorMessage?.let { errorMessage ->
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                if (filteredItems.isEmpty()) {
-                    Text(
-                        text = buildArchiveEmptyMessage(
-                            state = state,
-                            searchText = searchText
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(
-                            items = filteredItems,
-                            key = { item -> item.stableId }
-                        ) { item ->
-                            ArchiveLibraryRow(
-                                item = item,
-                                operationInProgress = operationInProgress,
-                                onInstallArchive = onInstallArchive
+                    item(key = "archive-cleanup") {
+                        TextButton(
+                            enabled = controlsEnabled,
+                            onClick = { showCleanupConfirmation = true }
+                        ) {
+                            Text("Clean Old DML Copies…")
+                        }
+                    }
+                    item(key = "archive-search") {
+                        OutlinedTextField(
+                            value = searchText,
+                            onValueChange = onSearchTextChanged,
+                            label = { Text("Search archives") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    state.errorMessage?.let { errorMessage ->
+                        item(key = "archive-error") {
+                            Text(
+                                text = errorMessage,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
+                    }
+                    state.inspection?.let { report ->
+                        item(key = "archive-inspection") { ArchiveInspectionSummary(report) }
+                    }
+                    if (filteredItems.isEmpty()) {
+                        item {
+                            Text(buildArchiveEmptyMessage(state, searchText), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    items(items = filteredItems, key = { item -> item.stableId }) { item ->
+                        ArchiveLibraryRow(
+                            item = item,
+                            operationInProgress = !controlsEnabled,
+                            onInstallArchive = onInstallArchive
+                        )
                     }
                 }
             }
@@ -318,7 +314,7 @@ private fun ArchiveLibraryRow(
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                item.installedModName?.let { installedModName ->
+                item.installedModName?.takeIf { it.isNotBlank() && it != item.displayName }?.let { installedModName ->
                     Text(
                         text = "Installed as: $installedModName",
                         style = MaterialTheme.typography.bodySmall
@@ -340,12 +336,12 @@ private fun ArchiveLibraryRow(
                 }
             }
 
-            if (item.status != ArchiveBrowserItemStatus.INSTALLED) {
-                Button(
-                    onClick = { onInstallArchive(item.stableId) },
-                    enabled = !operationInProgress
-                ) {
-                    Text("Install")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (item.status != ArchiveBrowserItemStatus.INSTALLED) {
+                    Button(
+                        onClick = { onInstallArchive(item.stableId) },
+                        enabled = !operationInProgress
+                    ) { Text("Install") }
                 }
             }
         }
@@ -382,42 +378,27 @@ private fun buildArchiveEmptyMessage(
     }
 }
 
-private fun buildArchiveDetails(item: ArchiveBrowserUiItem): String {
+internal fun buildArchiveDetails(item: ArchiveBrowserUiItem): String {
     val format = item.archiveFormat.ifBlank { "archive" }.uppercase(Locale.getDefault())
     val size = formatArchiveSize(item.sizeBytes)
 
     return when (item.status) {
         ArchiveBrowserItemStatus.NEVER_INSTALLED -> {
-            "$format • $size • Downloaded ${formatArchiveDate(item.downloadedAtMillis)}"
+            "$format • $size"
         }
 
         ArchiveBrowserItemStatus.PREVIOUSLY_INSTALLED -> {
-            "$format • $size • Previously installed ${formatArchiveDate(item.installedAtMillis)}"
+            "$format • $size • Previously installed"
         }
 
         ArchiveBrowserItemStatus.INSTALLED -> {
-            "$format • $size • Installed ${formatArchiveDate(item.installedAtMillis)}"
+            "$format • $size • Installed"
         }
     }
 }
 
-private fun buildNexusSourceText(item: ArchiveBrowserUiItem): String? {
-    if (!item.nexusGameDomain.isNullOrBlank() && item.nexusModId != null) {
-        val fileSuffix = item.nexusFileId?.let { " • file $it" }.orEmpty()
-        return "Nexus: ${item.nexusGameDomain} • mod ${item.nexusModId}$fileSuffix"
-    }
-
-    return item.sourceUrl?.takeIf { it.isNotBlank() }
-}
-
-private fun formatArchiveDate(timestampMillis: Long?): String {
-    if (timestampMillis == null || timestampMillis <= 0L) {
-        return "date unavailable"
-    }
-
-    return DateFormat.getDateInstance(DateFormat.MEDIUM)
-        .format(Date(timestampMillis))
-}
+internal fun buildNexusSourceText(item: ArchiveBrowserUiItem): String? =
+    item.nexusGameDomain?.takeIf { it.isNotBlank() }?.let { "Nexus game: $it" }
 
 internal fun formatArchiveSize(sizeBytes: Long): String {
     if (sizeBytes < 1024L) return "$sizeBytes B"

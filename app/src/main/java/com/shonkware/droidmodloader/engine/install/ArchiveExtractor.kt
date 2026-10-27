@@ -3,7 +3,11 @@ package com.shonkware.droidmodloader.engine.install
 import java.io.File
 
 class ArchiveExtractor(
-    private val readerRegistry: ArchiveReaderRegistry = ArchiveReaderRegistry()
+    private val readerRegistry: ArchiveReaderRegistry = ArchiveReaderRegistry(),
+    private val formatProbe: ArchiveFormatProbe = ArchiveFormatProbe(),
+    private val createWriter: (File, InstallCancellationSignal) -> ArchiveEntryWriter = { output, signal ->
+        ArchiveEntryWriter(outputDir = output, cancellationSignal = signal)
+    }
 ) {
     fun extractToRawFolder(
         archive: File,
@@ -11,16 +15,13 @@ class ArchiveExtractor(
         cancellationSignal:
         InstallCancellationSignal =
             InstallCancellationSignal.NONE
-    ) {
+    ): ArchiveExtractionFacts {
         cancellationSignal
             .throwIfCancellationRequested()
 
-        val reader = readerRegistry.findReader(archive)
-        val writer = ArchiveEntryWriter(
-            outputDir = outputDir,
-            cancellationSignal =
-                cancellationSignal
-        )
+        val probe = formatProbe.probe(archive)
+        val reader = readerRegistry.findReader(probe.format, archive.name)
+        val writer = createWriter(outputDir, cancellationSignal)
 
         reader.read(
             archive = archive,
@@ -29,5 +30,6 @@ class ArchiveExtractor(
 
         cancellationSignal
             .throwIfCancellationRequested()
+        return writer.extractionFacts(archive, probe)
     }
 }

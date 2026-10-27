@@ -30,5 +30,6 @@ data class ArchiveBrowserUiState(
     val folderName: String? = null,
     val items: List<ArchiveBrowserUiItem> = emptyList(),
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val inspection: ArchiveInspectionReport? = null
 )

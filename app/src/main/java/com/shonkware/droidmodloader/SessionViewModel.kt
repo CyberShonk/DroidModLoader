@@ -1084,6 +1084,11 @@ internal class SessionViewModel @JvmOverloads constructor(
             refreshDashboard = {
                 dashboardRefreshCoordinator.refresh()
                 archiveBrowserWorkflow.refreshIfOpen()
+            },
+            inspectionPublisher = { sourcePath ->
+                archiveBrowserWorkflow.captureInspectionPublisher(
+                    admittedOperationContext.get()?.profileId, sourcePath
+                )
             }
         )
     }

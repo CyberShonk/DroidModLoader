@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 import androidx.compose.ui.window.DialogProperties
 import com.shonkware.droidmodloader.ui.theme.DmlColors
 import com.shonkware.droidmodloader.ui.theme.DmlDefaults
@@ -65,6 +66,11 @@ fun InstallerChoiceDialog(
 
                 Text("Archive: ${prepared.archiveName}")
                 Text("Installer type: ${prepared.plan.installerType}")
+                prepared.inspection?.let { inspection ->
+                    ArchiveInspectionSummary(ArchiveInspectionReport(
+                        prepared.archiveName, inspection.extraction.observedAtMillis, inspection
+                    ))
+                }
 
                 if (lastOperationStatus.isNotBlank()) {
                     Text(

@@ -57,6 +57,20 @@ class ArchiveEntryWriter internal constructor(
 
     private var acceptedEntryCount = 0
     private var totalBytesWritten = 0L
+    private var completedFileCount = 0
+    internal var variantFacts = ArchiveVariantFacts()
+
+    internal fun extractionFacts(archive: File, probe: ArchiveFormatProbeResult) = ArchiveExtractionFacts(
+        snapshotPath = archive.absolutePath,
+        observedAtMillis = System.currentTimeMillis(),
+        format = probe.format,
+        extensionMismatch = probe.extensionMismatch,
+        archiveBytes = archive.length(),
+        acceptedEntries = acceptedEntryCount,
+        completedFiles = completedFileCount,
+        expandedBytes = totalBytesWritten,
+        variant = variantFacts
+    )
     private var estimatedUsableSpaceBytes: Long? = null
     private var bytesWrittenSinceSpaceCheck = 0L
 
@@ -137,6 +151,7 @@ class ArchiveEntryWriter internal constructor(
                     )
                 )
             }
+            completedFileCount++
         } catch (exception: Exception) {
             val cleanupFailure =
                 removePartialFile(entry.outputFile)

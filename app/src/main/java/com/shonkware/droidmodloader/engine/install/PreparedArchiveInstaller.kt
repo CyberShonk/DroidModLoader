@@ -16,7 +16,8 @@ class PreparedArchiveInstaller internal constructor(
         File,
         InstallCancellationSignal
     ) -> Unit =
-        InstallFileCopier::copyRecursively
+        InstallFileCopier::copyRecursively,
+    private val archiveExtractor: ArchiveExtractor = ArchiveExtractor()
 ) {
     constructor(
         tempDir: File,
@@ -38,7 +39,6 @@ class PreparedArchiveInstaller internal constructor(
     }
 
     private val layoutAnalyzer = InstallerLayoutAnalyzer()
-    private val archiveExtractor = ArchiveExtractor()
 
     fun prepare(
         archive: File,
@@ -46,23 +46,11 @@ class PreparedArchiveInstaller internal constructor(
         InstallCancellationSignal =
             InstallCancellationSignal.NONE
     ): PreparedArchiveInstall {
-        val sessionRoot = File(
-            tempDir,
-            "installer_sessions/${operationId()}"
-        )
+        cancellationSignal.throwIfCancellationRequested()
+        val sessionRoot = createSessionRoot()
         val rawRoot = File(sessionRoot, "raw")
 
         try {
-            cancellationSignal
-                .throwIfCancellationRequested()
-
-            if (sessionRoot.exists()) {
-                throw IOException(
-                    "Prepared installer session already exists: " +
-                            sessionRoot.absolutePath
-                )
-            }
-
             if (!rawRoot.mkdirs()) {
                 throw IOException(
                     "Could not create installer raw folder: " +
@@ -70,7 +58,7 @@ class PreparedArchiveInstaller internal constructor(
                 )
             }
 
-            archiveExtractor.extractToRawFolder(
+            val extraction = archiveExtractor.extractToRawFolder(
                 archive = archive,
                 outputDir = rawRoot,
                 cancellationSignal =
@@ -108,7 +96,8 @@ class PreparedArchiveInstaller internal constructor(
                     rawRoot.absolutePath,
                 installRootPath =
                     contentRoot.absolutePath,
-                plan = plan
+                plan = plan,
+                inspection = ArchiveInspection(extraction, plan.installerType)
             )
         } catch (exception: Exception) {
             if (
@@ -137,6 +126,13 @@ class PreparedArchiveInstaller internal constructor(
                 exception
             )
         }
+    }
+
+    private fun createSessionRoot(): File {
+        val parent = File(tempDir, "installer_sessions")
+        java.nio.file.Files.createDirectories(parent.toPath())
+        // Exclusive creation proves ownership before any cleanup can remove this session.
+        return java.nio.file.Files.createDirectory(File(parent, operationId()).toPath()).toFile()
     }
 
     fun finalizeInstall(

@@ -70,6 +70,10 @@ backup presence alone does not prove that either action is safe.
 ## An archive is rejected
 
 DML identifies archive format from its signature, not just the filename.
+If installation fails, read the message and log for the reason. An unrecognized
+folder layout is different from an unsupported or damaged archive. Installation
+needs temporary space and can stop at storage or resource limits. Recognizing
+ZIP, 7z or RAR in the library does not prove the archive can be installed.
 
 Common unsupported cases include:
 

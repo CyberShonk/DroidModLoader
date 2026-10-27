@@ -8,6 +8,7 @@ import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserItemStatus
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiItem
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
+import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 
 internal data class ArchiveBrowserHistory(
     val records: List<DownloadedArchiveRecord>,
@@ -39,6 +40,9 @@ internal class ArchiveBrowserWorkflow(
     @Volatile
     private var currentState = ArchiveBrowserUiState()
 
+    @Volatile
+    private var selectionToken = Any()
+
     fun openBrowser() {
         val profileId = activeProfileIdOrNull() ?: return
         val folderPath = preferences.getSelectedFolderPath(profileId)
@@ -54,6 +58,7 @@ internal class ArchiveBrowserWorkflow(
     fun selectFolder(folderPath: String) {
         val profileId = activeProfileIdOrNull() ?: return
         preferences.saveSelectedFolderPath(profileId, folderPath)
+        selectionToken = Any()
         currentState = ArchiveBrowserUiState(
             folderPath = folderPath,
             isLoading = true
@@ -104,7 +109,8 @@ internal class ArchiveBrowserWorkflow(
                             canonicalIdentityForSourcePath = canonicalIdentityForSourcePath
                         ),
                         isLoading = false,
-                        errorMessage = null
+                        errorMessage = null,
+                        inspection = currentState.inspection
                     )
                     val result = currentState
                     postToUiThread {
@@ -147,11 +153,28 @@ internal class ArchiveBrowserWorkflow(
     }
 
     fun onProfileChanged() {
+        selectionToken = Any()
         currentState = ArchiveBrowserUiState()
         updateState(currentState)
 
         if (isBrowserOpen()) {
             openBrowser()
+        }
+    }
+
+    /** A captured observation may be displayed, never reused as current-source authority. */
+    fun captureInspectionPublisher(profileId: String?, sourcePath: String): (ArchiveInspectionReport) -> Unit {
+        val token = selectionToken
+        val folderPath = currentState.folderPath
+        return { report ->
+            postToUiThread {
+                if (selectionToken === token && profileId != null && folderPath != null && currentState.folderPath == folderPath &&
+                    isCurrentSelection(profileId, folderPath) && currentState.items.any { it.sourcePath == sourcePath }
+                ) {
+                    currentState = currentState.copy(inspection = report)
+                    updateState(currentState)
+                }
+            }
         }
     }
 

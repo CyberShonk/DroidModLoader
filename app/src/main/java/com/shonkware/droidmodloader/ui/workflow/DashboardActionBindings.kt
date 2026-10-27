@@ -174,8 +174,9 @@ internal class DashboardActionBindings(
             onDirectFolderBrowserNavigateUp = directFolderSelectionCoordinator::navigateUp,
             onDirectFolderBrowserSelectCurrent = directFolderSelectionCoordinator::selectCurrent,
             onDirectFolderBrowserCancel = directFolderSelectionCoordinator::cancel,
-            onCancelArchiveImport =
-                archiveImportExecutionWorkflow::cancelImport,
+            onCancelArchiveImport = {
+                archiveImportExecutionWorkflow.cancelImport()
+            },
         )
     }
 }

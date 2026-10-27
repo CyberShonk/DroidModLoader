@@ -50,6 +50,18 @@ The Archive Library supports search, refresh, folder switching, and installed
 archive history for the active profile. New imports use temporary archive copies,
 not a second permanent archive library.
 
+Each archive shows its filename, type and file size. Installed and previously
+installed archives are marked for the current profile. Known version and source
+game information appears when available. If the installed mod has a different
+name, the row shows that name too.
+
+Choose **Install** to unpack an archive into DML's mod storage. Browsing the list
+does not unpack archives. After an install attempt, **Archive Details** can show
+facts gathered during that attempt without reading the archive again. These
+facts last for the current session and clear when the profile or archive folder
+changes. They do not prove that the source is unchanged or the mod will work
+in the game.
+
 To remove copies retained by older versions, choose **Clean Old DML Copies…**
 and confirm **Verify and Clean**. DML checks records from all stored profiles
 and compares each eligible copy with its original before deleting it. This can

@@ -63,6 +63,13 @@ class Rar5ArchiveReader internal constructor(
                         channel.failure?.let { throw it }
                         writer.checkCancellation()
                         val entries = validateHeaders(session, writer)
+                        writer.variantFacts = ArchiveVariantFacts(
+                            encrypted = false,
+                            multipart = false,
+                            solid = entries.any { it.isSolid },
+                            compressionMethods = entries.filterNot { it.isDirectory }
+                                .map { it.unpMethod.toInt() and 0xff }.toSet()
+                        )
                         channel.finishHeaders()
                         for (entry in entries) {
                             writer.checkCancellation()

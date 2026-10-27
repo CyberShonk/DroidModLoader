@@ -8,6 +8,7 @@ import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModType
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserItemStatus
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
+import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -237,6 +238,67 @@ class ArchiveBrowserWorkflowTest {
         publications.forEach { it() }
 
         assertEquals(count, states.size)
+    }
+
+    @Test
+    fun historicalInspectionSurvivesRefreshButIsNeverAnInstallOrSourceCache() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val installed = mutableListOf<String>()
+        val workflow = workflow(FakeFolderStore("/archives"),
+            scanFolder = { ArchiveFolderScanResult("Downloads", listOf(folderEntry("one", "One.zip", 100))) },
+            updateState = states::add, installArchivePath = installed::add)
+        workflow.openBrowser()
+        val report = ArchiveInspectionReport("One.zip", 1234, failureCode = "UNSUPPORTED_VARIANT")
+        workflow.captureInspectionPublisher("profile-a", "/archives/one")(report)
+        workflow.refresh()
+        assertEquals(report, states.last().inspection)
+        assertTrue(installed.isEmpty())
+        workflow.installArchive("one")
+        assertEquals(listOf("/archives/one"), installed)
+    }
+
+    @Test
+    fun inspectionPublicationRechecksProfileAndFolderOnTheUiThread() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val queued = mutableListOf<() -> Unit>()
+        var profile = "profile-a"
+        val workflow = workflow(FakeFolderStore("/archives"), activeProfileIdProvider = { profile },
+            scanFolder = { ArchiveFolderScanResult("Downloads", listOf(folderEntry("one", "One.zip", 100))) },
+            updateState = states::add, postToUiThread = queued::add)
+        workflow.openBrowser()
+        queued.toList().forEach { it() }
+        queued.clear()
+        workflow.captureInspectionPublisher("profile-a", "/archives/one")(ArchiveInspectionReport("One.zip", 1234))
+        profile = "profile-b"
+        val before = states.size
+        queued.forEach { it() }
+        assertEquals(before, states.size)
+        assertEquals(null, states.last().inspection)
+        profile = "profile-a"
+        queued.clear()
+        workflow.captureInspectionPublisher("profile-a", "/archives/one")(ArchiveInspectionReport("One.zip", 1234))
+        workflow.selectFolder("/elsewhere")
+        queued.toList().forEach { it() }
+        assertEquals(null, states.last().inspection)
+    }
+
+    @Test
+    fun capturedInspectionCannotReturnAfterAProfileOrFolderRoundTrip() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val workflow = workflow(FakeFolderStore("/archives"),
+            scanFolder = { ArchiveFolderScanResult("Downloads", listOf(folderEntry("one", "One.zip", 100))) },
+            updateState = states::add)
+        workflow.openBrowser()
+        val report = ArchiveInspectionReport("One.zip", 1234)
+        val oldFolder = workflow.captureInspectionPublisher("profile-a", "/archives/one")
+        workflow.selectFolder("/other")
+        workflow.selectFolder("/archives")
+        oldFolder(report)
+        assertEquals(null, states.last().inspection)
+        val oldProfile = workflow.captureInspectionPublisher("profile-a", "/archives/one")
+        workflow.onProfileChanged()
+        oldProfile(report)
+        assertEquals(null, states.last().inspection)
     }
 
     private fun workflow(

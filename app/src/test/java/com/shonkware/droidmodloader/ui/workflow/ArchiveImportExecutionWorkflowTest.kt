@@ -2,6 +2,10 @@ package com.shonkware.droidmodloader.ui.workflow
 
 import com.shonkware.droidmodloader.engine.download.DownloadedArchiveRecord
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
+import com.shonkware.droidmodloader.engine.install.ArchiveExtractionFacts
+import com.shonkware.droidmodloader.engine.install.ArchiveInspection
+import com.shonkware.droidmodloader.engine.install.ArchiveFormat
+import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 import com.shonkware.droidmodloader.engine.install.InstallerGroup
 import com.shonkware.droidmodloader.engine.install.InstallerPlan
 import com.shonkware.droidmodloader.engine.install.InstallerType
@@ -438,6 +442,33 @@ class ArchiveImportExecutionWorkflowTest {
         assertEquals(2, harness.failures.size)
     }
 
+    @Test
+    fun normalImportPublishesPreparationFactsWithoutASecondPreparation() {
+        val engine = FakeArchiveImportEngine()
+        val inspection = ArchiveInspection(ArchiveExtractionFacts("snapshot", 1234, ArchiveFormat.ZIP,
+            false, 10, 1, 1, 20), automaticInstallerType())
+        engine.preparedInspection = inspection
+        val harness = WorkflowHarness(engine)
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertEquals(1, engine.prepareCount)
+        assertSame(inspection, harness.inspections.single().inspection)
+        assertTrue(engine.finalizeCalled)
+        assertEquals(listOf("Archive imported successfully."), harness.finishMessages)
+    }
+
+    @Test
+    fun cancellationAfterPreparationCannotPublishCompletedFactsOrFinalize() {
+        val engine = FakeArchiveImportEngine()
+        engine.preparedInspection = ArchiveInspection(ArchiveExtractionFacts("snapshot", 1234,
+            ArchiveFormat.ZIP, false, 10, 1, 1, 20), automaticInstallerType())
+        val harness = WorkflowHarness(engine)
+        engine.beforePrepareCompletes = { harness.workflow.cancelActiveImport() }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertTrue(harness.inspections.isEmpty())
+        assertFalse(engine.finalizeCalled)
+        assertEquals(1, engine.cancelledPreparedArchives.size)
+    }
+
     private inner class WorkflowHarness(
         engine: FakeArchiveImportEngine?
     ) {
@@ -445,6 +476,7 @@ class ArchiveImportExecutionWorkflowTest {
             temporaryFolder.newFolder("external")
 
         val importActiveStates = mutableListOf<Boolean>()
+        val inspections = mutableListOf<ArchiveInspectionReport>()
         val sourceArchive =
             newSourceArchive(
                 name = "Example Archive.zip",
@@ -549,7 +581,8 @@ class ArchiveImportExecutionWorkflowTest {
                 },
                 refreshDashboard = {
                     refreshCount++
-                }
+                },
+                inspectionPublisher = { { report -> inspections.add(report); Unit } }
             )
     }
 
@@ -581,6 +614,8 @@ class ArchiveImportExecutionWorkflowTest {
             null
 
         var finalizeCalled = false
+        var prepareCount = 0
+        var preparedInspection: ArchiveInspection? = null
 
         val cancelledPreparedArchives =
             mutableListOf<
@@ -634,13 +669,14 @@ class ArchiveImportExecutionWorkflowTest {
             cancellationSignal:
             InstallCancellationSignal
         ): PreparedArchiveInstall {
+            prepareCount++
             beforePrepareCompletes?.invoke(
                 cancellationSignal
             )
 
             return prepared(
                 plan = preparedPlan
-            )
+            ).copy(inspection = preparedInspection)
         }
 
         override fun finalizePreparedArchiveInstall(

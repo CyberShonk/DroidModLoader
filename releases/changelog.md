@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- feat: Show archive details from the last install attempt without reading the archive again.
 - feat: Extract single volume, unencrypted RAR5 archives using standard methods `m0` through `m5`, including solid archives, with bounded dictionary and header processing. Entries use existing path, output and storage checks; unsupported variants are refused.
 - feat: Inspect Environment reports selected game markers, folder access, app and Android versions, API level and permission facts using bounded local checks. Missing and unavailable evidence stay distinct; historical observations in diagnostic and support logs do not imply game version or runtime compatibility.
 - feat: Inspect Storage reports managed write locations, backing volumes, available space and unknown requirements. Its bounded archive inventory deduplicates file identities, never follows symbolic links or removes files, and keeps partial results explicit. Facts remain historical observations in diagnostic and support logs.
@@ -31,6 +32,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Keep archive rows reachable on short screens while Close and Cancel stay visible.
 - fix: Index RAR file headers per volume to avoid repeated whole-header-list processing during extraction. RAR5 metadata read accounting now accommodates 4,096 entries and an optional quick open record; the independent metadata byte and dictionary limits remain unchanged.
 - fix: Deployment preflight reports capacity by volume, including new backups and restore staging. Copy checks refuse measurable shortages before overwriting targets; unknown capacity remains an explicit warning rather than a space guarantee.
 - fix: Archive snapshots and installer copies check measurable free space before opening destination files and during long copies. Unknown capacity still relies on normal filesystem errors; extraction keeps its existing storage checks.

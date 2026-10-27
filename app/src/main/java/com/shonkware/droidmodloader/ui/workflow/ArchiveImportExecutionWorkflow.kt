@@ -12,6 +12,7 @@ import com.shonkware.droidmodloader.engine.install.InstallCancelledException
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
 import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -152,6 +153,7 @@ internal class ArchiveImportExecutionWorkflow(
         ArchiveFormatProbe = ArchiveFormatProbe(),
     private val archiveReaderRegistry:
         ArchiveReaderRegistry = ArchiveReaderRegistry(),
+    private val inspectionPublisher: (String) -> (ArchiveInspectionReport) -> Unit = { {} },
 ) {
     private val activeCancellationController =
         AtomicReference<InstallCancellationController?>(null)
@@ -187,6 +189,7 @@ internal class ArchiveImportExecutionWorkflow(
         var operation: OperationAttempt? = null
 
         try {
+            val publishInspection = inspectionPublisher(sourceFile.absolutePath)
             operation = beginOperation("Importing archive...")
 
             val fileName =
@@ -285,6 +288,12 @@ internal class ArchiveImportExecutionWorkflow(
                 )
 
             prepared = preparedInstall
+            cancellationController.signal.throwIfCancellationRequested()
+            preparedInstall.inspection?.let { inspection ->
+                publishInspection(ArchiveInspectionReport(
+                    fileName, inspection.extraction.observedAtMillis, inspection
+                ))
+            }
 
             if (preparedInstall.plan.requiresUserChoice) {
                 showInstallerChoices(
