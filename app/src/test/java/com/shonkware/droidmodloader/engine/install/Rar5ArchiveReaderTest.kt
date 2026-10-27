@@ -191,6 +191,28 @@ class Rar5ArchiveReaderTest {
         }
     }
 
+    @Test fun `default read budget accommodates all entries and optional quick open`() {
+        val entries = Array(Rar5ArchiveReader.MAX_ENTRIES) { RarTestArchives.entry("file-$it") }
+        for (withQuickOpen in listOf(false, true)) {
+            val records = if (withQuickOpen) entries + RarTestArchives.entry("QO", "unused".toByteArray(), type = 3) else entries
+            val out = read(RarTestArchives.rar5(*records))
+            assertEquals(Rar5ArchiveReader.MAX_ENTRIES, out.listFiles()!!.size)
+        }
+    }
+
+    @Test fun `default entry limit still refuses before any output`() {
+        val entries = Array(Rar5ArchiveReader.MAX_ENTRIES + 1) { RarTestArchives.entry("file-$it") }
+        refused(ArchiveReadFailureCode.ENTRY_LIMIT_EXCEEDED) { read(RarTestArchives.rar5(*entries)) }
+        assertFalse(temporary.root.walkTopDown().any { it.isFile && it.name.startsWith("file-") })
+    }
+
+    @Test fun `long UTF8 paths retain the independent metadata byte limit`() {
+        val prefix = List(16) { "界".repeat(60) }.joinToString("/") + "/"
+        val entries = Array(1435) { RarTestArchives.entry(prefix + "f%05d".format(it)) }
+        refused(ArchiveReadFailureCode.HEADER_LIMIT_EXCEEDED) { read(RarTestArchives.rar5(*entries)) }
+        assertFalse(temporary.root.walkTopDown().any { it.isFile && it.name.startsWith("f0") })
+    }
+
     @Test fun `constructor cancellation survives swallowed backend failures`() {
         var checks = 0
         val signal = InstallCancellationSignal { if (++checks >= 16) throw InstallCancelledException() }

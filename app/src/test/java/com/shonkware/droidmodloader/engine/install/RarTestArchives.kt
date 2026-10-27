@@ -51,19 +51,23 @@ internal object RarTestArchives {
         return join(header(type, flags or 2, fields), content)
     }
 
-    fun rar4(name: String, content: ByteArray): ByteArray {
+    fun rar4(name: String, content: ByteArray): ByteArray = rar4(name to content)
+
+    fun rar4(vararg files: Pair<String, ByteArray>): ByteArray {
         fun block(type: Int, flags: Int, fields: ByteArray): ByteArray {
             val tail = join(byteArrayOf(type.toByte()), little(flags.toLong(), 2),
                 little((7 + fields.size).toLong(), 2), fields)
             return join(little(crc(tail), 2), tail)
         }
-        val utf8 = name.toByteArray(Charsets.UTF_8)
-        val file = block(0x74, 0x8000, join(
-            little(content.size.toLong(), 4), little(content.size.toLong(), 4),
-            byteArrayOf(3), little(crc(content), 4), little(0, 4),
-            byteArrayOf(20, 0x30), little(utf8.size.toLong(), 2), little(0x81a4, 4), utf8
-        ))
+        val entries = files.map { (name, content) ->
+            val utf8 = name.toByteArray(Charsets.UTF_8)
+            join(block(0x74, 0x8000, join(
+                little(content.size.toLong(), 4), little(content.size.toLong(), 4),
+                byteArrayOf(3), little(crc(content), 4), little(0, 4),
+                byteArrayOf(20, 0x30), little(utf8.size.toLong(), 2), little(0x81a4, 4), utf8
+            )), content)
+        }
         return join(signature.copyOf(7).apply { this[6] = 0 },
-            block(0x73, 0, ByteArray(6)), file, content, block(0x7b, 0, byteArrayOf()))
+            block(0x73, 0, ByteArray(6)), join(*entries.toTypedArray()), block(0x7b, 0, byteArrayOf()))
     }
 }

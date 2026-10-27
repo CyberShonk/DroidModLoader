@@ -31,6 +31,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Index RAR file headers per volume to avoid repeated whole-header-list processing during extraction. RAR5 metadata read accounting now accommodates 4,096 entries and an optional quick open record; the independent metadata byte and dictionary limits remain unchanged.
 - fix: Deployment preflight reports capacity by volume, including new backups and restore staging. Copy checks refuse measurable shortages before overwriting targets; unknown capacity remains an explicit warning rather than a space guarantee.
 - fix: Archive snapshots and installer copies check measurable free space before opening destination files and during long copies. Unknown capacity still relies on normal filesystem errors; extraction keeps its existing storage checks.
 - fix: Archive import and installer choices share one operation attempt. Waiting for choices is not reported as success; cancellation and retries keep distinct outcomes, and failed installer cleanup is reported as a failure.
@@ -52,7 +53,7 @@ This file records release changes visible to users and known limitations.
 
 - Legacy archive cleanup is not automatic. Files are retained when originals cannot be verified or the copy is still needed by a source or library selection. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
 - Game folder validation checks known executable and master file markers; game store layouts and runtime compatibility are not exhaustively qualified. <!-- commits: 61298620686f65306c3f9dbc564b1210ddae608c, 6814fdcff26cef81502e515020bd5f2f6a3c6262 -->
-- RAR5 is limited to a 32 MiB declared dictionary, 4 MiB of metadata input, 8,192 metadata read calls, 4,096 entries and 64 path segments. Links, unknown sizes, newer compression versions and service records other than a bounded stored quick open index are not supported.
+- RAR5 is limited to a 32 MiB declared dictionary, 4 MiB of metadata input, 8,200 metadata read calls, 4,096 entries and 64 path segments. Metadata byte limits can be reached before the entry limit with long paths. Links, unknown sizes, newer compression versions and service records other than a bounded stored quick open index are not supported.
 - Password protected, encrypted and multipart RAR archives are not supported. <!-- commits: dc70fece68f8e5daef06bdbe55d8a0379612827f -->
 - Some uncommon 7z compression or encryption variants may remain unsupported. <!-- commits: 00c4de3491d3448d08d7c584ad1a7e11895151df -->
 - Returning to a previous deployment target does not automatically verify every managed file against changes made outside DML. <!-- commits: 2fdabecdf4ca22f123525801815d077e9b1b6c4e -->

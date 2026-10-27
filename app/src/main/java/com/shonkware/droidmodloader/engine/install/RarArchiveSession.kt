@@ -1,6 +1,5 @@
 package com.shonkware.droidmodloader.engine.install
 
-import com.github.junrar.Archive
 import java.io.Closeable
 import java.io.File
 import java.io.OutputStream
@@ -23,7 +22,7 @@ internal interface RarArchiveSession : Closeable {
 internal class JunrarArchiveSession(
     archiveFile: File
 ) : RarArchiveSession {
-    private val archive = Archive(archiveFile)
+    private val archive = IndexedRarArchive(archiveFile)
 
     override val encrypted: Boolean
         get() = archive.isEncrypted

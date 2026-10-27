@@ -24,8 +24,9 @@ class Rar5ArchiveReader internal constructor(
     companion object {
         const val MAX_DICTIONARY_BYTES = 32L * 1024 * 1024
         const val MAX_HEADER_BYTES = 4L * 1024 * 1024
-        const val MAX_HEADER_READS = 8192
         const val MAX_ENTRIES = 4096
+        // Two reads per entry, plus signature/main/end and the optional QO header.
+        const val MAX_HEADER_READS = MAX_ENTRIES * 2 + 8
         const val MAX_PATH_DEPTH = 64
     }
 
@@ -55,7 +56,7 @@ class Rar5ArchiveReader internal constructor(
                             override fun getArchive() = owner
                         }
                     }
-                    Archive(
+                    IndexedRarArchive(
                         volumes,
                         ArchiveOptions.builder().maxDictionarySize(maxDictionaryBytes).build()
                     ).use { session ->
