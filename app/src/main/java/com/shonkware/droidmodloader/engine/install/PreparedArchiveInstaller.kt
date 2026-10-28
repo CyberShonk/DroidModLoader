@@ -97,7 +97,10 @@ class PreparedArchiveInstaller internal constructor(
                 installRootPath =
                     contentRoot.absolutePath,
                 plan = plan,
-                inspection = ArchiveInspection(extraction, plan.installerType)
+                inspection = ArchiveInspection(extraction, plan.installerType),
+                manualLayoutInventory = if (plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
+                    ManualLayoutInventory.capture(sessionRoot, rawRoot, cancellationSignal)
+                } else null
             )
         } catch (exception: Exception) {
             if (
@@ -140,10 +143,18 @@ class PreparedArchiveInstaller internal constructor(
         selection: InstallerSelection,
         cancellationSignal:
         InstallCancellationSignal =
-            InstallCancellationSignal.NONE
+            InstallCancellationSignal.NONE,
+        manualLayoutProposal: ManualLayoutProposal? = null
     ): File {
         cancellationSignal
             .throwIfCancellationRequested()
+
+        val manualPreview = if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
+            validateManualSelection(prepared, selection, manualLayoutProposal, cancellationSignal)
+        } else {
+            if (manualLayoutProposal != null) throw IOException("This installer does not use a manual layout.")
+            null
+        }
 
         ensureDirectoryExists(
             directory = modsDir,
@@ -201,17 +212,27 @@ class PreparedArchiveInstaller internal constructor(
                 )
             }
 
-            selectedOptions.forEach { option ->
-                cancellationSignal
-                    .throwIfCancellationRequested()
+            if (manualPreview != null) {
+                val inventory = checkNotNull(prepared.manualLayoutInventory)
+                manualPreview.files.forEach { file ->
+                    cancellationSignal.throwIfCancellationRequested()
+                    fileCopier(inventory.sourceFile(file),
+                        safeResolveInstallerPath(stagedDir, file.destinationPath), cancellationSignal)
+                }
+                inventory.requireCurrent(cancellationSignal)
+            } else {
+                selectedOptions.forEach { option ->
+                    cancellationSignal
+                        .throwIfCancellationRequested()
 
-                copyOption(
-                    installRoot = installRoot,
-                    option = option,
-                    finalDir = stagedDir,
-                    cancellationSignal =
-                        cancellationSignal
-                )
+                    copyOption(
+                        installRoot = installRoot,
+                        option = option,
+                        finalDir = stagedDir,
+                        cancellationSignal =
+                            cancellationSignal
+                    )
+                }
             }
 
             cancellationSignal
@@ -264,6 +285,41 @@ class PreparedArchiveInstaller internal constructor(
 
             throw installFailure
         }
+    }
+
+    private fun validateManualSelection(
+        prepared: PreparedArchiveInstall,
+        selection: InstallerSelection,
+        proposal: ManualLayoutProposal?,
+        signal: InstallCancellationSignal
+    ): ManualLayoutPreview {
+        val options = prepared.plan.groups.flatMap { it.options }
+        val selectedId = selection.selectedOptionIds.singleOrNull()
+            ?: throw IOException("Choose exactly one Data folder.")
+        val option = options.singleOrNull { it.id == selectedId }
+            ?: throw IOException("The chosen Data folder is no longer available.")
+        if (!isCurrentDirectoryPath(option.destinationPath)) {
+            throw IOException("Manual Data folder destinations cannot be changed.")
+        }
+        val inventory = prepared.manualLayoutInventory
+            ?: throw IOException("Prepared archive details are missing. Import the archive again.")
+        if (File(inventory.sessionRootPath).absolutePath != File(prepared.sessionRootPath).absolutePath ||
+            File(inventory.extractedRootPath).absolutePath != File(prepared.extractedRootPath).absolutePath) {
+            throw IOException("Prepared archive details belong to a different installer session.")
+        }
+        inventory.requireCurrent(signal)
+        val source = if (isCurrentDirectoryPath(option.sourcePath)) File(prepared.installRootPath)
+            else safeResolveInstallerPath(File(prepared.installRootPath), option.sourcePath)
+        val root = File(inventory.extractedRootPath).canonicalFile
+        val candidate = source.canonicalFile
+        if (candidate != root && !candidate.toPath().startsWith(root.toPath())) {
+            throw IOException("The chosen Data folder is outside this prepared archive.")
+        }
+        val relative = root.toPath().relativize(candidate.toPath()).toString().replace(File.separatorChar, '/')
+        if (proposal != null && proposal.rootPath != relative) {
+            throw IOException("The layout preview belongs to a different Data folder.")
+        }
+        return inventory.preview(proposal ?: ManualLayoutProposal(relative), signal)
     }
 
     fun cancel(

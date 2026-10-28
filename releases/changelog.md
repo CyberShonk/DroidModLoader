@@ -32,6 +32,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Validate chosen Data folders before installation and copy only the checked file mapping. Conflicting paths, links, changed prepared files and excessive manual folder depth are refused without replacing an existing installation. The folder chooser is unchanged.
 - fix: Use clearer button names and messages for imports, file checks and unfinished changes.
 - fix: Keep archive rows reachable on short screens while Close and Cancel stay visible.
 - fix: Index RAR file headers per volume so extraction does not repeatedly process the full header list. RAR5 metadata read accounting now accommodates 4,096 entries and an optional quick open record; the independent metadata byte and dictionary limits remain unchanged. <!-- commits: 70a55303d32498474b1f1100680a141ffbaf0e19 -->

@@ -304,6 +304,12 @@ class InstallerLayoutAnalyzer {
         }
     }
 
+    /** Recognition hint for a proposed output tree; not a game compatibility check. */
+    internal fun hasRecognizedGamePaths(paths: List<String>): Boolean = paths.any { path ->
+        if ('/' in path) path.substringBefore('/').lowercase(java.util.Locale.ROOT) in dataRootFolderNames
+        else isLikelyDataRootFile(path) || isLikelyGameRootFile(path)
+    }
+
     private fun hasRootLevelGameRootContent(contentRoot: File): Boolean {
         val children = contentRoot.listFiles() ?: return false
 
