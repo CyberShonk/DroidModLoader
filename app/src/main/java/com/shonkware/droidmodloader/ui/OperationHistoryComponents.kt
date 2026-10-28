@@ -32,7 +32,7 @@ internal fun RecentOperationsCard(history: OperationHistoryPresentation) {
         border = BorderStroke(1.dp, DmlColors.BorderDim)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Recent operations", fontWeight = FontWeight.Bold)
+            Text("Recent Activity", fontWeight = FontWeight.Bold)
             Text(history.status, style = MaterialTheme.typography.bodySmall)
             history.entries.forEach { entry ->
                 key(entry.id) {
@@ -47,7 +47,7 @@ internal fun RecentOperationsCard(history: OperationHistoryPresentation) {
                     if (expanded) Text("${entry.context}\n${entry.details}", style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Text("History is not current health or recovery authority.", style = MaterialTheme.typography.bodySmall)
+            Text("Past results do not check your current files or repair unfinished changes.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

@@ -55,6 +55,9 @@ installed archives are marked for the current profile. Known version and source
 game information appears when available. If the installed mod has a different
 name, the row shows that name too.
 
+Use **Close** to leave the library when idle. During an import, **Cancel Import**
+cancels that import instead.
+
 Choose **Install** to unpack an archive into DML's mod storage. Browsing the list
 does not unpack archives. After an install attempt, **Archive Details** can show
 facts gathered during that attempt without reading the archive again. These
@@ -62,8 +65,8 @@ facts last for the current session and clear when the profile or archive folder
 changes. They do not prove that the source is unchanged or the mod will work
 in the game.
 
-To remove copies retained by older versions, choose **Clean Old DML Copies…**
-and confirm **Verify and Clean**. DML checks records from all stored profiles
+To remove copies retained by older versions, choose **Remove Old DML Copies…**
+and confirm **Remove Copies**. DML checks records from all stored profiles
 and compares each eligible copy with its original before deleting it. This can
 take time for large archives. Originals, installer sessions, and import history
 are preserved. Missing or changed originals, selected libraries, and uncertain
@@ -121,23 +124,29 @@ not tools reserved for developers.
 Use diagnostics when the selected target, plugin state, archive support, or
 deployment result is unclear.
 
-**Recent operations** on the dashboard shows the latest five retained attempts
-across profiles. **Details** identifies the captured profile, game, configured
-target intent, times, reason and any previous attempt. History retains at most
-50 attempts within 256 KiB; it is not current health or recovery authority.
-Waiting for installer choices is not success. Unfinished attempts from a prior
-session have an unknown outcome and are never replayed. History save failures
-do not change the operation result, and unavailable history stays explicit.
+**Notifications** show problems such as lost folder access or unfinished installs
+and deployments. Use **Choose Game Folder** or **View Details** when offered.
+**Mark Reviewed** only records that you saw a warning. **Hide for Now**, when
+available, hides it for the current session. Neither action repairs files or
+allows a blocked deployment. These are notices inside DML, not Android system
+notifications.
 
-**Report & Diagnostics** shows one Deployment Health summary shared with its
-details, relevant App Attention notices and support reports. **Refresh Deployment
-Evidence** collects current target readiness, recorded pending changes and journal
-facts without checking file bytes or rebuilding expected hashes. Missing or stale
-source indexes leave pending changes unknown. Details identify each target role,
-collection time and reason codes; simulated targets never imply a physical deploy.
-Readiness, pending changes and integrity remain separate facts, not a health score.
+**Recent Activity** shows the latest five recorded attempts across profiles. Open
+**Details** to see the profile, game, saved folder choices, times and result.
+DML keeps at most 50 attempts within 256 KiB. Waiting for installer choices is not
+success. An unfinished attempt from an earlier session has an unknown outcome;
+DML does not retry it automatically. The list tells you if history could not be
+loaded or saved. Past results do not check your current files or repair changes.
 
-**Inspect Environment** checks the selected game's setup markers and folder access,
+In **Report & Diagnostics**, **Deployment Summary** combines known folder access,
+changes waiting to be deployed, unfinished work and previous file checks. Choose
+**Refresh Deployment Summary** to update it, then **Show Deployment Details** for
+the recorded folders and results. Refreshing does not read every file or rebuild
+saved file checks. Missing or outdated file lists leave pending changes unknown.
+Test folders do not mean mods were copied to the game. The summary is not a score
+or a promise that the game will work.
+
+**Check Game Setup** checks expected game filenames and folder access,
 then records app and Android versions, API level and all files access permission.
 It checks captured folder choices, not whether they were saved or used for deployment.
 Each folder check examines at most 4,096 entries without scanning subfolders.
@@ -145,29 +154,28 @@ Incomplete or inaccessible checks remain unavailable, not missing markers. TTW u
 Fallout: New Vegas markers; its own master is optional before initial deployment.
 File names do not prove file contents, game version or runtime compatibility.
 Launcher and Wine details are not inspected. Results are historical observations
-in the log and shared reports; inspect again after changing folders or permissions.
+in the log and shared reports; run it again after changing folders or permissions.
 
-**Inspect Storage** reports write locations, ownership and available capacity in
+**Show Storage Info** reports DML's storage locations and available space in
 historical diagnostic logs, which are also included in shared reports. Operation
 requirements stay unknown here; deployment preflight sizes its own copy budget.
 The managed archive inventory inspects at most 2,000 entries through eight directory
 levels, deduplicates known file identities and never follows symbolic links or
 removes files. It reports observed logical bytes, not allocated disk size, archive
 validity or deletion eligibility. User source libraries and import history are not
-inventory. Partial or unavailable facts stay explicit; inspect again after changes.
+inventory. Partial or unavailable results stay explicit; run it again after changes.
 
-In **Report & Diagnostics**, choose **Check Recorded Managed Content** to compare
-recorded Data, Game Root and installed mod files with their saved SHA-256 hashes.
-**Cancel Integrity Check** stops cooperatively and leaves partial results in the
-report. Missing or invalid evidence is reported as unavailable, never rebuilt by
-this check. Results identify the captured profile, targets, input digest and time;
-they are historical observations, not live health, repair or compatibility proof.
-After checking, use **Refresh Deployment Evidence** to include the observation in
-Deployment Health. Admitted mutations invalidate cached health/check evidence;
-profile, target or journal changes cannot revive an old match. Completed or reviewed
-operations do not establish integrity. Rerun checks after changes. DML mutations are
-excluded during a check, but external
-programs can still change files; this is not an atomic filesystem snapshot.
+Choose **Check Recorded Files** to compare recorded Data, Game Root and installed
+mod files with DML's saved checks. It reports missing, changed or unreadable files
+without changing them. It only checks files with saved records, not the whole game.
+**Cancel File Check** stops the check and leaves partial results in the log.
+Missing or invalid saved checks are reported, not rebuilt.
+
+After checking, choose **Refresh Deployment Summary** to include the results.
+Run the check again after changing files, folders or profiles. Finishing an action
+or marking a warning reviewed does not prove files still match. DML blocks its own
+conflicting work during a check, but other programs can still change files. A match
+only describes what was read during that check.
 
 Evidence reads are limited to 8 MiB per metadata file, 50,000 files per target,
 and 1,000 recorded installs with 50,000 indexed files in total. Exceeding a limit
@@ -177,8 +185,7 @@ Files not named in recorded evidence are not scanned.
 **Recovery Details** identifies recorded deployment targets and pending install
 transactions, including missing or unavailable backup evidence. Transaction
 inspection stops at 1,000 records; exceeding this limit leaves recovery unknown.
-**Mark Warning
-Reviewed** is available only for an unfinished journal whose recorded profile,
+**Mark Reviewed** is available only for an unfinished journal whose recorded profile,
 game and targets match the current scope. It annotates the warning, not the files.
 Reviewing or dismissing a notice does not resolve recovery or unlock deployment.
 

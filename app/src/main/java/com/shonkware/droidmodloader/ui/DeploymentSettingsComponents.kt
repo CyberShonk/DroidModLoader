@@ -34,7 +34,7 @@ fun DeploymentSettingsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Deploy Targets", fontWeight = FontWeight.Bold)
+            Text("Game Folders", fontWeight = FontWeight.Bold)
 
             Text(
                 text = "Game folder: $selectedRootPathText",
@@ -47,7 +47,7 @@ fun DeploymentSettingsCard(
             )
 
             Text(
-                text = "Choose the installed game's main folder. DML validates it and detects the Data folder automatically.",
+                text = "Choose the installed game's main folder. DML checks it and finds the Data folder automatically.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -65,9 +65,9 @@ fun DeploymentSettingsCard(
 
             DmlButtons.Secondary(
                 text = if (secondScreenEnabled) {
-                    "Disable Second Screen Plugin Display"
+                    "Hide Plugins on Second Screen"
                 } else {
-                    "Enable Second Screen Plugin Display"
+                    "Show Plugins on Second Screen"
                 },
                 onClick = onToggleSecondScreen,
                 modifier = Modifier.fillMaxWidth()

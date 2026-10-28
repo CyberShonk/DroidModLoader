@@ -21,7 +21,8 @@ class AppAttentionPresentationTest {
             )
         )
 
-        assertEquals("Select Game Folder", presentation.primaryActionLabel)
+        assertEquals("Choose Game Folder", presentation.primaryActionLabel)
+        assertEquals("Choose the game folder again", presentation.title)
         assertEquals(AppAttentionAction.SELECT_GAME_FOLDER, presentation.primaryAction)
         assertNull(presentation.secondaryAction)
         assertNull(presentation.secondaryActionLabel)
@@ -40,6 +41,8 @@ class AppAttentionPresentationTest {
         )
 
         assertEquals("View Details", presentation.primaryActionLabel)
+        assertEquals("Unfinished deployment", presentation.title)
+        assertTrue(presentation.message.contains("does not repair files or allow another deployment"))
         assertEquals(AppAttentionAction.VIEW_DEPLOY_RECOVERY, presentation.primaryAction)
         assertEquals("Mark Reviewed", presentation.secondaryActionLabel)
         assertEquals(
@@ -56,6 +59,8 @@ class AppAttentionPresentationTest {
             attention(kind = AppAttentionKind.INSTALL_RECOVERY)
         )
 
+        assertEquals("Unfinished installation", presentation.title)
+        assertTrue(presentation.message.contains("does not fix the installation"))
         assertNull(presentation.primaryActionLabel)
         assertNull(presentation.primaryAction)
         assertNull(presentation.secondaryAction)

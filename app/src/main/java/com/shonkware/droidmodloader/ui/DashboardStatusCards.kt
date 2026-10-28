@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.ui.theme.DmlButtons
 import com.shonkware.droidmodloader.ui.theme.DmlColors
 import com.shonkware.droidmodloader.ui.theme.DmlDefaults
+import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 
 
 @Composable
@@ -82,47 +83,47 @@ fun StatusCard(
                     )
 
                     Text(
-                        text = "Game: $selectedGameId",
+                        text = "Game: ${GameCatalog.displayName(selectedGameId)}",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
 
                 DmlButtons.Secondary(
-                    text = "Manage",
+                    text = "Manage Profiles",
                     onClick = onOpenProfileDialog
                 )
             }
 
             Text(
                 text = if (realDeployEnabled) {
-                    "Deploy mode: Real target folders"
+                    "Deploy to: Game folders"
                 } else {
-                    "Deploy mode: Test output folder"
+                    "Deploy to: Test folders"
                 },
                 style = MaterialTheme.typography.bodySmall
             )
 
             Text(
                 text = if (dataTargetReady) {
-                    "Data target: selected"
+                    "Data folder: selected"
                 } else {
-                    "Data target: not selected"
+                    "Data folder: not selected"
                 },
                 style = MaterialTheme.typography.bodySmall
             )
 
             Text(
                 text = if (rootTargetReady) {
-                    "Game Root target: selected"
+                    "Game Root folder: selected"
                 } else {
-                    "Game Root target: not selected"
+                    "Game Root folder: not selected"
                 },
                 style = MaterialTheme.typography.bodySmall
             )
 
             if (!rootTargetReady) {
                 Text(
-                    text = "Choose a valid Game Folder to resolve the Game Root and Data targets.",
+                    text = "Choose the game's main folder so DML can check it and find its Data folder.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -150,11 +151,11 @@ fun QuickStartCard() {
             Text("Quick Start", fontWeight = FontWeight.Bold)
 
             Text("1. Choose the installed game's main folder.")
-            Text("2. DML validates Game Root and detects Data automatically.")
+            Text("2. DML checks that folder and finds Data automatically.")
             Text("3. Install a mod archive.")
             Text("4. Check the mod list and plugin list.")
-            Text("5. Deploy.")
-            Text("6. Write plugin files if needed.")
+            Text("5. Choose Deploy Mods to copy enabled mod files.")
+            Text("6. Choose Apply Plugin Changes to save the game's plugin list if needed.")
             Text("7. Share logs if something looks wrong.")
         }
     }

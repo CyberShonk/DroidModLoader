@@ -8,6 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -121,18 +123,20 @@ class RecoveryStateTest {
                     health.recovery != DeploymentRecoveryFact.NONE, {}, ::review, { mutations++ }, {})
             }
         }
-        compose.onNodeWithText("Mark Reviewed").performScrollTo().performClick()
-        compose.onNodeWithText("Mark Reviewed").assertDoesNotExist()
-        compose.onNodeWithText("Mark Warning Reviewed").performScrollTo().assertIsNotEnabled()
+        // Both components now use the same action name. The notice is first in this fixture.
+        compose.onAllNodesWithText("Mark Reviewed").assertCountEquals(2)
+        compose.onAllNodesWithText("Mark Reviewed")[0].performScrollTo().performClick()
+        compose.onAllNodesWithText("Mark Reviewed").assertCountEquals(1)
+        compose.onNodeWithText("Mark Reviewed").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Force Full Redeploy").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Dismiss").performScrollTo().performClick()
+        compose.onNodeWithText("Hide for Now").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(1, reviews)
             assertEquals(0, mutations)
             assertEquals(DeploymentHealthPhase.RECOVERY_ATTENTION, health.phase)
             assertEquals(AppAttentionKind.DEPLOY_RECOVERY, attention().kind)
         }
-        compose.onNodeWithText("Review recorded state without changing game files. Marking reviewed is an annotation, not repair, and does not unblock deployment.")
+        compose.onNodeWithText("Review unfinished changes without changing game files. Mark Reviewed only records that you saw the warning; it does not repair files or allow another deployment.")
             .performScrollTo().assertIsDisplayed()
     }
 }

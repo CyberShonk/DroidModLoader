@@ -20,14 +20,14 @@ internal object AppAttentionPresentationMapper {
         return when (attention.kind) {
             AppAttentionKind.GAME_INSTALLATION_RESELECTION -> {
                 AppAttentionPresentation(
-                    title = "Game folder needs attention",
-                    message = "DML can no longer use the saved game installation location. " +
-                        "Select the installed game's main folder again so DML can validate " +
-                        "Game Root and detect Data.",
+                    title = "Choose the game folder again",
+                    message = "DML can no longer use the saved game folder. " +
+                        "Choose the installed game's main folder again so DML can check it " +
+                        "and find its Data folder.",
                     primaryAction = attention.actions.firstOrNull {
                         it == AppAttentionAction.SELECT_GAME_FOLDER
                     },
-                    primaryActionLabel = "Select Game Folder",
+                    primaryActionLabel = "Choose Game Folder",
                     secondaryAction = null,
                     secondaryActionLabel = null,
                     dismissibleForSession = false,
@@ -37,10 +37,10 @@ internal object AppAttentionPresentationMapper {
 
             AppAttentionKind.DEPLOY_RECOVERY -> {
                 AppAttentionPresentation(
-                    title = "Deployment recovery needs attention",
-                    message = "Deployment recovery is unresolved or its evidence is unavailable. " +
-                        "Review and dismissal do not repair files or unblock deployment. " +
-                        "View details for the recorded scope and supported actions.",
+                    title = "Unfinished deployment",
+                    message = "A deployment still needs review, or DML cannot read its saved record. " +
+                        "View the details before continuing. Marking it reviewed or hiding this " +
+                        "notification does not repair files or allow another deployment.",
                     primaryAction = attention.actions.firstOrNull {
                         it == AppAttentionAction.VIEW_DEPLOY_RECOVERY
                     },
@@ -56,10 +56,10 @@ internal object AppAttentionPresentationMapper {
 
             AppAttentionKind.INSTALL_RECOVERY -> {
                 AppAttentionPresentation(
-                    title = "Install recovery needs review",
-                    message = "Droid Mod Loader could not automatically recover an " +
-                        "interrupted mod installation. Review the state before relying on " +
-                        "the affected installation.",
+                    title = "Unfinished installation",
+                    message = "DML could not finish recovering an interrupted mod installation. " +
+                        "The affected mod may be incomplete. Hiding this notification " +
+                        "does not fix the installation.",
                     primaryAction = attention.actions.firstOrNull { it == AppAttentionAction.VIEW_DEPLOY_RECOVERY },
                     primaryActionLabel = "View Details".takeIf { AppAttentionAction.VIEW_DEPLOY_RECOVERY in attention.actions },
                     secondaryAction = null,

@@ -233,9 +233,11 @@ private fun MainDashboardScreen(
                     onOpenProfileDialog = actions.onOpenProfileDialog
                 )
 
-                state.appAttention
-                    .filterNot { it.id in state.dismissedAttentionIds }
-                    .forEach { attention ->
+                val visibleNotifications = state.appAttention.filterNot { it.id in state.dismissedAttentionIds }
+                if (visibleNotifications.isNotEmpty()) {
+                    Text("Notifications")
+                }
+                visibleNotifications.forEach { attention ->
                         AppAttentionCard(
                             attention = attention,
                             onAction = actions.onAttentionAction,
@@ -558,7 +560,7 @@ fun DroidModLoaderScreen(
                 Text(
                     "This will rewrite every currently managed file for this profile.\n\n" +
                             "It will not intentionally delete unmanaged files, but it can replace files already managed by Droid Mod Loader.\n\n" +
-                            "Use this after an interrupted deploy or when the deployed folder looks out of sync."
+                            "This is not a repair for an interrupted operation. DML blocks it while an earlier deployment or installation still needs recovery."
                 )
             },
             confirmButton = {

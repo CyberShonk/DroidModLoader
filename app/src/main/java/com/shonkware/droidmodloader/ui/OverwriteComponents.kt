@@ -55,7 +55,7 @@ fun OverwriteDialog(
                 )
 
                 Text(
-                    text = "MO2-style catch-all for files created or changed after the target Data folder was indexed.",
+                    text = "Files added or changed in the game's Data folder since DML last recorded it.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -63,11 +63,11 @@ fun OverwriteDialog(
 
                 if (!baselineExists) {
                     Text(
-                        text = "No Data baseline is available yet. Droid Mod Loader will create one automatically after a target folder is selected.",
+                        text = "DML has no saved file list for this Data folder yet. It creates one after you choose a game folder.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else if (entries.isEmpty()) {
-                    Text("Overwrite is clean.")
+                    Text("No changes found.")
                 } else {
                     entries.forEach { entry ->
                         Card(

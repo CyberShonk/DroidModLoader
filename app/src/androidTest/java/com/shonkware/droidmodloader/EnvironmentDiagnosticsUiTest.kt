@@ -42,7 +42,7 @@ class EnvironmentDiagnosticsUiTest {
                 }
             }
         }
-        compose.onNodeWithText("Inspect Environment").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Check Game Setup").performScrollTo().assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(1, inspections) }
         compose.onNodeWithText(summary).performScrollTo().assertIsDisplayed()
     }
@@ -57,7 +57,7 @@ class EnvironmentDiagnosticsUiTest {
                 }
             }
         }
-        compose.onNodeWithText("Inspect Environment").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Check Game Setup").performScrollTo().assertIsNotEnabled()
         compose.runOnIdle { assertEquals(0, inspections) }
     }
 }

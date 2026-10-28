@@ -46,37 +46,37 @@ fun ReportCard(
             Text("Report & Diagnostics", fontWeight = FontWeight.Bold)
 
             var showHealthDetails by rememberSaveable { mutableStateOf(false) }
-            Text("Deployment Health: ${deploymentHealth?.phase?.summary ?: "Evidence not collected"}")
+            Text("Deployment Summary: ${deploymentHealth?.phase?.summary ?: "Not checked yet"}")
             DmlButtons.Secondary(
-                text = if (showHealthDetails) "Hide Deployment Health Details" else "Show Deployment Health Details",
+                text = if (showHealthDetails) "Hide Deployment Details" else "Show Deployment Details",
                 onClick = { showHealthDetails = !showHealthDetails },
                 modifier = Modifier.fillMaxWidth()
             )
             if (showHealthDetails) {
-                Text(deploymentHealth?.toDebugSummary() ?: "Refresh deployment evidence for this profile and target.")
+                Text(deploymentHealth?.toDebugSummary() ?: "Refresh the deployment summary for this profile and its game folders.")
             }
             DmlButtons.Secondary(
-                text = "Refresh Deployment Evidence",
+                text = "Refresh Deployment Summary",
                 enabled = !operationInProgress,
                 onClick = onRefreshDeploymentHealth,
                 modifier = Modifier.fillMaxWidth()
             )
 
             DmlButtons.Secondary(
-                text = "Inspect Environment",
+                text = "Check Game Setup",
                 enabled = !operationInProgress,
                 onClick = onInspectEnvironment,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text("Read-only checks of selected game markers, folder access, Android/app version and permission. Historical results appear below and in shared logs, not proof of game version or runtime compatibility.")
+            Text("Checks expected game files, folder access, app and Android versions, and storage permission. Results appear in the log. This does not test whether the game or mods will run.")
 
             DmlButtons.Secondary(
-                text = "Inspect Storage",
+                text = "Show Storage Info",
                 enabled = !operationInProgress,
                 onClick = onInspectStorage,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text("Read-only storage facts appear in the log and shared reports as historical observations. Inspect again after changing files or targets; no archives are removed.")
+            Text("Shows DML's storage locations, available space and a limited archive listing in the log. Nothing is removed. Run it again after changing files or folders.")
 
             DmlButtons.Secondary(
                 text = "Share Logs",
@@ -85,18 +85,18 @@ fun ReportCard(
             )
 
             DmlButtons.Secondary(
-                text = "Check Recorded Managed Content",
+                text = "Check Recorded Files",
                 enabled = !operationInProgress,
                 onClick = onVerifyManagedContent,
                 modifier = Modifier.fillMaxWidth()
             )
             DmlButtons.Secondary(
-                text = "Cancel Integrity Check",
+                text = "Cancel File Check",
                 enabled = integrityCheckInProgress,
                 onClick = onCancelIntegrityCheck,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text("Read-only SHA-256 check of recorded Data, Game Root and installed mod files. Results below are historical observations, not live health; missing evidence is not rebuilt.")
+            Text("Compares files recorded for installed mods and game folders with DML's saved checks. Reports missing, changed or unreadable files without changing them. Files with no saved check cannot be verified; this is not a full game scan.")
 
             Text(logText)
         }

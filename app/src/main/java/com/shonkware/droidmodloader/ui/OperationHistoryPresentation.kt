@@ -5,12 +5,13 @@ import com.shonkware.droidmodloader.ui.workflow.OperationHistorySnapshot
 import com.shonkware.droidmodloader.ui.workflow.OperationKind
 import com.shonkware.droidmodloader.ui.workflow.OperationOutcome
 import com.shonkware.droidmodloader.ui.workflow.OperationPhase
+import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 import java.text.DateFormat
 import java.util.Date
 
 /** Text-only UI projection. No filesystem reads or recovery actions. */
 data class OperationHistoryPresentation(
-    val status: String = "Operation history has not been loaded.",
+    val status: String = "Recent activity has not been loaded.",
     val entries: List<RecentOperationPresentation> = emptyList()
 )
 
@@ -26,11 +27,11 @@ data class RecentOperationPresentation(
 internal object OperationHistoryPresentationMapper {
     fun present(history: OperationHistorySnapshot): OperationHistoryPresentation {
         val status = when (history.availability) {
-            OperationHistoryAvailability.AVAILABLE -> if (history.records.isEmpty()) "No recorded operations." else
-                "Showing the latest ${minOf(5, history.records.size)} of ${history.records.size} retained attempts across profiles."
+            OperationHistoryAvailability.AVAILABLE -> if (history.records.isEmpty()) "No activity recorded yet." else
+                "Showing the latest ${minOf(5, history.records.size)} of ${history.records.size} recorded attempts across profiles."
             OperationHistoryAvailability.NOT_SAVED -> "History changes are not saved. ${history.reason.orEmpty()}"
             OperationHistoryAvailability.UNAVAILABLE ->
-                "Saved history is unavailable. Entries shown are last known or in memory, not a complete saved history. ${history.reason.orEmpty()}"
+                "Saved history could not be loaded. Entries shown may be from this session or an earlier view; the list may be incomplete. ${history.reason.orEmpty()}"
         }
         val format = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM)
         return OperationHistoryPresentation(status, history.records.takeLast(5).reversed().map { record ->
@@ -44,7 +45,7 @@ internal object OperationHistoryPresentationMapper {
                 OperationPhase.PREPARING -> "Preparing archive"
                 OperationPhase.WAITING_FOR_CHOICES -> "Waiting for installer choices"
                 OperationPhase.INSTALLING -> "Installing archive"
-                OperationPhase.EXECUTING -> "Executing"
+                OperationPhase.EXECUTING -> "Working"
             }
             val outcome = when {
                 record.interrupted -> "Interrupted: outcome unknown"
@@ -54,8 +55,8 @@ internal object OperationHistoryPresentationMapper {
                 record.phase == OperationPhase.WAITING_FOR_CHOICES -> phase
                 else -> "In progress: $phase"
             }
-            val context = if (record.context.unavailable) "Captured context unavailable (exceeds history limit)." else
-                "Profile: ${record.context.profileId ?: "Unassigned"} | Game: ${record.context.gameId}"
+            val context = if (record.context.unavailable) "Profile and folder details were too large to save." else
+                "Profile: ${record.context.profileId ?: "Unassigned"} | Game: ${GameCatalog.displayName(record.context.gameId)}"
             RecentOperationPresentation(record.id, kind, outcome, context, record.reason, buildString {
                 appendLine("Attempt: ${record.id}")
                 appendLine("Reason: ${record.reason}")
@@ -65,10 +66,10 @@ internal object OperationHistoryPresentationMapper {
                 appendLine("Updated (device time): ${format.format(Date(record.updatedAtMillis))}")
                 appendLine("Completed: ${record.finishedAtMillis?.let { format.format(Date(it)) } ?: "Not recorded"}")
                 if (!record.context.unavailable) {
-                    appendLine("Captured deployment intent: ${if (record.context.realDeployment) "Physical" else "Simulated"}")
-                    appendLine("Configured Data: ${record.context.dataTarget.ifBlank { "Not selected" }}")
-                    appendLine("Configured Game Root: ${record.context.rootTarget.ifBlank { "Not selected" }}")
-                    append("Configured paths describe intent, not verified targets.")
+                    appendLine("Deployment mode: ${if (record.context.realDeployment) "Game folders" else "Test folders"}")
+                    appendLine("Saved Data folder: ${record.context.dataTarget.ifBlank { "Not selected" }}")
+                    appendLine("Saved Game Root folder: ${record.context.rootTarget.ifBlank { "Not selected" }}")
+                    append("These are the saved folder choices, not a fresh check of folder access.")
                 } else append("Profile, game and configured targets are unavailable.")
             })
         })

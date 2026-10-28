@@ -65,7 +65,7 @@ fun InstallerChoiceDialog(
                 )
 
                 Text("Archive: ${prepared.archiveName}")
-                Text("Installer type: ${prepared.plan.installerType}")
+                Text("Installer: ${installerTypeLabel(prepared.plan.installerType)}")
                 prepared.inspection?.let { inspection ->
                     ArchiveInspectionSummary(ArchiveInspectionReport(
                         prepared.archiveName, inspection.extraction.observedAtMillis, inspection

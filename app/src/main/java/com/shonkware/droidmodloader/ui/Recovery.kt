@@ -41,38 +41,38 @@ fun RecoveryToolsCard(
             )
 
             Text(
-                text = "Review recorded state without changing game files. Marking reviewed is an annotation, not repair, and does not unblock deployment.",
+                text = "Review unfinished changes without changing game files. Mark Reviewed only records that you saw the warning; it does not repair files or allow another deployment.",
                 style = MaterialTheme.typography.bodySmall
             )
 
             DmlButtons.Secondary(
-                text = "View Last Deploy Journal",
+                text = "View Last Deployment",
                 enabled = !operationInProgress,
                 onClick = onViewLastDeployJournal,
                 modifier = Modifier.fillMaxWidth()
             )
 
             DmlButtons.Secondary(
-                text = "Build Full Redeploy Plan",
+                text = "Preview Full Redeploy",
                 enabled = !operationInProgress,
                 onClick = onBuildFullRedeployPlan,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Text(
-                text = "Shows what DML would rewrite if you rebuilt the deployed game folder from the current mod list. This does not change files.",
+                text = "Shows planned changes for a full redeploy in the log. No files are changed.",
                 style = MaterialTheme.typography.bodySmall
             )
 
             DmlButtons.Secondary(
-                text = "Mark Warning Reviewed",
+                text = "Mark Reviewed",
                 enabled = !operationInProgress && deployRecoveryAttentionRequired,
                 onClick = onMarkDeployRecoveryReviewed,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Text(
-                text = "Retry / rollback unavailable: current journals do not prove a safe per-file recovery action. Backup presence alone is insufficient.",
+                text = "DML cannot safely retry or undo this deployment from the saved record. Having a backup alone does not make that safe.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -84,7 +84,7 @@ fun RecoveryToolsCard(
             )
 
             Text(
-                text = "Rewrites current managed files; this is not recovery. Unresolved or unavailable recovery evidence blocks this action.",
+                text = "Rewrites files managed by the current mod list. This is not a repair, and is blocked while earlier changes still need recovery or their records cannot be read.",
                 style = MaterialTheme.typography.bodySmall
             )
 

@@ -138,15 +138,15 @@ class EnvironmentDiagnosticsTest {
         val log = mutableListOf<String>()
         coordinator(log).inspectEnvironment({ inspect(installation("oblivion", rules.getValue("oblivion"))) }, { true })
         assertTrue(log.any { it.contains("Environment facts (historical observation") })
-        assertTrue(log.any { it.contains("runtime compatibility remain unverified") })
+        assertTrue(log.any { it.contains("game version and whether it will run remain unverified") })
         assertFalse(log.contains("RESULT: PASS"))
     }
 
     @Test fun `inspection failure does not claim collected evidence`() {
         val log = mutableListOf<String>()
         coordinator(log).inspectEnvironment({ throw SecurityException("permission changed") }, { true })
-        assertTrue(log.any { it.startsWith("Environment inspection failed:") })
-        assertFalse(log.any { it.contains("Environment facts (") || it.contains("observation collected") })
+        assertTrue(log.any { it.startsWith("Game setup check failed:") })
+        assertFalse(log.any { it.contains("Environment facts (") || it.contains("Game setup checked.") })
     }
 
     private fun inspect(context: OperationContext) = EnvironmentDiagnostics.inspect(
@@ -162,7 +162,7 @@ class EnvironmentDiagnosticsTest {
     }
 
     private fun assertDiscarded(log: List<String>) {
-        assertTrue(log.any { it.startsWith("Environment facts discarded:") })
+        assertTrue(log.any { it.startsWith("Game setup results were not kept") })
         assertFalse(log.any { it.startsWith("Scope:") || it.startsWith("Environment facts (") || it.startsWith("App:") })
     }
 

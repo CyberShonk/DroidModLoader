@@ -74,7 +74,7 @@ fun PluginRow(
     val sourceLabel = when (plugin.sourceType) {
         "base_game" -> "Base Game"
         "official_dlc" -> "Official DLC"
-        "unmanaged_data" -> "Unmanaged Data Folder"
+        "unmanaged_data" -> "Game Data folder"
         "managed_mod" -> plugin.sourceModName
         else -> plugin.sourceModName
     }

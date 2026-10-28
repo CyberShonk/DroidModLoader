@@ -1,5 +1,10 @@
 package com.shonkware.droidmodloader
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -101,22 +106,25 @@ class ManagedContentIntegrityTest {
         val scheduled = mutableListOf<() -> Unit>()
         val runner = ActivityThreadRunner({ true }, { it() }, { scheduled += it })
         compose.setContent {
-            ReportCard("", {}, operationInProgress = running, integrityCheckInProgress = running,
-                onVerifyManagedContent = {
-                    runner.runExclusiveInBackground {
-                        check(cancelled.get())
-                    }
-                }, onCancelIntegrityCheck = { cancelled.set(true) })
+            // The production dashboard scrolls its ReportCard; use the same host constraint.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                ReportCard("", {}, operationInProgress = running, integrityCheckInProgress = running,
+                    onVerifyManagedContent = {
+                        runner.runExclusiveInBackground {
+                            check(cancelled.get())
+                        }
+                    }, onCancelIntegrityCheck = { cancelled.set(true) })
+            }
         }
-        compose.onNodeWithText("Cancel Integrity Check").assertIsNotEnabled()
-        repeat(2) { compose.onNodeWithText("Check Recorded Managed Content").performClick() }
+        compose.onNodeWithText("Cancel File Check").performScrollTo().assertIsNotEnabled()
+        repeat(2) { compose.onNodeWithText("Check Recorded Files").performScrollTo().performClick() }
         compose.runOnIdle {
             assertEquals(1, scheduled.size)
             assertTrue(runner.isOperationAdmitted)
             running = true
         }
-        compose.onNodeWithText("Check Recorded Managed Content").assertIsNotEnabled()
-        compose.onNodeWithText("Cancel Integrity Check").performClick()
+        compose.onNodeWithText("Check Recorded Files").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Cancel File Check").performScrollTo().performClick()
         compose.runOnIdle { assertTrue(cancelled.get()) }
         scheduled.single().invoke()
         compose.runOnIdle { assertFalse(runner.isOperationAdmitted) }

@@ -7,16 +7,16 @@ import com.shonkware.droidmodloader.engine.install.InstallRecoveryFact
 
 /** Completion of an operation is deliberately not a health state. */
 enum class DeploymentHealthPhase(val summary: String) {
-    UNKNOWN("Deployment evidence unavailable"),
-    STALE_CONTEXT("Deployment context changed; refresh required"),
-    RECOVERY_ATTENTION("Deployment recovery needs review"),
-    TARGET_UNAVAILABLE("Deployment readiness needs attention"),
-    PENDING_CHANGES("Deployment changes pending"),
-    INTEGRITY_DRIFT("Recorded content differs at last check"),
-    INTEGRITY_STALE("Integrity evidence is stale; rerun required"),
-    INTEGRITY_PARTIAL("Integrity check incomplete or unavailable"),
-    UNVERIFIED("No current integrity check"),
-    MATCHED_AT_CHECK("Recorded content matched at check time")
+    UNKNOWN("Deployment status is unavailable"),
+    STALE_CONTEXT("Profile or game folders changed; refresh needed"),
+    RECOVERY_ATTENTION("Unfinished changes need review"),
+    TARGET_UNAVAILABLE("Check the selected game folders"),
+    PENDING_CHANGES("Mod changes have not been deployed"),
+    INTEGRITY_DRIFT("Recorded files differed at the last check"),
+    INTEGRITY_STALE("File check is out of date; run it again"),
+    INTEGRITY_PARTIAL("File check is incomplete or unavailable"),
+    UNVERIFIED("No current file check"),
+    MATCHED_AT_CHECK("Recorded files matched at the last check")
 }
 
 enum class TargetReadiness { UNKNOWN, UNAVAILABLE, SIMULATED, READY }
@@ -83,7 +83,7 @@ data class DeploymentHealth(
         this.profileId == profileId.orEmpty() && this.gameId == gameId
 
     fun toDebugSummary(): String = buildString {
-        appendLine("Deployment Health: ${phase.summary}")
+        appendLine("Deployment Summary: ${phase.summary}")
         appendLine("Profile: $profileId; game: $gameId; collected: $collectedAtEpochMillis (epoch ms)")
         appendLine("Reasons: ${reasons.joinToString { it.name }}")
         targets.forEach { target ->

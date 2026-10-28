@@ -97,15 +97,15 @@ fun ModContentSummary(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("Content Index", fontWeight = FontWeight.Bold)
+        Text("Mod Contents", fontWeight = FontWeight.Bold)
 
         Text("Deployable files: ${contentIndex.deployableFiles.size}")
-        Text("Data-scope files: ${contentIndex.dataFiles.size}")
+        Text("Data folder files: ${contentIndex.dataFiles.size}")
         Text("Game root files: ${contentIndex.gameRootFiles.size}")
         Text("Plugins: ${contentIndex.plugins.size}")
         Text("Archives: ${contentIndex.archives.size}")
         Text("Config files: ${contentIndex.configs.size}")
-        Text("Setup-only files: ${contentIndex.setupOnlyFiles.size}")
+        Text("Setup files: ${contentIndex.setupOnlyFiles.size}")
         Text("Documentation files: ${contentIndex.documentationFiles.size}")
         Text("Optional modules: ${contentIndex.optionalModules.size}")
         Text("Ignored files: ${contentIndex.ignoredFiles.size}")
@@ -258,7 +258,7 @@ fun CompactModRow(
 
                         if (contentIndex.hasGameRootFiles) {
                             Text(
-                                text = "Contains Game Root files. A validated Game Folder is required before deployment.",
+                                text = "Contains Game Root files. Choose and check the game's main folder before deployment.",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }

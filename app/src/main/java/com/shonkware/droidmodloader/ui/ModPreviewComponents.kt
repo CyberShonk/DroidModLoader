@@ -58,13 +58,15 @@ fun ModFilePreviewDialog(
                     style = MaterialTheme.typography.titleLarge
                 )
 
-                Text("Winning/deployed: ${preview.winningFiles.size}")
+                Text("Winning files: ${preview.winningFiles.size}")
+                Text("Winners are chosen by mod order; this does not check which files are currently in the game folders.",
+                    style = MaterialTheme.typography.bodySmall)
                 Text("Overwritten: ${preview.overwrittenFiles.size}")
-                Text("Data-scope files: ${preview.dataFiles.size}")
+                Text("Data folder files: ${preview.dataFiles.size}")
                 Text("Game root files: ${preview.gameRootFiles.size}")
                 Text("Plugins: ${preview.pluginFiles.size}")
                 Text("Archives: ${preview.archiveFiles.size}")
-                Text("Configs: ${preview.configFiles.size}")
+                Text("Config files: ${preview.configFiles.size}")
 
                 if (preview.gameRootFiles.isNotEmpty()) {
                     Text(
@@ -127,10 +129,10 @@ fun FolderSummaryRow(
                     if (summary.gameRootFileCount > 0) append(" | Root: ${summary.gameRootFileCount}")
                     if (summary.winningCount > 0) append(" | Winning: ${summary.winningCount}")
                     if (summary.overwrittenCount > 0) append(" | Overwritten: ${summary.overwrittenCount}")
-                    if (summary.notDeployedCount > 0) append(" | Not deployed: ${summary.notDeployedCount}")
+                    if (summary.notDeployedCount > 0) append(" | Not selected: ${summary.notDeployedCount}")
                     if (summary.pluginCount > 0) append(" | Plugins: ${summary.pluginCount}")
                     if (summary.archiveCount > 0) append(" | Archives: ${summary.archiveCount}")
-                    if (summary.configCount > 0) append(" | Configs: ${summary.configCount}")
+                    if (summary.configCount > 0) append(" | Config files: ${summary.configCount}")
                     if (summary.setupCount > 0) append(" | Setup: ${summary.setupCount}")
                     if (summary.documentationCount > 0) append(" | Docs: ${summary.documentationCount}")
                     if (summary.optionalCount > 0) append(" | Optional: ${summary.optionalCount}")

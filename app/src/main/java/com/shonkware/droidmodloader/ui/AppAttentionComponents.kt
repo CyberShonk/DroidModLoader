@@ -76,7 +76,7 @@ fun AppAttentionCard(
 
                 if (presentation.dismissibleForSession) {
                     DmlButtons.Secondary(
-                        text = "Dismiss",
+                        text = "Hide for Now",
                         onClick = onDismissForSession,
                         modifier = Modifier.fillMaxWidth()
                     )

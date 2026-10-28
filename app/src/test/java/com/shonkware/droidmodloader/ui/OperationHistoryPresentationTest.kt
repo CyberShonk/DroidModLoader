@@ -16,9 +16,9 @@ class OperationHistoryPresentationTest {
     private fun attempt() = OperationAttempt.start(context, "Importing", clock = { 1000L }) { _, _, _ -> }
 
     @Test fun notLoadedAndEmptyAreDifferentAndNeitherClaimsHealth() {
-        assertEquals("Operation history has not been loaded.", OperationHistoryPresentation().status)
+        assertEquals("Recent activity has not been loaded.", OperationHistoryPresentation().status)
         val empty = OperationHistoryPresentationMapper.present(OperationHistorySnapshot())
-        assertEquals("No recorded operations.", empty.status)
+        assertEquals("No activity recorded yet.", empty.status)
         assertTrue(empty.entries.isEmpty())
         assertFalse(empty.status.contains("healthy", ignoreCase = true))
     }
@@ -46,13 +46,13 @@ class OperationHistoryPresentationTest {
         val entry = OperationHistoryPresentationMapper.present(OperationHistorySnapshot(listOf(record))).entries.single()
         assertEquals("Succeeded", entry.outcome)
         assertTrue(entry.context.contains("profile-a"))
-        assertTrue(entry.context.contains("skyrim_le"))
+        assertTrue(entry.context.contains("Skyrim Legendary Edition"))
         assertTrue(entry.details.contains("Attempt: ${record.id}"))
         assertTrue(entry.details.contains("Previous attempt: previous-attempt"))
-        assertTrue(entry.details.contains("Configured Data: /a/Data"))
-        assertTrue(entry.details.contains("Configured Game Root: /a"))
+        assertTrue(entry.details.contains("Saved Data folder: /a/Data"))
+        assertTrue(entry.details.contains("Saved Game Root folder: /a"))
         assertTrue(entry.details.contains("Started (device time):"))
-        assertTrue(entry.details.contains("not verified targets"))
+        assertTrue(entry.details.contains("not a fresh check of folder access"))
     }
 
     @Test fun unsavedAndUnavailableHistoryNeverMasqueradeAsCompleteSavedResults() {
@@ -77,8 +77,8 @@ class OperationHistoryPresentationTest {
         assertTrue(view.status.contains("5 of 8"))
         val unavailable = records.first().copy(context = OperationContext(null, "", false, "", "", unavailable = true))
         val entry = OperationHistoryPresentationMapper.present(OperationHistorySnapshot(listOf(unavailable))).entries.single()
-        assertTrue(entry.context.contains("unavailable"))
-        assertFalse(entry.details.contains("Configured Data:"))
+        assertTrue(entry.context.contains("too large to save"))
+        assertFalse(entry.details.contains("Saved Data folder:"))
     }
 
     @Test fun allRecordedKindsHaveExplicitLabelsWithoutInstallerChoicesForOtherKinds() {

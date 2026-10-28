@@ -163,9 +163,9 @@ class DeploymentHealthTest {
                 })
             }
         }
-        compose.onNodeWithText("Show Deployment Health Details").performClick()
+        compose.onNodeWithText("Show Deployment Details").performClick()
         compose.onNodeWithText(health.toDebugSummary()).assertIsDisplayed()
-        compose.onNodeWithText("Refresh Deployment Evidence").performScrollTo().performClick()
+        compose.onNodeWithText("Refresh Deployment Summary").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(1, refreshes)
             assertEquals(DeploymentHealthPhase.TARGET_UNAVAILABLE, health.phase)
@@ -173,7 +173,7 @@ class DeploymentHealthTest {
                 "fixture-profile", "fallout_nv", health))
             assertEquals(AppAttentionKind.GAME_INSTALLATION_RESELECTION, attention.single().kind)
         }
-        compose.onNodeWithText("Deployment Health: ${health.phase.summary}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Deployment Summary: ${health.phase.summary}").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(health.toDebugSummary()).assertIsDisplayed()
     }
 }

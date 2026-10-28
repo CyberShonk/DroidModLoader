@@ -129,13 +129,13 @@ class ArchiveInspectionRuntimeTest {
         repeat(2) {
             compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Archive Details"))
             compose.onNodeWithText("Archive Details").assertIsDisplayed().performClick()
-            compose.onNodeWithText("Encrypted: not separately observed").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Encrypted: unknown").performScrollTo().assertIsDisplayed()
             compose.onNodeWithText("Close").performClick()
         }
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Install"))
         compose.onNodeWithText("Inspect…").assertDoesNotExist()
         compose.onNodeWithText("Install").assertIsNotEnabled()
-        compose.onNodeWithText("Cancel Archive Work").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Cancel Import").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(0, installs); assertEquals(1, cancellations) }
     }
 
@@ -154,7 +154,7 @@ class ArchiveInspectionRuntimeTest {
         compose.onNode(hasScrollToIndexAction()).assertHeightIsAtLeast(1.dp)
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Install"))
         compose.onNodeWithText("Install").assertIsDisplayed().assertIsNotEnabled()
-        compose.onNodeWithText("Cancel Archive Work").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Cancel Import").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(1, cancellations) }
     }
 

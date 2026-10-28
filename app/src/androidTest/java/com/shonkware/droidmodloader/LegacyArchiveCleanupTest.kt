@@ -73,20 +73,20 @@ class LegacyArchiveCleanupTest {
                 onCleanOldArchiveCopies = { runner.runExclusiveInBackground { executions++ } }
             )
         }
-        compose.onNodeWithText("Clean Old DML Copies…").performClick()
+        compose.onNodeWithText("Remove Old DML Copies…").performClick()
         compose.runOnIdle { assertTrue(scheduled.isEmpty()) }
         compose.onNodeWithText("Cancel").performClick()
         compose.runOnIdle { assertTrue(scheduled.isEmpty()) }
         repeat(2) {
-            compose.onNodeWithText("Clean Old DML Copies…").performClick()
-            compose.onNodeWithText("Verify and Clean").performClick()
+            compose.onNodeWithText("Remove Old DML Copies…").performClick()
+            compose.onNodeWithText("Remove Copies").performClick()
         }
         compose.runOnIdle {
             assertEquals(1, scheduled.size) // Admission holds even before worker progress is published.
             assertEquals(0, executions)
             busy = true
         }
-        compose.onNodeWithText("Clean Old DML Copies…").assertIsNotEnabled()
+        compose.onNodeWithText("Remove Old DML Copies…").assertIsNotEnabled()
         scheduled.single().invoke()
         compose.runOnIdle {
             assertEquals(1, executions)

@@ -15,17 +15,25 @@ class ArchiveInspectionPresentationTest {
         val details = archiveInspectionDetails(report)
         repeat(5) { assertEquals(details, archiveInspectionDetails(report)) }
         val text = details.joinToString("\n")
-        assertTrue(text.contains("source may have changed"))
-        assertTrue(text.contains("Installing reads a fresh snapshot"))
-        assertTrue(text.contains("Detected from signature: zip"))
-        assertTrue(text.contains("Extension mismatch: yes"))
-        assertTrue(text.contains("Accepted entries: 3; completed files: 2"))
-        assertTrue(text.contains("expanded output: 40 bytes"))
-        assertTrue(text.contains("Installer layout: unavailable"))
-        assertTrue(text.contains("Encrypted: not separately observed"))
-        assertTrue(text.contains("Multipart: not separately observed"))
-        assertTrue(text.contains("Solid: not separately observed"))
+        assertTrue(text.contains("source archive may have changed"))
+        assertTrue(text.contains("A new install reads the archive again"))
+        assertTrue(text.contains("Archive type: zip"))
+        assertTrue(text.contains("Filename extension matches archive type: no"))
+        assertTrue(text.contains("Archive entries: 3; files unpacked: 2"))
+        assertTrue(text.contains("unpacked size: 40 bytes"))
+        assertTrue(text.contains("Installer: Not recognized"))
+        assertTrue(text.contains("Encrypted: unknown"))
+        assertTrue(text.contains("Split across volumes: unknown"))
+        assertTrue(text.contains("Solid: unknown"))
         assertFalse(text.contains("/private/snapshot"))
+    }
+
+    @Test fun `installer labels explain folder choice without exposing enum spelling`() {
+        assertEquals("Simple", installerTypeLabel(InstallerType.SIMPLE))
+        assertEquals("FOMOD", installerTypeLabel(InstallerType.FOMOD))
+        assertEquals("BAIN", installerTypeLabel(InstallerType.BAIN))
+        assertEquals("Choose a Data folder", installerTypeLabel(InstallerType.MANUAL_DATA_FOLDER))
+        assertEquals("Not recognized", installerTypeLabel(null))
     }
 
     @Test fun `reader refusals are not formatted as a completed read`() {
@@ -33,8 +41,8 @@ class ArchiveInspectionPresentationTest {
             failureCode = "PASSWORD_PROTECTED_OR_ENCRYPTED", message = "Encrypted RAR5 is unsupported.")).joinToString("\n")
         assertTrue(text.contains("PASSWORD_PROTECTED_OR_ENCRYPTED"))
         assertTrue(text.contains("Encrypted RAR5 is unsupported"))
-        assertFalse(text.contains("Reader: completed"))
-        assertFalse(text.contains("expanded output"))
+        assertFalse(text.contains("Archive was unpacked"))
+        assertFalse(text.contains("unpacked size"))
     }
 
     @Test fun `observed RAR5 flags and methods are shown without inventing compatibility`() {
@@ -45,9 +53,9 @@ class ArchiveInspectionPresentationTest {
                 variant = ArchiveVariantFacts(false, false, true, setOf(3, 0))),
             installerType = InstallerType.SIMPLE, layoutIssue = null))).joinToString("\n")
         assertTrue(text.contains("Encrypted: no"))
-        assertTrue(text.contains("Multipart: no"))
+        assertTrue(text.contains("Split across volumes: no"))
         assertTrue(text.contains("Solid: yes"))
         assertTrue(text.contains("Compression method codes: 0, 3"))
-        assertTrue(text.contains("does not prove game compatibility"))
+        assertTrue(text.contains("does not prove the mod will work in the game"))
     }
 }

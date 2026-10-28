@@ -75,7 +75,7 @@ class DeveloperDiagnosticsCoordinatorTest {
         coordinator.verifyManagedContent(FakeEngine(), "fallout_nv", "profile-a", { false }, { false })
         assertTrue(log.any { it.contains("profile=profile-a") })
         assertTrue(log.any { it.contains("STALE") })
-        assertEquals(listOf("Integrity evidence is stale; rerun required."), finished)
+        assertEquals(listOf("File-check results are out of date. Run the check again."), finished)
         assertTrue(log.none { it == "RESULT: PASS" })
     }
 
@@ -91,7 +91,7 @@ class DeveloperDiagnosticsCoordinatorTest {
         )
         coordinator.verifyManagedContent(FakeEngine(), "fallout_nv", "profile-a", { true }, { true })
         assertTrue(log.any { it.contains("CANCELLED / PARTIAL") })
-        assertTrue(log.contains("Integrity check cancelled; partial evidence only."))
+        assertTrue(log.contains("File check cancelled. Review the partial results in the log."))
     }
 
     @Test
@@ -106,7 +106,7 @@ class DeveloperDiagnosticsCoordinatorTest {
         assertTrue(log.any { it.contains("profile=profile-a; game=fallout_nv") })
         assertTrue(log.any { it.contains("Data=/intent/Data") })
         assertTrue(log.contains("Available: unknown"))
-        assertTrue(log.contains("Storage facts collected; requirements may be unknown."))
+        assertTrue(log.contains("Storage info is in the log. Space needed for your next action may still be unknown."))
         assertTrue(log.none { it == "RESULT: PASS" })
     }
 
@@ -116,7 +116,7 @@ class DeveloperDiagnosticsCoordinatorTest {
         var current = true
         val engine = FakeEngine { current = false; "OLD TARGET FACTS MUST NOT APPEAR" }
         storageCoordinator(log).inspectStorage(engine, OperationContext("profile-a", "fallout_nv", true, "/A/Data", "/A")) { current }
-        assertTrue(log.any { it.contains("Storage facts discarded") })
+        assertTrue(log.any { it.contains("Storage results were not kept") })
         assertTrue(log.none { it.contains("OLD TARGET FACTS") || it.contains("Storage scope:") })
     }
 
@@ -125,7 +125,7 @@ class DeveloperDiagnosticsCoordinatorTest {
         val log = mutableListOf<String>()
         val engine = FakeEngine { throw AssertionError("Unavailable context must not inspect storage") }
         storageCoordinator(log).inspectStorage(engine, OperationContext(null, "game", false, "", "", true)) { true }
-        assertTrue(log.any { it.contains("Storage inspection failed") })
+        assertTrue(log.any { it.contains("Could not read storage info") })
     }
 
     private fun storageCoordinator(log: MutableList<String>) = DeveloperDiagnosticsCoordinator(

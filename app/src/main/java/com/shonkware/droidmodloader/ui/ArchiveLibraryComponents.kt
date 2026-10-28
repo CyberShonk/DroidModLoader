@@ -176,7 +176,7 @@ fun ArchiveLibraryPanelDialog(
                             TextButton(
                                 onClick = onCancelArchiveImport
                             ) {
-                                Text("Cancel Archive Work")
+                                Text("Cancel Import")
                             }
                         } else {
                             Button(onClick = onClose) {
@@ -207,7 +207,7 @@ fun ArchiveLibraryPanelDialog(
                             enabled = controlsEnabled,
                             onClick = { showCleanupConfirmation = true }
                         ) {
-                            Text("Clean Old DML Copies…")
+                            Text("Remove Old DML Copies…")
                         }
                     }
                     item(key = "archive-search") {
@@ -251,7 +251,7 @@ fun ArchiveLibraryPanelDialog(
     if (showCleanupConfirmation) {
         AlertDialog(
             onDismissRequest = { showCleanupConfirmation = false },
-            title = { Text("Clean old DML archive copies?") },
+            title = { Text("Remove old DML archive copies?") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
@@ -266,7 +266,7 @@ fun ArchiveLibraryPanelDialog(
                 TextButton(enabled = controlsEnabled, onClick = {
                     showCleanupConfirmation = false
                     onCleanOldArchiveCopies()
-                }) { Text("Verify and Clean") }
+                }) { Text("Remove Copies") }
             },
             dismissButton = {
                 TextButton(onClick = { showCleanupConfirmation = false }) { Text("Cancel") }

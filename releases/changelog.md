@@ -8,13 +8,13 @@ This file records release changes visible to users and known limitations.
 
 - feat: Show archive details from the last install attempt without reading the archive again.
 - feat: Extract single volume, unencrypted RAR5 archives using standard methods `m0` through `m5`, including solid archives, with bounded dictionary and header processing. Entries use existing path, output and storage checks; unsupported variants are refused.
-- feat: Inspect Environment reports selected game markers, folder access, app and Android versions, API level and permission facts using bounded local checks. Missing and unavailable evidence stay distinct; historical observations in diagnostic and support logs do not imply game version or runtime compatibility.
-- feat: Inspect Storage reports managed write locations, backing volumes, available space and unknown requirements. Its bounded archive inventory deduplicates file identities, never follows symbolic links or removes files, and keeps partial results explicit. Facts remain historical observations in diagnostic and support logs.
+- feat: Check Game Setup reports expected game filenames, folder access, app and Android versions, API level and storage permission. Missing and unreadable results stay distinct; results in the log do not prove game version or whether the game will run. <!-- commits: 8fa5eafafe6f41b22550269dbc7549a55272c88e -->
+- feat: Show Storage Info lists DML's storage locations, backing volumes, available space and a limited archive listing. It does not follow symbolic links or remove files. Incomplete results and unknown space requirements stay clear. <!-- commits: 1bcf2c5f6d7f2531ddef3d5ebcdba2e00ceb220b -->
 - feat: The dashboard shows recent archive installs, deployments, full redeployments and plugin output with captured context and details. History retains up to 50 attempts within 256 KiB. Unfinished attempts have an unknown outcome and are never replayed; unavailable history and save failures remain separate from operation results.
-- feat: Deployment Health shares scoped readiness, pending-change, recovery and integrity facts across dashboard details, App Attention and support reports. Unknown or stale evidence stays explicit; successful operations and warning review do not prove disk integrity, and routine refreshes never rebuild expected hashes. <!-- commits: 2975d4fa6e4fa54debc4b5ff6d11789c58919e99 -->
+- feat: Deployment Summary combines known folder access, pending mod changes, unfinished work and previous file checks. Missing or outdated results stay clear; successful actions and reviewing warnings do not prove files are unchanged. Refreshing does not rebuild saved file checks. <!-- commits: 2975d4fa6e4fa54debc4b5ff6d11789c58919e99 -->
 - feat: Report & Diagnostics offers a cancellable, read-only SHA-256 check of recorded Data, Game Root and installed mod files, reporting missing, changed, unreadable or unavailable evidence. Results identify captured inputs and remain historical observations, not live health or compatibility proof; checks never rebuild missing expected hashes. <!-- commits: de2614ec50a76c773008bba4e38c8d6ce75d04c0 -->
 - feat: Mods show warnings for missing installation folders or no recognized game data. <!-- commits: 29119e8019f06089ea276fcae8ecaadaaf29ce44 -->
-- feat: App Attention collects unresolved deployment and installation recovery notices and requests to select a game folder again for the current profile. <!-- commits: cc38f79ff572825db526f7d41d2c5ba07edc1c4e, 5a6c10c62eafdae4ba2e7d6729f5d5f96a7ca107 -->
+- feat: Notifications inside DML show unfinished deployments and installations and ask you to choose the game folder again when access is lost. <!-- commits: cc38f79ff572825db526f7d41d2c5ba07edc1c4e, 5a6c10c62eafdae4ba2e7d6729f5d5f96a7ca107 -->
 - feat: Archive Library offers explicit cleanup of old archive copies, deleting only verified redundant copies while preserving originals and import history. <!-- commits: b8bc5851e9556e3052b337b8b4622a2bd4d214b1 -->
 - build: DML Dev installs separately so development builds do not replace the release app. <!-- commits: 4584028f5396c3175799de700f16885b3408fa81 -->
 - build: APK build receipts record the source commit, local changes, version, APK hash and signing details. <!-- commits: 6425c1c7a19495ed1db7b57f6ab650486524caaf -->
@@ -32,6 +32,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Use clearer button names and messages for imports, file checks and unfinished changes.
 - fix: Keep archive rows reachable on short screens while Close and Cancel stay visible.
 - fix: Index RAR file headers per volume to avoid repeated whole-header-list processing during extraction. RAR5 metadata read accounting now accommodates 4,096 entries and an optional quick open record; the independent metadata byte and dictionary limits remain unchanged.
 - fix: Deployment preflight reports capacity by volume, including new backups and restore staging. Copy checks refuse measurable shortages before overwriting targets; unknown capacity remains an explicit warning rather than a space guarantee.

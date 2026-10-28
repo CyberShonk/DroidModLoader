@@ -1318,9 +1318,9 @@ internal class SessionViewModel @JvmOverloads constructor(
     private fun refreshDeploymentHealth() {
         runSessionOperation(refreshArchives = false, preserveHealthEvidence = true) {
             captureOnUiThread { deploymentHealth = deploymentHealth?.let(DeploymentHealthProjector::invalidate) }
-            operationReporter.beginOperation("Refreshing deployment evidence...")
+            operationReporter.beginOperation("Refreshing deployment summary...")
             check(dashboardRefreshCoordinator.refresh()) { "Could not collect deployment evidence." }
-            operationReporter.finishOperation("Deployment evidence collected; review health details.")
+            operationReporter.finishOperation("Deployment summary refreshed. Choose Show Deployment Details to review it.")
         }
     }
 
@@ -1380,7 +1380,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                     val observation = report?.let { ScopedIntegrityObservation(profileId, gameId, it, journalRevision) }
                     integrityObservation.set(observation)
                     if (report != null) {
-                        operationReporter.appendLog("Refresh Deployment Evidence to include this observation in Deployment Health; no source index was rebuilt.")
+                        operationReporter.appendLog("Choose Refresh Deployment Summary to include these file-check results. No saved file checks were rebuilt.")
                     }
                 } finally {
                     integrityCancellation.compareAndSet(cancellation, null)

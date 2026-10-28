@@ -36,10 +36,10 @@ Check:
 5. A normal deployment completed after the mod state changed.
 6. Any plugin supplied by the mod is enabled when required.
 
-If the physical target was changed outside DML and its state is uncertain, inspect
-Deployment Health and run **Check Recorded Managed Content**. A saved manifest
-does not prove every physical file is still correct. Full redeploy is not repair
-and is blocked while recovery evidence is unresolved or unavailable.
+If another program changed the game folders, review **Deployment Summary** and
+run **Check Recorded Files**. A saved file list does not prove the files still
+match. Full redeploy is not repair and is blocked while earlier work still needs
+recovery or its records cannot be read.
 
 ## A plugin is missing or has the wrong order
 

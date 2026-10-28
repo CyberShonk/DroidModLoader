@@ -51,13 +51,13 @@ class OperationHistoryUiTest {
         compose.activityRule.scenario.onActivity(::render)
         compose.onNodeWithText("Archive install: Waiting for installer choices").assertIsDisplayed()
         compose.onNodeWithContentDescription("Details for attempt ${record.id}").performScrollTo().performClick()
-        compose.onNodeWithText("Configured Data: /fixture/Data", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Saved Data folder: /fixture/Data", substring = true).performScrollTo().assertIsDisplayed()
 
         compose.activityRule.scenario.recreate()
         compose.activityRule.scenario.onActivity(::render)
-        compose.onNodeWithText("Configured Data: /fixture/Data", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Saved Data folder: /fixture/Data", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Archive install: Succeeded").assertDoesNotExist()
-        compose.onNodeWithText("History is not current health or recovery authority.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Past results do not check your current files or repair unfinished changes.").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun unsavedAndUnavailableKeepInterruptedOutcomeUnknown() {
@@ -67,7 +67,7 @@ class OperationHistoryUiTest {
         compose.onNodeWithText("History changes are not saved.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Archive install: Interrupted: outcome unknown").assertIsDisplayed()
         compose.runOnIdle { history = history.copy(availability = OperationHistoryAvailability.UNAVAILABLE, reason = "Fixture corrupt") }
-        compose.onNodeWithText("Saved history is unavailable.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Saved history could not be loaded.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Archive install: Interrupted: outcome unknown").assertIsDisplayed()
         compose.onNodeWithText("Archive install: Cancelled").assertDoesNotExist()
     }

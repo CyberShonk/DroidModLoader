@@ -56,21 +56,21 @@ internal class DeveloperDiagnosticsCoordinator(
         cancelled: () -> Boolean,
         contextStillCurrent: () -> Boolean
     ): ManagedIntegrityReport? {
-        beginOperation("Checking recorded managed content...")
+        beginOperation("Checking recorded files...")
         return try {
             val result = engine.verifyManagedContent(gameId, cancelled)
             val report = result.copy(stale = result.stale || !contextStillCurrent())
             appendLog("----- Managed Content Integrity: profile=$profileId; game=$gameId -----")
             report.toSummary().lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
             finishOperation(when {
-                report.stale -> "Integrity evidence is stale; rerun required."
-                report.cancelled -> "Integrity check cancelled; partial evidence only."
-                report.groups.any { !it.complete } -> "Integrity check partial; some evidence unavailable."
-                else -> "Integrity check completed; review recorded counts."
+                report.stale -> "File-check results are out of date. Run the check again."
+                report.cancelled -> "File check cancelled. Review the partial results in the log."
+                report.groups.any { !it.complete } -> "File check incomplete. Some files could not be checked."
+                else -> "File check finished. Review the results in the log."
             })
             report
         } catch (failure: Exception) {
-            failOperation("Integrity check failed: ${failure.message}", failure)
+            failOperation("File check failed: ${failure.message}", failure)
             null
         }
         // The caller may reproject recorded metadata, but must not rebuild expected indexes.
@@ -80,17 +80,17 @@ internal class DeveloperDiagnosticsCoordinator(
         collect: () -> EnvironmentDiagnostics,
         contextStillCurrent: () -> Boolean
     ) {
-        beginOperation("Inspecting environment...")
+        beginOperation("Checking game setup...")
         try {
             val observation = collect()
             if (!contextStillCurrent()) {
-                finishOperation("Environment facts discarded: profile, game, targets or permission changed.")
+                finishOperation("Game setup results were not kept because the profile, game, folders or permission changed.")
                 return
             }
             observation.toSummary().lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
-            finishOperation("Environment observation collected; version and runtime compatibility remain unverified.")
+            finishOperation("Game setup checked. See the log; game version and whether it will run remain unverified.")
         } catch (failure: Exception) {
-            failOperation("Environment inspection failed: ${failure.message}", failure)
+            failOperation("Game setup check failed: ${failure.message}", failure)
         }
     }
 
@@ -99,21 +99,21 @@ internal class DeveloperDiagnosticsCoordinator(
         context: OperationContext,
         contextStillCurrent: () -> Boolean
     ) {
-        beginOperation("Inspecting managed storage...")
+        beginOperation("Reading storage info...")
         try {
             check(!context.unavailable) { "Storage context is unavailable." }
             val summary = engine.buildStorageDiagnosticSummary(context.gameId)
             if (!contextStillCurrent()) {
-                finishOperation("Storage facts discarded: profile, game or targets changed.")
+                finishOperation("Storage results were not kept because the profile, game or folders changed.")
                 return
             }
             appendLog("Storage scope: profile=${context.profileId ?: "unassigned"}; game=${context.gameId}")
             appendLog("Captured target intent: real=${context.realDeployment}; Data=${context.dataTarget}; Game Root=${context.rootTarget}")
             appendLog("Intent is not validated target evidence; measured locations use saved configuration.")
             summary.lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
-            finishOperation("Storage facts collected; requirements may be unknown.")
+            finishOperation("Storage info is in the log. Space needed for your next action may still be unknown.")
         } catch (failure: Exception) {
-            failOperation("Storage inspection failed: ${failure.message}", failure)
+            failOperation("Could not read storage info: ${failure.message}", failure)
         }
     }
 

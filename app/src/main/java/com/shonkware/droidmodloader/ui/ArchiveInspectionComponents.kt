@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
+import com.shonkware.droidmodloader.engine.install.InstallerType
 import java.text.DateFormat
 import java.util.Date
 
@@ -28,9 +29,9 @@ internal fun ArchiveInspectionSummary(report: ArchiveInspectionReport) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("From the last install attempt: ${report.archiveName}", style = MaterialTheme.typography.titleSmall)
             val facts = report.inspection?.extraction
-            Text(if (facts == null) "Inspection unavailable: ${report.failureCode}" else
-                "${facts.format.diagnosticLabel.uppercase()} read completed • ${facts.completedFiles} files • " +
-                    formatArchiveSize(facts.expandedBytes))
+            Text(if (facts == null) "Archive details unavailable: ${report.failureCode}" else
+                "${facts.format.diagnosticLabel.uppercase()} • ${facts.completedFiles} files • " +
+                    "${formatArchiveSize(facts.expandedBytes)} unpacked")
             Text("The archive may have changed since this attempt.", style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { showDetails = true }) { Text("Archive Details") }
         }
@@ -49,28 +50,36 @@ internal fun ArchiveInspectionSummary(report: ArchiveInspectionReport) {
     }
 }
 
+internal fun installerTypeLabel(type: InstallerType?): String = when (type) {
+    InstallerType.SIMPLE -> "Simple"
+    InstallerType.BAIN -> "BAIN"
+    InstallerType.FOMOD -> "FOMOD"
+    InstallerType.MANUAL_DATA_FOLDER -> "Choose a Data folder"
+    null -> "Not recognized"
+}
+
 internal fun archiveInspectionDetails(report: ArchiveInspectionReport): List<String> = buildList {
     add("Archive: ${report.archiveName}")
-    add("Observed: ${DateFormat.getDateTimeInstance().format(Date(report.observedAtMillis))}")
-    add("These facts describe one temporary snapshot. The source may have changed. Installing reads a fresh snapshot.")
+    add("Read at: ${DateFormat.getDateTimeInstance().format(Date(report.observedAtMillis))}")
+    add("These details were gathered during an install attempt. The source archive may have changed. A new install reads the archive again.")
     val inspection = report.inspection
     if (inspection == null) {
-        add("Inspection unavailable: ${report.failureCode ?: "unknown"}")
-        add(report.message ?: "No completed read facts are available.")
+        add("Archive details unavailable: ${report.failureCode ?: "unknown"}")
+        add(report.message ?: "The archive was not fully read.")
     } else {
         val facts = inspection.extraction
-        add("Detected from signature: ${facts.format.diagnosticLabel}")
-        add("Extension mismatch: ${if (facts.extensionMismatch) "yes" else "no"}")
-        add("Reader: completed under DML extraction limits. This does not prove game compatibility.")
-        add("Archive: ${facts.archiveBytes} bytes; expanded output: ${facts.expandedBytes} bytes")
-        add("Accepted entries: ${facts.acceptedEntries}; completed files: ${facts.completedFiles}")
-        fun observed(value: Boolean?) = when (value) { true -> "yes"; false -> "no"; null -> "not separately observed" }
+        add("Archive type: ${facts.format.diagnosticLabel}")
+        add("Filename extension matches archive type: ${if (facts.extensionMismatch) "no" else "yes"}")
+        add("Archive was unpacked within DML's safety limits. This does not prove the mod will work in the game.")
+        add("Archive size: ${facts.archiveBytes} bytes; unpacked size: ${facts.expandedBytes} bytes")
+        add("Archive entries: ${facts.acceptedEntries}; files unpacked: ${facts.completedFiles}")
+        fun observed(value: Boolean?) = when (value) { true -> "yes"; false -> "no"; null -> "unknown" }
         add("Encrypted: ${observed(facts.variant.encrypted)}")
-        add("Multipart: ${observed(facts.variant.multipart)}")
+        add("Split across volumes: ${observed(facts.variant.multipart)}")
         add("Solid: ${observed(facts.variant.solid)}")
-        add("Compression method codes: ${facts.variant.compressionMethods?.sorted()?.joinToString()?.ifEmpty { "no regular files" } ?: "not separately observed"}")
-        add("Installer layout: ${inspection.installerType?.name ?: "unavailable"}")
+        add("Compression method codes: ${facts.variant.compressionMethods?.sorted()?.joinToString()?.ifEmpty { "no regular files" } ?: "unknown"}")
+        add("Installer: ${installerTypeLabel(inspection.installerType)}")
         inspection.layoutIssue?.let { add(it) }
-        add("A readable archive and a recognized installer layout are different results. No installation or deployment is implied.")
+        add("Unpacking an archive does not mean installation or deployment finished.")
     }
 }

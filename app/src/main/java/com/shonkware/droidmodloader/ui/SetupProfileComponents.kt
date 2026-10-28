@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.shonkware.droidmodloader.engine.model.GameProfile
 import com.shonkware.droidmodloader.ui.theme.DmlColors
 import com.shonkware.droidmodloader.ui.theme.DmlDefaults
+import com.shonkware.droidmodloader.ui.workflow.GameCatalog
 
 @Composable
 private fun GameOptionChips(
@@ -38,12 +39,13 @@ private fun GameOptionChips(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         gameOptions.chunked(2).forEach { rowGames ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowGames.forEach { gameId ->
                     FilterChip(
                         selected = selectedGameId == gameId,
                         onClick = { onSelectGame(gameId) },
-                        label = { Text(gameId) }
+                        modifier = Modifier.weight(1f),
+                        label = { Text(GameCatalog.displayName(gameId)) }
                     )
                 }
             }
@@ -98,7 +100,7 @@ fun SetupScreen(
                         }
                     )
                     Text(
-                        text = "Choose the installed game's main folder. DML validates it and detects the Data folder automatically.",
+                        text = "Choose the installed game's main folder. DML checks it and finds the Data folder automatically.",
                         style = MaterialTheme.typography.bodySmall
                     )
 
@@ -221,7 +223,7 @@ fun ProfileManagerDialog(
                     }
                 )
                 Text(
-                    text = "Choose the installed game's main folder. DML validates it and detects the Data folder automatically.",
+                    text = "Choose the installed game's main folder. DML checks it and finds the Data folder automatically.",
                     style = MaterialTheme.typography.bodySmall
                 )
 

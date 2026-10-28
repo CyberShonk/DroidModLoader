@@ -38,7 +38,7 @@ class StorageDiagnosticsUiTest {
                 }
             }
         }
-        compose.onNodeWithText("Inspect Storage").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Show Storage Info").performScrollTo().assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(1, inspections) }
         compose.onNodeWithText(summary).performScrollTo().assertIsDisplayed()
     }
@@ -53,7 +53,7 @@ class StorageDiagnosticsUiTest {
                 }
             }
         }
-        compose.onNodeWithText("Inspect Storage").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Show Storage Info").performScrollTo().assertIsNotEnabled()
         compose.runOnIdle { assertEquals(0, inspections) }
     }
 }
