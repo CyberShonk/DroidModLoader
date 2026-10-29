@@ -154,6 +154,7 @@ class DeploymentHealthTest {
         var health by mutableStateOf(DeploymentHealthProjector.project(facts))
         var refreshes = 0
         compose.setContent {
+            com.shonkware.droidmodloader.ui.InfoPopoverHost {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 ReportCard("", {}, deploymentHealth = health, onRefreshDeploymentHealth = {
                     refreshes++
@@ -161,6 +162,7 @@ class DeploymentHealthTest {
                         it.copy(readiness = TargetReadiness.UNAVAILABLE, reselectionRequired = true)
                     }))
                 })
+            }
             }
         }
         compose.onNodeWithText("Show Deployment Details").performClick()

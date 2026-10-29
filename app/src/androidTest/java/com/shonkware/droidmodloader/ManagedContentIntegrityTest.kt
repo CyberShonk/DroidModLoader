@@ -107,6 +107,7 @@ class ManagedContentIntegrityTest {
         val runner = ActivityThreadRunner({ true }, { it() }, { scheduled += it })
         compose.setContent {
             // The production dashboard scrolls its ReportCard; use the same host constraint.
+            com.shonkware.droidmodloader.ui.InfoPopoverHost {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 ReportCard("", {}, operationInProgress = running, integrityCheckInProgress = running,
                     onVerifyManagedContent = {
@@ -114,6 +115,7 @@ class ManagedContentIntegrityTest {
                             check(cancelled.get())
                         }
                     }, onCancelIntegrityCheck = { cancelled.set(true) })
+            }
             }
         }
         compose.onNodeWithText("Cancel File Check").performScrollTo().assertIsNotEnabled()

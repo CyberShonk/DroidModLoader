@@ -79,18 +79,20 @@ internal class DeveloperDiagnosticsCoordinator(
     fun inspectEnvironment(
         collect: () -> EnvironmentDiagnostics,
         contextStillCurrent: () -> Boolean
-    ) {
+    ): EnvironmentDiagnostics? {
         beginOperation("Checking game setup...")
-        try {
+        return try {
             val observation = collect()
             if (!contextStillCurrent()) {
                 finishOperation("Game setup results were not kept because the profile, game, folders or permission changed.")
-                return
+                return null
             }
             observation.toSummary().lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
             finishOperation("Game setup checked. See the log; game version and whether it will run remain unverified.")
+            observation
         } catch (failure: Exception) {
             failOperation("Game setup check failed: ${failure.message}", failure)
+            null
         }
     }
 
@@ -98,22 +100,24 @@ internal class DeveloperDiagnosticsCoordinator(
         engine: DeveloperDiagnosticsEngine,
         context: OperationContext,
         contextStillCurrent: () -> Boolean
-    ) {
+    ): String? {
         beginOperation("Reading storage info...")
-        try {
+        return try {
             check(!context.unavailable) { "Storage context is unavailable." }
             val summary = engine.buildStorageDiagnosticSummary(context.gameId)
             if (!contextStillCurrent()) {
                 finishOperation("Storage results were not kept because the profile, game or folders changed.")
-                return
+                return null
             }
             appendLog("Storage scope: profile=${context.profileId ?: "unassigned"}; game=${context.gameId}")
             appendLog("Captured target intent: real=${context.realDeployment}; Data=${context.dataTarget}; Game Root=${context.rootTarget}")
             appendLog("Intent is not validated target evidence; measured locations use saved configuration.")
             summary.lineSequence().filter { it.isNotEmpty() }.forEach(appendLog)
             finishOperation("Storage info is in the log. Space needed for your next action may still be unknown.")
+            summary
         } catch (failure: Exception) {
             failOperation("Could not read storage info: ${failure.message}", failure)
+            null
         }
     }
 

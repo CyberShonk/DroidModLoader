@@ -32,12 +32,14 @@ class UiWordingRuntimeTest {
         var checking by mutableStateOf(false)
         compose.setContent {
             DmlTheme {
+                InfoPopoverHost {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     ReportCard("Synthetic log", { calls += "share" }, operationInProgress = busy,
                         integrityCheckInProgress = checking,
                         onVerifyManagedContent = { calls += "check" }, onCancelIntegrityCheck = { calls += "cancel" },
                         onRefreshDeploymentHealth = { calls += "refresh" }, onInspectStorage = { calls += "storage" },
                         onInspectEnvironment = { calls += "setup" })
+                }
                 }
             }
         }

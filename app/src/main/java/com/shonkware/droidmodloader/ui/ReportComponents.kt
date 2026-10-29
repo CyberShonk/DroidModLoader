@@ -3,6 +3,8 @@ package com.shonkware.droidmodloader.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -78,11 +80,17 @@ fun ReportCard(
             )
             Text("Shows DML's storage locations, available space and a limited archive listing in the log. Nothing is removed. Run it again after changing files or folders.")
 
-            DmlButtons.Secondary(
-                text = "Share Logs",
-                onClick = onShareLogs,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DmlButtons.Secondary(
+                    text = "Share Logs",
+                    onClick = onShareLogs,
+                    modifier = Modifier.weight(1f)
+                )
+                InfoPopover(
+                    text = "Reports include diagnostic information, logs, and full folder paths, which may reveal personal names. Only share with someone you trust. Nothing is uploaded automatically.",
+                    accessibilityLabel = "About shared logs"
+                )
+            }
 
             DmlButtons.Secondary(
                 text = "Check Recorded Files",

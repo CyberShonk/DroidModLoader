@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- feat: Share Logs includes profile and folder context, recorded deployment and recovery details, recent attempts, and retained diagnostic observations without running new checks. An information icon explains that reports include full folder paths and historical logs.
 - feat: Name a mod before installing and choose its files and Data folder in the install dialog. Unrecognized layouts ask before continuing. When the name already exists, add or update files, replace the mod, or cancel. The chosen name applies to DML's mod folder, not game deployment paths.
 - feat: Show archive details from the last install attempt without reading the archive again.
 - feat: Extract single volume, unencrypted RAR5 archives using standard methods `m0` through `m5`, including solid archives, with bounded dictionary and header processing. Entries use existing path, output and storage checks; unsupported variants are refused.

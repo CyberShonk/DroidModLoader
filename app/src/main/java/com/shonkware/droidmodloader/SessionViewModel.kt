@@ -100,7 +100,9 @@ import com.shonkware.droidmodloader.ui.workflow.PreviewDialogActionWorkflowContr
 import com.shonkware.droidmodloader.ui.workflow.AppDiagnosticInfo
 import com.shonkware.droidmodloader.ui.workflow.EnvironmentDiagnostics
 import com.shonkware.droidmodloader.ui.workflow.SupportReportCoordinator
-import com.shonkware.droidmodloader.ui.workflow.SupportReportEngineAdapter
+import com.shonkware.droidmodloader.ui.workflow.SupportDiagnostics
+import com.shonkware.droidmodloader.ui.workflow.SupportStorageObservation
+import com.shonkware.droidmodloader.ui.workflow.SupportReportEngineSnapshot
 import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionCoordinator
 import com.shonkware.droidmodloader.ui.workflow.ProfileContentInspectionEngineAdapter
 import com.shonkware.droidmodloader.ui.workflow.SecondScreenPluginCoordinator
@@ -461,17 +463,37 @@ internal class SessionViewModel @JvmOverloads constructor(
         )
     }
 
+    @Volatile private var supportEnvironmentObservation: EnvironmentDiagnostics? = null
+    @Volatile private var supportStorageObservation: SupportStorageObservation? = null
+
     private val supportReportCoordinator by lazy {
         SupportReportCoordinator(
             engineProvider = {
-                profileScopedEngineFactory.create(prepareDirectories = false)?.let(::SupportReportEngineAdapter)
+                captureOnUiThread {
+                    if (activeProfileId == null) null else SupportReportEngineSnapshot(visibleMods, visiblePlugins)
+                }
             },
             diagnosticInfoProvider = ::appDiagnosticInfo,
             lastOperationStatusProvider = { lastOperationStatus },
             developerModeEnabledProvider = { developerModeEnabled },
             currentLogTextProvider = { logText },
             sessionLogWriter = sessionLogWriter,
-            deploymentHealthProvider = { captureOnUiThread { currentDeploymentHealth() } }
+            deploymentHealthProvider = { captureOnUiThread { currentDeploymentHealth() } },
+            diagnosticsProvider = {
+                val provenance = runCatching {
+                    applicationContext.assets.open("dml-build-provenance.json").bufferedReader().use {
+                        SupportDiagnostics.readBuildProvenance(it.readText())
+                    }
+                }.getOrDefault(emptyMap())
+                captureOnUiThread {
+                    SupportDiagnostics(
+                        context = captureOperationContext(), profileName = activeProfileName,
+                        history = operationHistory.snapshot, environment = supportEnvironmentObservation,
+                        storage = supportStorageObservation, archive = archiveBrowserState.inspection,
+                        allFilesAccess = allFilesAccessManager.state(), buildProvenance = provenance
+                    )
+                }
+            }
         )
     }
     private val pluginSynchronizationWorkflow by lazy {
@@ -1441,7 +1463,7 @@ internal class SessionViewModel @JvmOverloads constructor(
         runSessionOperation(refreshArchives = false, preserveHealthEvidence = true) {
             val context = checkNotNull(admittedOperationContext.get())
             val permission = allFilesAccessManager.state()
-            developerDiagnosticsCoordinator.inspectEnvironment(
+            supportEnvironmentObservation = developerDiagnosticsCoordinator.inspectEnvironment(
                 collect = { EnvironmentDiagnostics.inspect(context, appDiagnosticInfo(), permission) },
                 contextStillCurrent = {
                     captureOnUiThread { context == captureOperationContext() } &&
@@ -1458,9 +1480,10 @@ internal class SessionViewModel @JvmOverloads constructor(
                 ProfileStoragePaths(filesDir, { context.profileId }, { context.gameId }), { context.gameId },
                 { message -> operationReporter.appendError(message) })
             val engine = checkNotNull(factory.create(prepareDirectories = false)) { "Storage engine is unavailable." }
-            developerDiagnosticsCoordinator.inspectStorage(DeveloperDiagnosticsEngineAdapter(engine), context) {
+            val observedAtMillis = System.currentTimeMillis()
+            supportStorageObservation = developerDiagnosticsCoordinator.inspectStorage(DeveloperDiagnosticsEngineAdapter(engine), context) {
                 captureOnUiThread { context == captureOperationContext() }
-            }
+            }?.let { SupportStorageObservation(context, observedAtMillis, it) }
         }
     }
 

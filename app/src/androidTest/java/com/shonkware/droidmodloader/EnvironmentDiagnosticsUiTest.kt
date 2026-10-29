@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.shonkware.droidmodloader.engine.storage.AllFilesAccessState
 import com.shonkware.droidmodloader.ui.ReportCard
+import com.shonkware.droidmodloader.ui.InfoPopoverHost
 import com.shonkware.droidmodloader.ui.theme.DmlTheme
 import com.shonkware.droidmodloader.ui.workflow.AppDiagnosticInfo
 import com.shonkware.droidmodloader.ui.workflow.EnvironmentDiagnostics
@@ -37,8 +38,10 @@ class EnvironmentDiagnosticsUiTest {
         ).toSummary()
         compose.setContent {
             DmlTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    ReportCard(log, {}, onInspectEnvironment = { inspections++; log = summary })
+                InfoPopoverHost {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        ReportCard(log, {}, onInspectEnvironment = { inspections++; log = summary })
+                    }
                 }
             }
         }
@@ -51,9 +54,11 @@ class EnvironmentDiagnosticsUiTest {
         var inspections = 0
         compose.setContent {
             DmlTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    ReportCard("Historical log", {}, operationInProgress = true,
-                        onInspectEnvironment = { inspections++ })
+                InfoPopoverHost {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        ReportCard("Historical log", {}, operationInProgress = true,
+                            onInspectEnvironment = { inspections++ })
+                    }
                 }
             }
         }

@@ -1,6 +1,5 @@
 package com.shonkware.droidmodloader.ui.workflow
 
-import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.io.SessionLogWriter
 import com.shonkware.droidmodloader.engine.model.Mod
@@ -21,11 +20,12 @@ internal interface SupportReportEngine {
     fun getCurrentPlugins(): List<PluginEntry>
 }
 
-internal class SupportReportEngineAdapter(
-    private val engine: ModEngine
-) : SupportReportEngine {
-    override fun getCurrentMods(): List<Mod> = engine.getCurrentMods()
-    override fun getCurrentPlugins(): List<PluginEntry> = engine.getCurrentPlugins()
+/** Displayed session lists only. Engine getters can rediscover folders when saved lists are empty. */
+internal class SupportReportEngineSnapshot(mods: List<Mod>, plugins: List<PluginEntry>) : SupportReportEngine {
+    private val mods = mods.toList()
+    private val plugins = plugins.toList()
+    override fun getCurrentMods(): List<Mod> = mods
+    override fun getCurrentPlugins(): List<PluginEntry> = plugins
 }
 
 internal class SupportReportCoordinator(
@@ -35,7 +35,8 @@ internal class SupportReportCoordinator(
     private val developerModeEnabledProvider: () -> Boolean,
     private val currentLogTextProvider: () -> String,
     private val sessionLogWriter: SessionLogWriter,
-    private val deploymentHealthProvider: () -> DeploymentHealth? = { null }
+    private val deploymentHealthProvider: () -> DeploymentHealth? = { null },
+    private val diagnosticsProvider: () -> SupportDiagnostics = { SupportDiagnostics() }
 ) {
     fun buildShareFile(cacheDir: File): File {
         val directory = File(cacheDir, "support-reports")
@@ -51,14 +52,24 @@ internal class SupportReportCoordinator(
     }
 
     fun buildShareText(): String {
-        val engine = engineProvider()
-        val mods = engine?.getCurrentMods().orEmpty()
-        val plugins = engine?.getCurrentPlugins().orEmpty()
+        val diagnostics = diagnosticsProvider()
+        val engine = runCatching { engineProvider() }.getOrNull()
+        val mods = runCatching { engine?.getCurrentMods() }.getOrNull()
+        val plugins = runCatching { engine?.getCurrentPlugins() }.getOrNull()
         val info = diagnosticInfoProvider()
-        val health = deploymentHealthProvider()
+        val suppliedHealth = deploymentHealthProvider()
+        val health = suppliedHealth?.takeIf { diagnostics.context == null ||
+            it.isFor(diagnostics.context.profileId, diagnostics.context.gameId) }
         val summary = buildString {
             appendLine("=== Droid Mod Loader Diagnostic Summary ===")
+            appendLine("Reports include full folder paths and historical logs. Only share with someone you trust.")
+            appendLine("Profile: ${diagnostics.profileName ?: diagnostics.context?.profileId ?: "unavailable"}; game: ${diagnostics.context?.gameId ?: "unavailable"}")
+            appendLine("Deployment: ${health?.phase?.summary ?: "unavailable"}")
+            appendLine("File check: ${health?.integrity?.fact ?: "unavailable"}")
+            appendLine("Recovery: ${health?.recovery ?: "unavailable"}; install recovery attention: ${health?.installRecoveryRequired ?: "unknown"}")
+            appendLine("Sharing reuses recorded facts. No new file check, archive read or capacity measurement was run.")
             appendLine()
+            appendLine("=== Technical details ===")
             appendLine("App Version: ${info.versionName} (${info.versionCode})")
             appendLine("Display Version: ${info.versionName}")
             appendLine("Package: ${info.packageName}")
@@ -66,20 +77,24 @@ internal class SupportReportCoordinator(
             appendLine("Android API: ${info.sdkInt ?: "unavailable"}")
             appendLine("Device: ${info.deviceModel}")
             appendLine()
-            appendLine("Installed Mods: ${mods.size}")
-            appendLine("Enabled Mods: ${mods.count { it.enabled }}")
-            appendLine("Plugins: ${plugins.size}")
-            appendLine("Enabled Plugins: ${plugins.count { it.enabled }}")
+            appendLine("Mod/plugin snapshot: ${if (engine == null) "unavailable" else "available"}")
+            appendLine("Mod/plugin counts use the displayed session snapshot, not a new folder scan.")
+            appendLine("Installed Mods: ${mods?.size ?: "unavailable"}")
+            appendLine("Enabled Mods: ${mods?.count { it.enabled } ?: "unavailable"}")
+            appendLine("Plugins: ${plugins?.size ?: "unavailable"}")
+            appendLine("Enabled Plugins: ${plugins?.count { it.enabled } ?: "unavailable"}")
             appendLine("Last Operation Status: ${lastOperationStatusProvider()}")
             appendLine()
             appendLine("Developer Mode Enabled: ${developerModeEnabledProvider()}")
             appendLine()
-            health?.let { appendLine(it.toDebugSummary()) }
+            appendLine(diagnostics.toSummary())
+            appendLine(health?.toDebugSummary() ?: if (suppliedHealth == null)
+                "Deployment details unavailable; sharing did not refresh them." else
+                "Deployment details have stale profile/game context and were omitted.")
             appendLine("Current Logs:")
             appendLine(currentLogTextProvider())
         }
 
-        sessionLogWriter.append("=== Diagnostic Snapshot ===\n$summary")
         val persistentLog = sessionLogWriter.readTextOrEmpty()
             .ifBlank { "(no persistent log file)" }
         return summary + "\n\n=== Persistent Log File ===\n" + persistentLog

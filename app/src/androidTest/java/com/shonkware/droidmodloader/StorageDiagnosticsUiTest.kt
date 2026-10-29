@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performScrollTo
 import com.shonkware.droidmodloader.engine.storage.ManagedArchiveInventory
 import com.shonkware.droidmodloader.engine.storage.StorageDiagnostics
 import com.shonkware.droidmodloader.ui.ReportCard
+import com.shonkware.droidmodloader.ui.InfoPopoverHost
 import com.shonkware.droidmodloader.ui.theme.DmlTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -33,8 +34,10 @@ class StorageDiagnosticsUiTest {
             StorageDiagnostics(0L, emptyList(), ManagedArchiveInventory(details = listOf("Available capacity unknown")), emptyList()).toSummary()
         compose.setContent {
             DmlTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    ReportCard(log, {}, onInspectStorage = { inspections++; log = summary })
+                InfoPopoverHost {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        ReportCard(log, {}, onInspectStorage = { inspections++; log = summary })
+                    }
                 }
             }
         }
@@ -48,8 +51,10 @@ class StorageDiagnosticsUiTest {
         var inspections = 0
         compose.setContent {
             DmlTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    ReportCard("Historical log", {}, operationInProgress = true, onInspectStorage = { inspections++ })
+                InfoPopoverHost {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        ReportCard("Historical log", {}, operationInProgress = true, onInspectStorage = { inspections++ })
+                    }
                 }
             }
         }

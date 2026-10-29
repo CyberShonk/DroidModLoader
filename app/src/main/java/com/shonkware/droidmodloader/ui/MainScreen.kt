@@ -209,6 +209,7 @@ private fun MainDashboardScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
+        InfoPopoverHost {
         DmlMatteBackground {
             Column(
                 modifier = Modifier
@@ -341,6 +342,7 @@ private fun MainDashboardScreen(
                     )
                 }
             }
+        }
         }
     }
 }

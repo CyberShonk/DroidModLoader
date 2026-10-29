@@ -182,6 +182,17 @@ removes files. It reports observed logical bytes, not allocated disk size, archi
 validity or deletion eligibility. User source libraries and import history are not
 inventory. Partial or unavailable results stay explicit; run it again after changes.
 
+**Share Logs** creates a text report and opens Android's share chooser. It includes
+a short summary, technical details and existing logs. Recorded details cover the
+selected profile and game, folder choices, deployment and recovery, recent attempts,
+and retained storage, game setup and archive observations. Missing or outdated
+observations stay explicit. Sharing does not run another check or read archives.
+
+Tap the **ⓘ** beside **Share Logs** for a privacy explanation. Reports include full
+folder paths, which may reveal personal names, and logs can include older profiles
+and folders. Only share with someone you trust. Nothing is uploaded automatically.
+Tap elsewhere, tap the icon again or scroll to dismiss the explanation.
+
 Choose **Check Recorded Files** to compare recorded Data, Game Root and installed
 mod files with DML's saved checks. It reports missing, changed or unreadable files
 without changing them. It only checks files with saved records, not the whole game.
