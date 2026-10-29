@@ -118,6 +118,53 @@ must resolve to commits in the current history. Overrides are hidden in the
 generated notes.
 Review the summaries, links, known issues and upgrade guidance before publication.
 
+## Local release preview
+
+`tools/preview-release.py` creates an exact text review page and copies the supplied
+files into a new snapshot. It does not render Markdown or BBCode, build an APK,
+access signing keys, fetch links, upload, or approve a release. Python 3.11 or newer
+and local Git history are required.
+
+```bash
+python3 tools/preview-release.py \
+  --input /tmp/dml-candidate --output /tmp/dml-review-01 \
+  --version v0.8.0-beta --version-code 4 \
+  --source-commit HEAD --previous-ref v0.7.0-beta \
+  --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256
+```
+
+The values above are examples. Open the resulting `index.html` locally. Documentation
+comes from the specified commit, not uncommitted edits; the page includes its changes
+from the previous ref. Raw text is escaped rather than executed or loaded from the web.
+
+Supply these text files beneath the input folder:
+
+- `github/title.txt`, `github/body.md` and `github/prerelease.txt` (`true` or `false`);
+- `nexus/file-description.txt`, `nexus/changelog.txt` and `nexus/description.bbcode`;
+- `previous/nexus-description.bbcode` for the description comparison;
+- `maintainer/checklist.txt` for pending checks and approvals; and
+- optionally `maintainer/email.txt`, clearly shown as an unsent draft.
+
+Put the canonical APK, receipt, release manifest and `SHA256SUMS.txt` in
+`github/assets/`. Put `DroidModLoader-<version>-Nexus.zip` directly in `nexus/`,
+not in the GitHub assets. The ZIP contains the same APK/receipt, `README-NEXUS.txt`,
+`LICENSE`, `THIRD-PARTY-NOTICES.txt` and its own `SHA256SUMS.txt`. Outer checksums
+cover APK, receipt, manifest and Nexus ZIP; inner checksums cover the ZIP payloads,
+not the checksum file itself. The preview displays the ZIP text and file listing
+without extracting it.
+
+Default mode shows an incomplete draft with missing inputs and placeholders.
+Add `--complete` to require the defined inputs and consistency checks. A complete
+snapshot is not release approval: APK signatures, Android metadata, manifest schema,
+runtime behavior and actual GitHub/Nexus formatting still need their own checks.
+An email draft may still need the eventual upload URL or status.
+
+Use `python3 tools/preview-release.py --verify /tmp/dml-review-01` to compare snapshot
+files against `review.sha256`. This checks integrity, not authenticity or approval.
+Keep the whole review folder out of uploaded assets. Existing output directories
+are refused; failed writes can leave an incomplete directory, so choose a new one.
+Outputs inside the repository must be ignored. No new version code is reserved.
+
 ## Pull requests
 
 Include:
