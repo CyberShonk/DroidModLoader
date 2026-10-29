@@ -10,7 +10,18 @@ data class ArchiveExtractionFacts(
     val acceptedEntries: Int,
     val completedFiles: Int,
     val expandedBytes: Long,
-    val variant: ArchiveVariantFacts = ArchiveVariantFacts()
+    val variant: ArchiveVariantFacts = ArchiveVariantFacts(),
+    val storage: ArchiveExtractionStorage? = null
+)
+
+/** Last existing extraction probe, not remaining capacity, a copy budget or an install guarantee.
+ * Null storage means no probe ran; null availableBytes means that probe could not measure space.
+ */
+data class ArchiveExtractionStorage(
+    val locationPath: String,
+    val observedAtMillis: Long,
+    val availableBytes: Long?,
+    val minimumFreeSpaceBytes: Long
 )
 
 /** Null means not separately observed; a reader slot or filename is not metadata evidence. */

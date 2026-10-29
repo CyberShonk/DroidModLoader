@@ -29,7 +29,7 @@ internal fun ArchiveInspectionSummary(report: ArchiveInspectionReport) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("From the last install attempt: ${report.archiveName}", style = MaterialTheme.typography.titleSmall)
             val facts = report.inspection?.extraction
-            Text(if (facts == null) "Archive details unavailable: ${report.failureCode}" else
+            Text(if (facts == null) report.message ?: "Archive details unavailable: ${report.failureCode ?: "unknown"}" else
                 "${facts.format.diagnosticLabel.uppercase()} • ${facts.completedFiles} files • " +
                     "${formatArchiveSize(facts.expandedBytes)} unpacked")
             Text("The archive may have changed since this attempt.", style = MaterialTheme.typography.bodySmall)
@@ -78,6 +78,11 @@ internal fun archiveInspectionDetails(report: ArchiveInspectionReport): List<Str
         add("Split across volumes: ${observed(facts.variant.multipart)}")
         add("Solid: ${observed(facts.variant.solid)}")
         add("Compression method codes: ${facts.variant.compressionMethods?.sorted()?.joinToString()?.ifEmpty { "no regular files" } ?: "unknown"}")
+        val storage = facts.storage
+        add("Extraction storage at the last check: ${storage?.availableBytes?.let { "$it bytes available" } ?: "not measured"}")
+        storage?.let { add("Extraction headroom: ${it.minimumFreeSpaceBytes} bytes. Checked at: " +
+            DateFormat.getDateTimeInstance().format(Date(it.observedAtMillis))) }
+        add("Storage checks covered extraction only, not the remaining installation or deployment. Space may have changed.")
         add("Installer: ${installerTypeLabel(inspection.installerType)}")
         inspection.layoutIssue?.let { add(it) }
         add("Unpacking an archive does not mean installation or deployment finished.")

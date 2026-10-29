@@ -10,6 +10,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -30,6 +33,7 @@ import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserItemStatus
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiItem
 import com.shonkware.droidmodloader.ui.archive.ArchiveBrowserUiState
 import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
+import com.shonkware.droidmodloader.ui.archive.archiveFailureMessage
 import com.shonkware.droidmodloader.ui.theme.DmlTheme
 import org.junit.Assert.*
 import org.junit.Before
@@ -62,6 +66,7 @@ class ArchiveInspectionRuntimeTest {
             assertEquals(InstallerType.SIMPLE, facts.installerType)
             assertEquals(1, facts.extraction.completedFiles)
             assertEquals(7L, facts.extraction.expandedBytes)
+            assertNotNull(facts.extraction.storage)
             assertEquals("Data", prepared.plan.groups.single().options.single().sourcePath)
             assertEquals("payload", File(prepared.installRootPath, "Data/mod.esp").readText())
         } finally { installer.cancel(prepared) }
@@ -82,17 +87,15 @@ class ArchiveInspectionRuntimeTest {
         val marker = File(root, "mods/Existing/keep.esp").apply { parentFile!!.mkdirs(); writeText("unchanged") }
         val installer = PreparedArchiveInstaller(File(root, "temp"), File(root, "mods"))
         for ((index, path) in listOf("../outside", "C:/outside").withIndex()) {
-            val failure = assertThrows(java.io.IOException::class.java) {
+            val readFailure = assertThrows(ArchiveReadException::class.java) {
                 installer.prepare(zip(root, "unsafe-$index.zip", path))
             }
-            assertTrue(failure.cause is ArchiveReadException)
-            val readFailure = failure.cause as ArchiveReadException
             // Android 14+ rejects traversal before DML's own guard; Windows paths reach DML.
             val platformRefusal = index == 0 && Build.VERSION.SDK_INT >= 34
             assertEquals(if (platformRefusal) ArchiveReadFailureCode.CORRUPT_OR_UNSUPPORTED
                 else ArchiveReadFailureCode.UNSAFE_ENTRY_PATH, readFailure.code)
             if (platformRefusal) {
-                val zipFailure = generateSequence<Throwable>(failure) { it.cause }.filterIsInstance<ZipException>().single()
+                val zipFailure = generateSequence<Throwable>(readFailure) { it.cause }.filterIsInstance<ZipException>().single()
                 assertTrue(zipFailure.message.orEmpty().contains(path))
             }
             assertEquals("unchanged", marker.readText())
@@ -142,6 +145,42 @@ class ArchiveInspectionRuntimeTest {
         compose.onNodeWithText("Install").assertIsNotEnabled()
         compose.onNodeWithText("Cancel Import").assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(0, installs); assertEquals(1, cancellations) }
+    }
+
+    @Test fun portraitFailureShowsActionableReasonWithoutASafetyOverride() =
+        assertFailurePresentation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+
+    @Test fun landscapeFailureShowsActionableReasonWithoutASafetyOverride() =
+        assertFailurePresentation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+
+    private fun assertFailurePresentation(orientation: Int) {
+        // This synthetic ComponentActivity does not reinstall setContent after recreation.
+        // Establish orientation before setting content, as the existing landscape case does.
+        compose.activityRule.scenario.onActivity { it.requestedOrientation = orientation }
+        val expected = if (orientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            Configuration.ORIENTATION_PORTRAIT else Configuration.ORIENTATION_LANDSCAPE
+        compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == expected }
+        var installs = 0
+        val message = archiveFailureMessage(ArchiveReadFailureCode.UNSAFE_ENTRY_PATH)
+        val report = ArchiveInspectionReport("fixture.zip", 0,
+            failureCode = ArchiveReadFailureCode.UNSAFE_ENTRY_PATH.name, message = message)
+        compose.setContent {
+            DmlTheme {
+                ArchiveLibraryPanelDialog(browserState().copy(inspection = report), false, false, "", rememberLazyListState(),
+                    {}, {}, {}, { installs++ }, {}, {})
+            }
+        }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(message))
+        compose.onNodeWithText(message).assertIsDisplayed()
+        compose.onNodeWithText("Install Anyway").assertDoesNotExist()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Archive Details"))
+        compose.onNodeWithText("Archive Details").performClick()
+        compose.onNodeWithText("Archive details unavailable: UNSAFE_ENTRY_PATH").performScrollTo().assertIsDisplayed()
+        val detailsDialog = isDialog() and hasAnyDescendant(hasText("Archive details from install attempt"))
+        compose.onNode(hasText("Close") and hasAnyAncestor(detailsDialog)).performClick()
+        compose.onNodeWithText("Archive details from install attempt").assertDoesNotExist()
+        compose.onNode(hasScrollToIndexAction()).assertExists()
+        compose.runOnIdle { assertEquals(0, installs) }
     }
 
     @Test fun landscapeRowsScrollWhileCancellationStaysVisible() {

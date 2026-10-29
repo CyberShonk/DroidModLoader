@@ -103,22 +103,16 @@ class PreparedArchiveInstaller internal constructor(
                 } else null
             )
         } catch (exception: Exception) {
-            if (
-                sessionRoot.exists() &&
-                !sessionRoot.deleteRecursively()
-            ) {
-                exception.addSuppressed(
-                    IOException(
-                        "Could not clean failed prepared " +
-                                "installer session: " +
-                                sessionRoot.absolutePath
-                    )
-                )
+            try {
+                if (sessionRoot.exists() && !sessionRoot.deleteRecursively()) {
+                    throw IOException("Could not clean failed prepared installer session: ${sessionRoot.absolutePath}")
+                }
+            } catch (cleanupFailure: Exception) {
+                exception.addSuppressed(cleanupFailure)
             }
 
-            if (
-                exception is
-                        InstallCancelledException
+            if (exception is InstallCancelledException ||
+                exception is ArchiveReadException || exception is ArchiveFormatProbeException
             ) {
                 throw exception
             }

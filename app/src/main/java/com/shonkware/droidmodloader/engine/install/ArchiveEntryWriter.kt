@@ -69,8 +69,10 @@ class ArchiveEntryWriter internal constructor(
         acceptedEntries = acceptedEntryCount,
         completedFiles = completedFileCount,
         expandedBytes = totalBytesWritten,
-        variant = variantFacts
+        variant = variantFacts,
+        storage = lastStorageObservation
     )
+    private var lastStorageObservation: ArchiveExtractionStorage? = null
     private var estimatedUsableSpaceBytes: Long? = null
     private var bytesWrittenSinceSpaceCheck = 0L
 
@@ -367,8 +369,14 @@ class ArchiveEntryWriter internal constructor(
                     limits.spaceCheckIntervalBytes
 
         if (shouldRefresh) {
-            estimatedUsableSpaceBytes =
-                usableSpaceBytes(spaceProbePath())
+            val path = spaceProbePath()
+            estimatedUsableSpaceBytes = usableSpaceBytes(path)
+            lastStorageObservation = ArchiveExtractionStorage(
+                locationPath = path.absolutePath,
+                observedAtMillis = System.currentTimeMillis(),
+                availableBytes = estimatedUsableSpaceBytes?.takeIf { it >= 0L },
+                minimumFreeSpaceBytes = limits.minimumFreeSpaceBytes
+            )
 
             bytesWrittenSinceSpaceCheck = 0L
         }

@@ -1197,8 +1197,10 @@ internal class SessionViewModel @JvmOverloads constructor(
                 archiveBrowserWorkflow.refreshIfOpen()
             },
             inspectionPublisher = { sourcePath ->
+                val context = admittedOperationContext.get()
                 archiveBrowserWorkflow.captureInspectionPublisher(
-                    admittedOperationContext.get()?.profileId, sourcePath
+                    context?.profileId, sourcePath,
+                    isContextCurrent = { context != null && context == captureOperationContext() }
                 )
             }
         )

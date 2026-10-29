@@ -301,6 +301,53 @@ class ArchiveBrowserWorkflowTest {
         assertEquals(null, states.last().inspection)
     }
 
+    @Test
+    fun newerAttemptRejectsAnOlderQueuedObservationEvenInTheSameFolder() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val queued = mutableListOf<() -> Unit>()
+        val workflow = workflow(FakeFolderStore("/archives"),
+            scanFolder = { ArchiveFolderScanResult("Downloads", listOf(folderEntry("one", "One.zip", 100))) },
+            updateState = states::add, postToUiThread = queued::add)
+        workflow.openBrowser()
+        queued.toList().forEach { it() }
+        queued.clear()
+        val old = workflow.captureInspectionPublisher("profile-a", "/archives/one")
+        val latest = workflow.captureInspectionPublisher("profile-a", "/archives/one")
+        val latestReport = ArchiveInspectionReport("One.zip", 2000, failureCode = "UNSAFE_ENTRY_PATH")
+        latest(latestReport)
+        old(ArchiveInspectionReport("One.zip", 1000, failureCode = "IO_FAILURE"))
+        queued.toList().forEach { it() }
+        assertEquals(latestReport, states.last().inspection)
+    }
+
+    @Test
+    fun inspectionPublicationRejectsChangedGameOrTargetsWithoutAnotherScan() {
+        val states = mutableListOf<ArchiveBrowserUiState>()
+        val queued = mutableListOf<() -> Unit>()
+        var currentContext = OperationContext("profile-a", "skyrim_le", true, "/game/Data", "/game")
+        var scans = 0
+        val workflow = workflow(FakeFolderStore("/archives"), scanFolder = {
+            scans++
+            ArchiveFolderScanResult("Downloads", listOf(folderEntry("one", "One.zip", 100)))
+        }, updateState = states::add, postToUiThread = queued::add)
+        workflow.openBrowser()
+        queued.toList().forEach { it() }
+        queued.clear()
+        val captured = currentContext
+        val publisher = workflow.captureInspectionPublisher("profile-a", "/archives/one") { captured == currentContext }
+        publisher(ArchiveInspectionReport("One.zip", 1234))
+        currentContext = currentContext.copy(gameId = "fallout_nv")
+        queued.toList().forEach { it() }
+        assertEquals(null, states.last().inspection)
+        queued.clear()
+        currentContext = captured
+        publisher(ArchiveInspectionReport("One.zip", 1234))
+        currentContext = currentContext.copy(dataTarget = "/other/Data")
+        queued.toList().forEach { it() }
+        assertEquals(null, states.last().inspection)
+        assertEquals(1, scans)
+    }
+
     private fun workflow(
         store: FakeFolderStore,
         activeProfileIdProvider: () -> String? = { "profile-a" },

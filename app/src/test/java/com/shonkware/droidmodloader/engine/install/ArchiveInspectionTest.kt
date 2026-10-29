@@ -12,10 +12,12 @@ import java.util.zip.ZipOutputStream
 class ArchiveInspectionTest {
     @get:Rule val temporary = TemporaryFolder()
     private var reads = 0
+    private var spaceProbes = 0
     private var sessionId = 0
 
     private fun extractor(
         limits: ExtractionLimits = ExtractionLimits(),
+        availableBytes: Long? = Long.MAX_VALUE,
         afterRead: () -> Unit = {}
     ): ArchiveExtractor {
         fun counted(delegate: ArchiveReader) = object : ArchiveReader {
@@ -28,7 +30,10 @@ class ArchiveInspectionTest {
         return ArchiveExtractor(
             readerRegistry = ArchiveReaderRegistry(ArchiveFormatProbe(), counted(ZipArchiveReader()),
                 counted(SevenZipArchiveReader()), counted(RarArchiveReader()), counted(Rar5ArchiveReader())),
-            createWriter = { output, signal -> ArchiveEntryWriter(output, limits, {}, { Long.MAX_VALUE }, signal) }
+            createWriter = { output, signal -> ArchiveEntryWriter(output, limits, {}, {
+                spaceProbes++
+                availableBytes
+            }, signal) }
         )
     }
 
@@ -58,6 +63,31 @@ class ArchiveInspectionTest {
     ): ArchiveInspection {
         val prepared = prepare(archive, signal)
         try { return checkNotNull(prepared.inspection) } finally { cancel(prepared) }
+    }
+
+    @Test fun `installation facts reuse bounded fixture work`() {
+        val source = File(temporary.root, "cost.zip")
+        val payload = ByteArray(4096) { (it % 251).toByte() }
+        ZipOutputStream(source.outputStream()).use { output ->
+            repeat(128) { index ->
+                output.putNextEntry(ZipEntry("Data/textures/fixture-$index.dds").apply { time = 0 })
+                output.write(payload)
+                output.closeEntry()
+            }
+        }
+        val inspector = installer()
+        val started = System.nanoTime()
+        val prepared = inspector.prepare(source)
+        val elapsed = System.nanoTime() - started
+        val facts = checkNotNull(prepared.inspection).extraction
+        assertEquals(1, reads)
+        assertEquals(128, spaceProbes)
+        assertEquals(128, facts.completedFiles)
+        assertEquals(524288L, facts.expandedBytes)
+        inspector.cancel(prepared)
+        assertNoSessionOrInstall()
+        println("V08-13 fixture: readerPasses=$reads capacityProbes=$spaceProbes files=${facts.completedFiles} " +
+            "expandedBytes=${facts.expandedBytes} prepareElapsedNanos=$elapsed")
     }
 
     @Test fun `supported formats report actual output without an additional read`() {
@@ -173,17 +203,16 @@ class ArchiveInspectionTest {
 
     @Test fun `unsafe and corrupt inputs publish no completed facts and clean sessions`() {
         val unsafe = zip(path = "../outside")
-        val refused = assertThrows(java.io.IOException::class.java) { installer().prepare(unsafe) }
-        assertTrue(refused.cause is ArchiveReadException)
-        assertEquals(ArchiveReadFailureCode.UNSAFE_ENTRY_PATH, (refused.cause as ArchiveReadException).code)
+        val refused = assertThrows(ArchiveReadException::class.java) { installer().prepare(unsafe) }
+        assertEquals(ArchiveReadFailureCode.UNSAFE_ENTRY_PATH, refused.code)
         assertFalse(File(temporary.root, "outside").exists())
         assertNoSessionOrInstall()
         val corrupt = File(temporary.root, "broken.rar").apply {
             val bytes = RarTestArchives.rar5(RarTestArchives.entry("mod.esp", "payload".toByteArray()))
             writeBytes(bytes.copyOf(bytes.size - 8))
         }
-        val corruptFailure = assertThrows(java.io.IOException::class.java) { installer().prepare(corrupt) }
-        assertTrue(corruptFailure.cause is ArchiveReadException)
+        val corruptFailure = assertThrows(ArchiveReadException::class.java) { installer().prepare(corrupt) }
+        assertEquals(ArchiveReadFailureCode.CORRUPT_OR_UNSUPPORTED, corruptFailure.code)
         assertNoSessionOrInstall()
     }
 
@@ -191,11 +220,72 @@ class ArchiveInspectionTest {
         val mods = File(temporary.root, "mods/Existing").apply { mkdirs() }
         val marker = File(mods, "old.esp").apply { writeText("unchanged") }
         val inspector = installer(extractor(ExtractionLimits(maxFileBytes = 3, maxTotalBytes = 3)))
-        val failure = assertThrows(java.io.IOException::class.java) { inspector.prepare(zip()) }
-        assertTrue(failure.cause is ArchiveReadException)
-        assertEquals(ArchiveReadFailureCode.FILE_SIZE_LIMIT_EXCEEDED, (failure.cause as ArchiveReadException).code)
+        val failure = assertThrows(ArchiveReadException::class.java) { inspector.prepare(zip()) }
+        assertEquals(ArchiveReadFailureCode.FILE_SIZE_LIMIT_EXCEEDED, failure.code)
         assertEquals("unchanged", marker.readText())
         assertTrue(File(temporary.root, "temp/installer_sessions").list().orEmpty().isEmpty())
+    }
+
+    @Test fun `storage facts retain only the existing extraction observation`() {
+        val source = zip()
+        val measured = installer(extractor(availableBytes = 1_000_000_000)).prepareFacts(source).extraction
+        val storage = checkNotNull(measured.storage)
+        assertEquals(1_000_000_000L, storage.availableBytes)
+        assertEquals(ExtractionLimits.DEFAULT_MINIMUM_FREE_SPACE_BYTES, storage.minimumFreeSpaceBytes)
+        assertTrue(storage.locationPath.contains("installer_sessions"))
+        assertTrue(storage.observedAtMillis <= measured.observedAtMillis)
+        assertEquals(1, spaceProbes)
+        val unknown = installer(extractor(availableBytes = null)).prepareFacts(source).extraction
+        assertNotNull(unknown.storage)
+        assertNull(unknown.storage!!.availableBytes)
+        // Existing checks retry an unavailable measurement; retaining facts must add no probes.
+        assertEquals(3, spaceProbes)
+        val empty = zip(name = "empty.zip", text = "")
+        val emptyFacts = installer(extractor()).prepareFacts(empty).extraction
+        assertEquals(0L, emptyFacts.expandedBytes)
+        assertNotNull(emptyFacts.storage)
+        val directories = File(temporary.root, "directories.zip").apply {
+            ZipOutputStream(outputStream()).use { output ->
+                output.putNextEntry(ZipEntry("Data/"))
+                output.closeEntry()
+            }
+        }
+        val before = spaceProbes
+        val directoryFacts = installer(extractor()).prepareFacts(directories).extraction
+        assertNull(directoryFacts.storage)
+        assertEquals(before, spaceProbes)
+        assertNoSessionOrInstall()
+    }
+
+    @Test fun `known insufficient storage remains a typed refusal and cleans the session`() {
+        val failure = assertThrows(ArchiveReadException::class.java) {
+            installer(extractor(availableBytes = 0)).prepare(zip())
+        }
+        assertEquals(ArchiveReadFailureCode.INSUFFICIENT_STORAGE, failure.code)
+        assertEquals(1, reads)
+        assertEquals(1, spaceProbes)
+        assertNoSessionOrInstall()
+    }
+
+    @Test fun `typed preparation failures preserve identity diagnostics and cleanup`() {
+        val source = zip()
+        val expected = ArchiveReadException(ArchiveReadFailureCode.PASSWORD_PROTECTED_OR_ENCRYPTED, "encrypted")
+        val diagnostic = java.io.IOException("decoder diagnostic")
+        expected.addSuppressed(diagnostic)
+        val reader = object : ArchiveReader {
+            override fun read(archive: File, writer: ArchiveEntryWriter) { throw expected }
+        }
+        val registry = ArchiveReaderRegistry(ArchiveFormatProbe(), reader, reader, reader, reader)
+        val failure = assertThrows(ArchiveReadException::class.java) {
+            installer(ArchiveExtractor(registry)).prepare(source)
+        }
+        assertSame(expected, failure)
+        assertSame(diagnostic, failure.suppressed.single())
+        assertNoSessionOrInstall()
+        val unsupported = File(temporary.root, "unsupported.bin").apply { writeText("not an archive") }
+        val probeFailure = assertThrows(ArchiveFormatProbeException::class.java) { installer().prepare(unsupported) }
+        assertEquals(ArchiveProbeFailureCode.UNSUPPORTED_FORMAT, probeFailure.code)
+        assertNoSessionOrInstall()
     }
 
     @Test fun `pre cancellation and cancellation after reader completion cannot return facts`() {

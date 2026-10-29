@@ -33,6 +33,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
+- fix: Keep specific archive failure reasons through installation preparation and show clearer messages for unsafe paths, unsupported features and storage shortages. Last attempt details reuse extraction storage observations without another scan; unknown space is not treated as enough space.
 - fix: Validate chosen Data folders before installation and copy only the checked file mapping. Conflicting paths, links, changed prepared files and excessive manual folder depth are refused without replacing an existing installation.
 - fix: Use clearer button names and messages for imports, file checks and unfinished changes.
 - fix: Keep archive rows reachable on short screens while Close and Cancel stay visible.

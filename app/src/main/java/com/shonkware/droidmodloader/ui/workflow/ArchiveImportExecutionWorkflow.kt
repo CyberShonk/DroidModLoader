@@ -13,6 +13,7 @@ import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
+import com.shonkware.droidmodloader.ui.archive.archiveFailureMessage
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -154,6 +155,7 @@ internal class ArchiveImportExecutionWorkflow(
     private val archiveReaderRegistry:
         ArchiveReaderRegistry = ArchiveReaderRegistry(),
     private val inspectionPublisher: (String) -> (ArchiveInspectionReport) -> Unit = { {} },
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
     private val activeCancellationController =
         AtomicReference<InstallCancellationController?>(null)
@@ -187,15 +189,12 @@ internal class ArchiveImportExecutionWorkflow(
         var archiveLibraryFile: File? = null
         var prepared: PreparedArchiveInstall? = null
         var operation: OperationAttempt? = null
+        var publishInspection: (ArchiveInspectionReport) -> Unit = {}
+        val fileName = sourceFile.name.takeIf { it.isNotBlank() } ?: "imported_mod"
 
         try {
-            val publishInspection = inspectionPublisher(sourceFile.absolutePath)
             operation = beginOperation("Importing archive...")
-
-            val fileName =
-                sourceFile.name
-                    .takeIf { it.isNotBlank() }
-                    ?: "imported_mod"
+            publishInspection = inspectionPublisher(sourceFile.absolutePath)
 
             val sourceProbe =
                 archiveFormatProbe.probe(sourceFile)
@@ -225,7 +224,10 @@ internal class ArchiveImportExecutionWorkflow(
             engine = createEngine()
 
             if (engine == null) {
-                operation.fail("Import archive failed: engine could not be created.")
+                val message = "Import archive failed: engine could not be created."
+                publishInspection(ArchiveInspectionReport(fileName, clock(), message = message,
+                    attemptId = operation.snapshot().id))
+                operation.fail(message)
                 return
             }
 
@@ -285,7 +287,8 @@ internal class ArchiveImportExecutionWorkflow(
             cancellationController.signal.throwIfCancellationRequested()
             preparedInstall.inspection?.let { inspection ->
                 publishInspection(ArchiveInspectionReport(
-                    fileName, inspection.extraction.observedAtMillis, inspection
+                    fileName, inspection.extraction.observedAtMillis, inspection,
+                    attemptId = operation.snapshot().id
                 ))
             }
 
@@ -293,6 +296,9 @@ internal class ArchiveImportExecutionWorkflow(
             showInstallerChoices(preparedInstall, archiveRecord.archiveId, operation)
             operation.waitForChoices("Choose installer options.")
         } catch (exception: InstallCancelledException) {
+            exception.suppressed.forEach { cleanupFailure ->
+                appendError("Archive import cleanup failed: ${cleanupFailure.message}", cleanupFailure)
+            }
             val activeEngine = engine
             val activePrepared = prepared
 
@@ -322,13 +328,19 @@ internal class ArchiveImportExecutionWorkflow(
             handleArchiveFailure(
                 operation = operation,
                 failureCode = exception.code.name,
-                exception = exception
+                message = archiveFailureMessage(exception.code),
+                exception = exception,
+                archiveName = fileName,
+                publishInspection = publishInspection
             )
         } catch (exception: ArchiveReadException) {
             handleArchiveFailure(
                 operation = operation,
                 failureCode = exception.code.name,
-                exception = exception
+                message = archiveFailureMessage(exception.code),
+                exception = exception,
+                archiveName = fileName,
+                publishInspection = publishInspection
             )
         } catch (throwable: Throwable) {
             appendLog(
@@ -337,11 +349,10 @@ internal class ArchiveImportExecutionWorkflow(
             )
             appendLog("RESULT: FAIL")
 
-            operation?.fail(
-                "Import archive failed: " +
-                        throwable.message,
-                throwable
-            )
+            val message = "Import archive failed: ${throwable.message}"
+            publishInspection(ArchiveInspectionReport(fileName, clock(), message = message,
+                attemptId = operation?.snapshot()?.id))
+            operation?.fail(message, throwable)
         } finally {
             archiveLibraryFile?.let { snapshot ->
                 try {
@@ -393,18 +404,23 @@ internal class ArchiveImportExecutionWorkflow(
     private fun handleArchiveFailure(
         operation: OperationAttempt?,
         failureCode: String,
-        exception: Exception
+        message: String,
+        exception: Exception,
+        archiveName: String,
+        publishInspection: (ArchiveInspectionReport) -> Unit
     ) {
         appendLog(
             "ARCHIVE FAILURE: $failureCode"
         )
         appendLog("RESULT: FAIL")
 
-        operation?.fail(
-            "Import archive failed: " +
-                    exception.message.orEmpty(),
-            null
-        )
+        appendLog("Archive failure details: ${exception.message.orEmpty()}")
+        exception.suppressed.forEach { cleanupFailure ->
+            appendError("Archive cleanup failed: ${cleanupFailure.message}", cleanupFailure)
+        }
+        publishInspection(ArchiveInspectionReport(archiveName, clock(), failureCode = failureCode,
+            message = message, attemptId = operation?.snapshot()?.id))
+        operation?.fail("Import archive failed: $message", null)
     }
 
 }

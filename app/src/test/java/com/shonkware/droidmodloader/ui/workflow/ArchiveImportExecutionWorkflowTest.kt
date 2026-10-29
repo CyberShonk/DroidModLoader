@@ -5,6 +5,16 @@ import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import com.shonkware.droidmodloader.engine.install.ArchiveExtractionFacts
 import com.shonkware.droidmodloader.engine.install.ArchiveInspection
 import com.shonkware.droidmodloader.engine.install.ArchiveFormat
+import com.shonkware.droidmodloader.engine.install.ArchiveExtractor
+import com.shonkware.droidmodloader.engine.install.ArchiveEntryWriter
+import com.shonkware.droidmodloader.engine.install.ExtractionLimits
+import com.shonkware.droidmodloader.engine.install.InstalledModDirectoryReplacer
+import com.shonkware.droidmodloader.engine.install.InstallCancelledException
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstaller
+import com.shonkware.droidmodloader.engine.install.ArchiveReadException
+import com.shonkware.droidmodloader.engine.install.ArchiveReadFailureCode
+import com.shonkware.droidmodloader.ui.archive.ArchivePreparationStatus
+import com.shonkware.droidmodloader.ui.archive.archiveFailureMessage
 import com.shonkware.droidmodloader.ui.archive.ArchiveInspectionReport
 import com.shonkware.droidmodloader.engine.install.InstallerGroup
 import com.shonkware.droidmodloader.engine.install.InstallerPlan
@@ -312,6 +322,13 @@ class ArchiveImportExecutionWorkflowTest {
         )
         assertEquals(1, harness.failures.size)
         assertNull(harness.failures.single().second)
+        val report = harness.inspections.single()
+        assertEquals("UNSUPPORTED_FORMAT", report.failureCode)
+        assertEquals(ArchivePreparationStatus.BLOCKED, report.preparationStatus)
+        assertNull(report.inspection)
+        assertEquals(0, engine.prepareCount)
+        assertEquals(9999L, report.observedAtMillis)
+        assertNotNull(report.attemptId)
     }
 
     @Test
@@ -420,6 +437,8 @@ class ArchiveImportExecutionWorkflowTest {
         harness.workflow.importArchive(harness.sourceArchive)
         assertEquals(1, engine.prepareCount)
         assertSame(inspection, harness.inspections.single().inspection)
+        assertEquals(ArchivePreparationStatus.PREPARED, harness.inspections.single().preparationStatus)
+        assertEquals(harness.shownOperation!!.snapshot().id, harness.inspections.single().attemptId)
         assertFalse(engine.finalizeCalled)
         assertTrue(harness.finishMessages.isEmpty())
         assertNotNull(harness.shownPrepared)
@@ -436,6 +455,122 @@ class ArchiveImportExecutionWorkflowTest {
         assertTrue(harness.inspections.isEmpty())
         assertFalse(engine.finalizeCalled)
         assertEquals(1, engine.cancelledPreparedArchives.size)
+    }
+
+    @Test
+    fun typedReaderFailuresPublishSpecificReasonsWithoutCompletedFactsOrCrashDiagnostics() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        for (code in ArchiveReadFailureCode.entries) {
+            harness.inspections.clear()
+            val failure = ArchiveReadException(code, "technical detail for $code")
+            engine.beforePrepareCompletes = { throw failure }
+            harness.workflow.importArchive(harness.sourceArchive)
+            val report = harness.inspections.single()
+            assertEquals(code.name, report.failureCode)
+            assertEquals(ArchivePreparationStatus.BLOCKED, report.preparationStatus)
+            assertEquals(archiveFailureMessage(code), report.message)
+            assertNull(report.inspection)
+            assertNotNull(report.attemptId)
+            assertEquals("Import archive failed: ${report.message}", harness.failures.last().first)
+            assertNull(harness.failures.last().second)
+            assertFalse(engine.registeredArchiveFile!!.exists())
+            assertTrue(harness.sourceArchive.exists())
+        }
+        assertFalse(harness.logs.any { it.startsWith("CRASH TYPE:") })
+        assertNull(harness.shownPrepared)
+        assertFalse(engine.finalizeCalled)
+    }
+
+    @Test
+    fun typedFailureRetainsCleanupDiagnosticsWithoutFlatteningTheArchiveReason() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val cleanup = java.io.IOException("owned cleanup failed")
+        val failure = ArchiveReadException(ArchiveReadFailureCode.UNSAFE_ENTRY_PATH, "unsafe entry").apply {
+            addSuppressed(cleanup)
+        }
+        engine.beforePrepareCompletes = { throw failure }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertEquals("UNSAFE_ENTRY_PATH", harness.inspections.single().failureCode)
+        assertSame(cleanup, harness.errors.single().second)
+        assertTrue(harness.errors.single().first.contains("cleanup failed"))
+        assertFalse(engine.registeredArchiveFile!!.exists())
+    }
+
+    @Test
+    fun cancellationRetainsPreparationCleanupDiagnosticsWithoutPublishingARefusal() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val cleanup = java.io.IOException("session cleanup failed")
+        engine.beforePrepareCompletes = {
+            throw InstallCancelledException().apply { addSuppressed(cleanup) }
+        }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertSame(cleanup, harness.errors.single().second)
+        assertEquals(listOf("Archive import cancelled."), harness.cancelMessages)
+        assertTrue(harness.inspections.isEmpty())
+        assertTrue(harness.failures.isEmpty())
+        assertFalse(engine.registeredArchiveFile!!.exists())
+        assertTrue(harness.sourceArchive.exists())
+    }
+
+    @Test
+    fun actualPreparationRefusalReachesWorkflowAsATypedFailureAndCleansOwnedData() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        val source = harness.newSourceArchive("unsafe.zip", byteArrayOf())
+        java.util.zip.ZipOutputStream(source.outputStream()).use { output ->
+            output.putNextEntry(java.util.zip.ZipEntry("../outside"))
+            output.write(byteArrayOf(1))
+            output.closeEntry()
+        }
+        val temp = temporaryFolder.newFolder()
+        val mods = File(temp, "mods")
+        val marker = File(mods, "Existing/keep.esp").apply { parentFile!!.mkdirs(); writeText("keep") }
+        val installer = PreparedArchiveInstaller(
+            temp, mods, InstalledModDirectoryReplacer(), { "refused" }, {},
+            archiveExtractor = ArchiveExtractor(createWriter = { output, signal ->
+                ArchiveEntryWriter(output, ExtractionLimits(), {}, { Long.MAX_VALUE }, signal)
+            }))
+        engine.prepareResult = { archive, signal -> installer.prepare(archive, signal) }
+        harness.workflow.importArchive(source)
+        assertEquals("UNSAFE_ENTRY_PATH", harness.inspections.single().failureCode)
+        assertEquals("keep", marker.readText())
+        assertFalse(File(temp, "outside").exists())
+        assertTrue(File(temp, "installer_sessions").list().orEmpty().isEmpty())
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertTrue(source.exists())
+        assertEquals(1, engine.prepareCount)
+        assertFalse(harness.logs.any { it.startsWith("CRASH TYPE:") })
+    }
+
+    @Test
+    fun unavailableEngineIsUnknownEvidenceNotAnArchiveRefusal() {
+        val harness = WorkflowHarness(null)
+        harness.workflow.importArchive(harness.sourceArchive)
+        val report = harness.inspections.single()
+        assertEquals(ArchivePreparationStatus.UNKNOWN, report.preparationStatus)
+        assertNull(report.failureCode)
+        assertNull(report.inspection)
+        assertTrue(report.message!!.contains("engine could not be created"))
+        assertNotNull(report.attemptId)
+        assertTrue(harness.archiveLibraryFiles().isEmpty())
+        assertEquals(1, harness.failures.size)
+    }
+
+    @Test
+    fun duplicateRequestDoesNotPrepareOrPublishAnotherObservation() {
+        val engine = FakeArchiveImportEngine()
+        val harness = WorkflowHarness(engine)
+        engine.preparedInspection = ArchiveInspection(ArchiveExtractionFacts("snapshot", 1234,
+            ArchiveFormat.ZIP, false, 10, 1, 1, 20), InstallerType.MANUAL_DATA_FOLDER)
+        engine.beforePrepareCompletes = { harness.workflow.importArchive(harness.sourceArchive) }
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertEquals(1, engine.prepareCount)
+        assertEquals(ArchivePreparationStatus.NEEDS_CHOICES, harness.inspections.single().preparationStatus)
+        assertEquals(1, harness.engineCreationCount)
+        assertEquals(1, harness.attempts.waitingMessages.size)
     }
 
     private inner class WorkflowHarness(
@@ -551,7 +686,8 @@ class ArchiveImportExecutionWorkflowTest {
                 refreshDashboard = {
                     refreshCount++
                 },
-                inspectionPublisher = { { report -> inspections.add(report); Unit } }
+                inspectionPublisher = { { report -> inspections.add(report); Unit } },
+                clock = { 9999L }
             )
     }
 
@@ -585,6 +721,7 @@ class ArchiveImportExecutionWorkflowTest {
         var finalizeCalled = false
         var prepareCount = 0
         var preparedInspection: ArchiveInspection? = null
+        var prepareResult: ((File, InstallCancellationSignal) -> PreparedArchiveInstall)? = null
 
         val cancelledPreparedArchives =
             mutableListOf<
@@ -643,7 +780,7 @@ class ArchiveImportExecutionWorkflowTest {
                 cancellationSignal
             )
 
-            return prepared(
+            return prepareResult?.invoke(archive, cancellationSignal) ?: prepared(
                 plan = preparedPlan
             ).copy(inspection = preparedInspection)
         }
