@@ -24,6 +24,7 @@ This file records release changes visible to users and known limitations.
 
 ### Changed
 
+- build: Release preparation chooses the next version code from the current value and an explicitly confirmed distribution baseline, checks the previous release tag, and refuses concurrent preparation or unsafe retries. Publication lookup is not automatic yet.
 - feat: Recovery details report recorded targets, pending install transactions and supported review actions. Retry and rollback remain unavailable without evidence proving a safe recovery. Warning review or dismissal does not repair files or unlock deployment; unresolved journals are preserved.
 - refactor: Operation feedback stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status. <!-- commits: 69bcad1cd7846cb3fcea988cfed19bce60c5af37 -->
 - feat: First setup, active settings and new profiles select the game's main folder. DML validates it, derives the Data folder and enables physical deployment intent after successful selection. <!-- commits: 6814fdcff26cef81502e515020bd5f2f6a3c6262, 0f864263d685becc1f66c615f4764e2c13450747 -->

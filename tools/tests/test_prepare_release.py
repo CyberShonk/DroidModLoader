@@ -1,5 +1,6 @@
 """Exercise release preparation only in disposable local Git repositories."""
 
+import fcntl
 import os
 from pathlib import Path
 import shutil
@@ -42,6 +43,8 @@ class PrepareReleaseTest(unittest.TestCase):
         self.git("config", "commit.gpgsign", "false")
         self.git("remote", "add", "origin", "git@github.com:example/Dml.git")
         self.initial = self.commit()
+        self.git("tag", "v0.7.0-beta")
+        self.git("commit", "--allow-empty", "-m", "Changes after published baseline")
 
     def git(self, *args):
         return subprocess.check_output(
@@ -53,9 +56,20 @@ class PrepareReleaseTest(unittest.TestCase):
         self.git("commit", "-m", "Fixture input")
         return self.git("rev-parse", "HEAD")
 
-    def run_prepare(self, version=VERSION, code="4"):
+    def prepare_command(self, version=VERSION, code=None, previous="v0.7.0-beta",
+                        highest="3", evidence="Owner inspected fixture release", baseline=True,
+                        extra=()):
+        command = ["bash", "tools/prepare-release.sh", version]
+        if code is not None:
+            command.append(code)
+        if baseline:
+            command.extend(["--previous-tag", previous, "--confirmed-offline-code", highest,
+                            "--offline-evidence", evidence])
+        return command + list(extra)
+
+    def run_prepare(self, **kwargs):
         return subprocess.run(
-            ["bash", "tools/prepare-release.sh", version, code],
+            self.prepare_command(**kwargs),
             cwd=self.repo, env=self.env, text=True, capture_output=True,
         )
 
@@ -205,6 +219,109 @@ class PrepareReleaseTest(unittest.TestCase):
         self.notes.write_text("existing notes")
         self.commit()
         self.assert_refused("Release notes already exist")
+
+    def test_automatic_code_exceeds_local_and_confirmed_distribution(self):
+        result = self.run_prepare(highest="12")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("VERSION_CODE=13\n", self.version.read_text())
+        self.assertIn("No publication lookup was performed", result.stdout)
+        self.assertIn("Confirmed distributed code (offline): 12", result.stdout)
+        self.assertIn("Baseline evidence: Owner inspected fixture release", result.stdout)
+
+    def test_explicit_override_must_exceed_both_floors(self):
+        self.assert_refused("greater than confirmed", highest="12", code="12")
+        result = self.run_prepare(highest="12", code="20")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("VERSION_CODE=20\n", self.version.read_text())
+
+    def test_android_code_range_and_shell_overflow_are_refused(self):
+        for value in ("0", "-1", "1.5", "2100000001", "999999999999999999999999999", "x"):
+            with self.subTest(value=value):
+                self.assert_refused(code=value)
+                self.assert_refused(highest=value)
+        self.assert_refused("Next VERSION_CODE", highest="2100000000")
+        result = self.run_prepare(highest="2099999999")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("VERSION_CODE=2100000000\n", self.version.read_text())
+
+    def test_missing_or_ambiguous_baseline_input_is_refused(self):
+        self.assert_refused("Require --previous-tag", baseline=False)
+        self.assert_refused(evidence=" ")
+        self.assert_refused(evidence="one\ntwo")
+        self.assert_refused(evidence="x" * 501)
+        self.assert_refused(extra=("--previous-tag", "v0.6.0-beta"))
+        self.assert_refused(extra=("--unknown", "value"))
+        self.assert_refused(extra=("--offline-evidence",))
+
+    def test_missing_nonancestor_or_mismatched_previous_tag_is_refused(self):
+        self.assert_refused(previous="absent")
+        self.assert_refused(previous="../HEAD")
+        self.assert_refused(previous="v0.7.0-beta^{commit}")
+        other = self.git("commit-tree", "HEAD^{tree}", "-m", "Unrelated release")
+        self.git("tag", "unrelated", other)
+        self.assert_refused(previous="unrelated")
+        self.git("tag", "mismatched", self.initial)
+        self.assert_refused("release identity", previous="mismatched")
+
+    def test_empty_range_is_refused(self):
+        self.git("tag", "-f", "v0.7.0-beta")
+        self.assert_refused("empty commit range")
+
+    def test_stale_offline_floor_below_previous_release_is_refused(self):
+        self.assert_refused("baseline is stale", highest="2")
+
+    def test_annotated_baseline_tag_is_supported(self):
+        self.git("tag", "-d", "v0.7.0-beta")
+        self.git("tag", "-a", "v0.7.0-beta", self.initial, "-m", "Published baseline")
+        result = self.run_prepare()
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_maximum_local_code_prevents_overflow(self):
+        self.version.write_text("VERSION_NAME=v0.7.0-beta\nVERSION_CODE=2100000000\n")
+        self.commit()
+        self.assert_refused("Next VERSION_CODE")
+
+    def test_live_lock_refuses_without_changing_files(self):
+        lock = self.repo / ".git/dml-release-prepare.lock"
+        with lock.open("w") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assert_refused("Another release preparation")
+        # The permanent lock file does not prevent a later invocation.
+        self.assertEqual(0, self.run_prepare().returncode)
+
+    def test_simultaneous_preparations_reserve_only_once(self):
+        first = subprocess.Popen(self.prepare_command(), cwd=self.repo, env=self.env,
+                                 text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        second = subprocess.Popen(self.prepare_command(), cwd=self.repo, env=self.env,
+                                  text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        first_output = first.communicate(timeout=20)
+        second_output = second.communicate(timeout=20)
+        self.assertEqual([0, 1], sorted([first.returncode, second.returncode]),
+                         (first_output, second_output))
+        self.assertIn("VERSION_CODE=4\n", self.version.read_text())
+        self.assertEqual(1, self.changelog.read_text().count("## Unreleased"))
+
+    def test_linked_worktree_is_refused(self):
+        linked = self.repo / "linked"
+        self.git("worktree", "add", "--detach", str(linked), "HEAD")
+        self.repo = linked
+        self.version = linked / "version.properties"
+        self.changelog = linked / "releases/changelog.md"
+        self.notes = linked / f"releases/notes/{VERSION}.md"
+        self.assert_refused("linked worktree")
+
+    def test_committed_preparation_retry_is_refused_without_another_bump(self):
+        self.assertEqual(0, self.run_prepare().returncode)
+        self.commit()
+        self.assert_refused("Release notes already exist")
+        self.assertIn("VERSION_CODE=4\n", self.version.read_text())
+
+    def test_partial_preparation_is_refused_without_another_bump(self):
+        # An interrupted run may leave only the exclusive notes output written.
+        self.notes.parent.mkdir()
+        self.notes.write_text("partial notes from interrupted preparation")
+        self.assert_refused("working tree must be clean")
+        self.assertIn("VERSION_CODE=3\n", self.version.read_text())
 
     def test_output_symlink_outside_repository_is_refused(self):
         outside = tempfile.TemporaryDirectory(prefix="dml-release-outside-")

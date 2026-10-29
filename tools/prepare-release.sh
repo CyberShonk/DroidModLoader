@@ -14,26 +14,51 @@ REPO_ROOT="$(
 cd "$REPO_ROOT"
 
 VERSION="${1:-}"
-NEW_VERSION_CODE="${2:-}"
+NEW_VERSION_CODE=""
+PREVIOUS_TAG=""
+OFFLINE_HIGHEST_CODE=""
+OFFLINE_EVIDENCE=""
 
-if [[ -z "$VERSION" || -z "$NEW_VERSION_CODE" ]]; then
-  fail \
-    "Usage: ./tools/prepare-release.sh " \
-    "v0.x.y-beta VERSION_CODE"
+[[ -n "$VERSION" ]] || fail \
+  "Usage: ./tools/prepare-release.sh VERSION [VERSION_CODE] --previous-tag TAG" \
+  "--confirmed-offline-code CODE --offline-evidence SOURCE"
+shift
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  NEW_VERSION_CODE="$1"
+  shift
 fi
+while [[ $# -gt 0 ]]; do
+  [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "Each option requires a value."
+  case "$1" in
+    --previous-tag)
+      [[ -z "$PREVIOUS_TAG" ]] || fail "Repeated --previous-tag."
+      PREVIOUS_TAG="$2" ;;
+    --confirmed-offline-code)
+      [[ -z "$OFFLINE_HIGHEST_CODE" ]] || fail "Repeated --confirmed-offline-code."
+      OFFLINE_HIGHEST_CODE="$2" ;;
+    --offline-evidence)
+      [[ -z "$OFFLINE_EVIDENCE" ]] || fail "Repeated --offline-evidence."
+      OFFLINE_EVIDENCE="$2" ;;
+    *) fail "Unknown option: $1" ;;
+  esac
+  shift 2
+done
 
 if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta)?$ ]]; then
   fail \
     "Version must look like v0.7.0-beta or v1.0.0."
 fi
 
-if [[ ! "$NEW_VERSION_CODE" =~ ^[0-9]+$ ]]; then
-  fail "VERSION_CODE must be a positive integer."
-fi
+command -v python3 >/dev/null 2>&1 || fail "python3 is required to prepare a release."
+command -v flock >/dev/null 2>&1 || fail "flock is required to serialize release preparation."
 
-if (( NEW_VERSION_CODE <= 0 )); then
-  fail "VERSION_CODE must be greater than zero."
-fi
+# Keep the lock file in place: unlinking it could let two processes lock different
+# inodes. Linked worktrees are refused because they have separate version files.
+GIT_DIR="$(git rev-parse --path-format=absolute --git-dir)"
+COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)"
+[[ "$GIT_DIR" == "$COMMON_DIR" ]] || fail "Release preparation cannot run from a linked worktree."
+exec 9>"$COMMON_DIR/dml-release-prepare.lock"
+flock -n 9 || fail "Another release preparation is active."
 
 VERSION_FILE="version.properties"
 NOTES_DIR="releases/notes"
@@ -98,11 +123,62 @@ if [[ ! "$CURRENT_VERSION_CODE" =~ ^[0-9]+$ ]]; then
     "Current VERSION_CODE in $VERSION_FILE is invalid."
 fi
 
-if (( NEW_VERSION_CODE <= CURRENT_VERSION_CODE )); then
-  fail \
-    "VERSION_CODE must be greater than the current value " \
-    "$CURRENT_VERSION_CODE."
-fi
+NEW_VERSION_CODE="$(python3 - "$NEW_VERSION_CODE" "$CURRENT_VERSION_CODE" \
+    "$PREVIOUS_TAG" "$OFFLINE_HIGHEST_CODE" "$OFFLINE_EVIDENCE" <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+def git(*args):
+    return subprocess.check_output(["git", *args], text=True, stderr=subprocess.PIPE).strip()
+
+
+def code(value, label):
+    if not re.fullmatch(r"[0-9]{1,10}", value) or not 1 <= int(value) <= 2100000000:
+        raise ValueError(f"{label} must be between 1 and 2100000000.")
+    return int(value)
+
+
+requested, current, previous, published, evidence = sys.argv[1:]
+try:
+    current = code(current, "Current VERSION_CODE")
+    if len(re.findall(r"^VERSION_CODE=", Path("version.properties").read_text(), re.M)) != 1:
+        raise ValueError("version.properties must contain exactly one VERSION_CODE.")
+    if not previous or not published or not evidence.strip():
+        raise ValueError("Require --previous-tag, --confirmed-offline-code and --offline-evidence; "
+                         "the local version is not a complete distribution baseline.")
+    if len(evidence) > 500 or any(ord(c) < 32 or ord(c) == 127 for c in evidence):
+        raise ValueError("Offline evidence must be a single short line without control characters.")
+    published = code(published, "Confirmed distributed code")
+    if git("rev-parse", "--is-shallow-repository") != "false":
+        raise ValueError("Full Git history is required to verify the previous release.")
+    ref = "refs/tags/" + previous
+    git("check-ref-format", ref)
+    commit = git("rev-parse", "--verify", ref + "^{commit}")
+    git("merge-base", "--is-ancestor", commit, "HEAD")
+    if commit == git("rev-parse", "HEAD"):
+        raise ValueError("Previous release leaves an empty commit range.")
+    prior_version = git("show", ref + ":version.properties")
+    prior_codes = re.findall(r"^VERSION_CODE=([0-9]+)\r?$", prior_version, re.M)
+    prior_names = re.findall(r"^VERSION_NAME=(.+?)\r?$", prior_version, re.M)
+    if len(prior_codes) != 1 or prior_names != [previous]:
+        raise ValueError("Previous tag must match its version.properties release identity.")
+    prior_code = code(prior_codes[0], "Previous release code")
+    if published < prior_code:
+        raise ValueError("Confirmed distributed code is below the previous release code; baseline is stale.")
+    floor = max(current, published)
+    selected = code(requested, "VERSION_CODE") if requested else code(str(floor + 1), "Next VERSION_CODE")
+    if selected <= current:
+        raise ValueError(f"VERSION_CODE must be greater than the current value {current}.")
+    if selected <= published:
+        raise ValueError(f"VERSION_CODE must be greater than confirmed distributed code {published}.")
+    print(selected)
+except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as error:
+    sys.exit(f"ERROR: {error}")
+PY
+)"
 
 if [[ -f "$OUTPUT" ]]; then
   fail "Release notes already exist: $OUTPUT"
@@ -233,7 +309,11 @@ printf '  Version: %s\n' "$VERSION"
 printf '  Version code: %s\n' "$NEW_VERSION_CODE"
 printf '  Previous version: %s\n' "$CURRENT_VERSION_NAME"
 printf '  Previous version code: %s\n' "$CURRENT_VERSION_CODE"
+printf '  Previous published tag: %s\n' "$PREVIOUS_TAG"
+printf '  Confirmed distributed code (offline): %s\n' "$OFFLINE_HIGHEST_CODE"
+printf '  Baseline evidence: %s\n' "$OFFLINE_EVIDENCE"
 printf '  Release notes: %s\n' "$OUTPUT"
+printf '  No publication lookup was performed; retain this baseline summary for review.\n'
 
 printf '\nNext steps:\n'
 printf '1. Review version.properties.\n'
