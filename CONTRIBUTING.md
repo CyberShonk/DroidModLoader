@@ -32,7 +32,12 @@ git diff --check
 ```
 
 `check-project.sh` checks the local environment and staged files and also runs
-JVM tests. `check-docs.sh` checks the public documentation structure.
+JVM tests. `check-docs.sh` checks required documentation, local Markdown/HTML links and
+Markdown heading anchors, and unfinished placeholders outside examples. It does
+not fetch external links or prove that instructions match the app. Review version
+scope, visible button names, user steps, limitations, and upgrade advice against
+the source and the release being described. Templates can contain placeholders;
+finished release documents cannot.
 
 Use focused tests first when useful. Changes that affect storage, archives,
 deployment, Android lifecycle, or behavior that depends on a specific device

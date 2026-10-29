@@ -1,7 +1,9 @@
 # Droid Mod Loader Troubleshooting
 
-These steps apply to `v0.7.0-beta`. See the [changelog](../releases/changelog.md)
-for changes in other versions.
+These steps describe the development version. Some features below are not in the
+current public release. For `v0.7.0-beta`, use the
+[released troubleshooting guide](https://github.com/CyberShonk/DroidModLoader/blob/v0.7.0-beta/docs/troubleshooting.md).
+See the [changelog](../releases/changelog.md) for version changes.
 
 ## DML cannot use my game folder
 
@@ -9,7 +11,7 @@ Check these first:
 
 1. Confirm DML has Android **Manage all files** access.
 2. Use a shared storage path that DML can read and write directly.
-3. Confirm you selected the correct game `Data` folder and Game Root for the active profile.
+3. Use **Choose Game Folder** during setup, or **Change Game Folder** in settings, to select the game's main folder. DML finds its Data folder. In settings, save with **Save Settings**.
 4. Do not select another application's protected private `Android/data` directory.
 5. Select the folder again if the profile came from an older DML build that used URI storage.
 
@@ -21,9 +23,10 @@ all files access.
 Confirm that the selected path exists, is a folder, and can be read and written
 by DML. Check both Data and Game Root where the setup uses them.
 
-Folder validation is limited in this release. Do not rely on a writable folder
-alone to prove that you selected the intended game installation. Stop and select
-the intended folders rather than bypassing a warning.
+DML checks known game filenames and folder access, not every game distribution
+or runtime. A writable folder alone does not prove it is the right installation.
+Read the reported reason and select the intended game's main folder rather than
+bypassing a warning.
 
 ## A mod imports but does not appear in the game
 

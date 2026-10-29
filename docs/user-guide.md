@@ -3,8 +3,10 @@
 Droid Mod Loader manages mod archives, installed mods, profiles, plugin state,
 and physical deployment for supported Bethesda games on Android.
 
-This guide covers `v0.7.0-beta`. See the [changelog](../releases/changelog.md)
-for changes in other versions.
+This guide describes the development version. Some features below are not in the
+current public release. For `v0.7.0-beta`, use the
+[released guide](https://github.com/CyberShonk/DroidModLoader/blob/v0.7.0-beta/docs/user-guide.md).
+See the [changelog](../releases/changelog.md) for version changes.
 
 ## Before you begin
 
@@ -27,11 +29,15 @@ Vegas.
 
 ## 2. Select game folders
 
-A physical setup uses a game `Data` folder and, where required, a Game Root.
-DML stores direct filesystem paths for the active profile.
+Tap **Choose Game Folder** during setup or when creating a profile. In settings,
+use **Change Game Folder**. Select the game's main folder, not its `Data` subfolder
+or a general storage root.
+DML checks known game files and finds the Data folder. The folder choices belong
+to the active profile. In settings, choose **Save Settings** to save the selection.
 
-Select the folders for the intended game installation. Folder validation is
-limited in this release, so check the paths before deploying.
+A validated selection enables physical deployment to those game folders. Check the
+paths before deploying. Known filenames and folder access do not prove that every
+game distribution or compatibility environment will work.
 
 Tale of Two Wastelands uses a Fallout: New Vegas target.
 
@@ -232,4 +238,4 @@ transactions also block deployment.
 - Some uncommon 7z compression or encryption variants may be unsupported.
 - Android can block access to another application's protected private storage.
 - Game folder validation and guidance are limited. Check that Data and Game Root belong to the intended installation.
-- Returning to a previously used target does not automatically prove that every physical managed file is unchanged outside DML; use recovery tools when target state is uncertain.
+- Returning to a previously used target does not check for changes made outside DML. Use **Check Recorded Files** for recorded managed files and **Recovery Details** for unfinished work. Neither is a general repair tool.

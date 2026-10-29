@@ -60,7 +60,7 @@ directory even when all files access is enabled.
 - [Troubleshooting](docs/troubleshooting.md)
 - [Changelog](releases/changelog.md)
 - [Contributing](CONTRIBUTING.md)
-- [Discord](https://discord.gg/wJnKUD64Nz)
+- [ARM64Nexus community](https://discord.gg/RvTWcEeJ7Z)
 
 ## Contributing
 
