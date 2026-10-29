@@ -65,12 +65,10 @@ class OperationStatusPresentationTest {
             InstallerChoiceDialog(
                 prepared = samplePrepared(),
                 selectedOptionIds = emptySet(),
-                fullscreen = false,
                 onToggleOption = {},
-                onConfirm = {},
                 onCancel = {},
-                onToggleFullscreen = {},
-                lastOperationStatus = status
+                lastOperationStatus = status,
+                busy = true
             )
         }
 

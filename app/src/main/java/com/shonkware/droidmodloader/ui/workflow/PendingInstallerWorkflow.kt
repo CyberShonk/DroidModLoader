@@ -3,6 +3,15 @@ package com.shonkware.droidmodloader.ui.workflow
 import com.shonkware.droidmodloader.engine.ModEngine
 import com.shonkware.droidmodloader.engine.install.InstallerOptionSelectionHelper
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.engine.install.ExistingModAction
+import com.shonkware.droidmodloader.engine.install.InstallerType
+import com.shonkware.droidmodloader.engine.install.ManualLayoutInventory
+import com.shonkware.droidmodloader.engine.install.ManualLayoutProposal
+import com.shonkware.droidmodloader.ui.InstallerDialogAction
+import com.shonkware.droidmodloader.ui.InstallerDialogState
+import com.shonkware.droidmodloader.ui.InstallerPage
+import com.shonkware.droidmodloader.ui.manualInstallerRows
+import java.io.File
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.install.InstallCancellationController
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
@@ -19,6 +28,7 @@ internal data class PendingInstallerSession(
 
 internal interface PendingInstallerEngine {
     fun getCurrentMods(): List<Mod>
+    fun findExistingModName(name: String): String? = getCurrentMods().singleOrNull { it.id == name }?.id
 
     fun finalizePreparedArchiveInstall(
         prepared: PreparedArchiveInstall,
@@ -42,6 +52,7 @@ internal class PendingInstallerEngineAdapter(
     private val appendRoutingSummary: (Mod) -> Unit
 ) : PendingInstallerEngine {
     override fun getCurrentMods(): List<Mod> = engine.getCurrentMods()
+    override fun findExistingModName(name: String): String? = engine.findExistingModName(name)
 
     override fun finalizePreparedArchiveInstall(
         prepared: PreparedArchiveInstall,
@@ -97,7 +108,9 @@ internal class PendingInstallerWorkflow(
     private val updateLastOperationStatus: (String) -> Unit,
     private val updateSelectedOptionIds: (Set<String>) -> Unit,
     private val clearPendingInstallerState: () -> Unit,
-    private val refreshDashboard: () -> Unit
+    private val refreshDashboard: () -> Unit,
+    private val onExistingInstall: (String) -> Unit = {},
+    private val onFinalizationFailure: (String) -> Unit = {}
 ) {
     private val activeCancellationController =
         AtomicReference<
@@ -174,15 +187,20 @@ internal class PendingInstallerWorkflow(
         var cleanupEngine: PendingInstallerEngine? = null
         var operation: OperationAttempt? = null
         try {
-            operation = beginOperation(session.operation, "Installing selected options...")
-            updatePendingOperation(operation)
             val engine = createEngine()
             cleanupEngine = engine
-            if (engine == null) {
-                operation.fail("Install failed: could not create engine.")
-                return
-            }
+            checkNotNull(engine) { "Install failed: could not create engine." }
             cancellationController.signal.throwIfCancellationRequested()
+            session.prepared.confirmation?.let { confirmation ->
+                if (confirmation.existingModAction == ExistingModAction.ASK &&
+                    engine.findExistingModName(confirmation.modName) != null) {
+                    cancellationController.signal.throwIfCancellationRequested()
+                    onExistingInstall(confirmation.modName)
+                    return
+                }
+            }
+            operation = beginOperation(session.operation, "Installing selected options...")
+            updatePendingOperation(operation)
             val existingMods =
                 engine.getCurrentMods()
 
@@ -203,19 +221,14 @@ internal class PendingInstallerWorkflow(
                         cancellationController.signal
                 )
 
-            val currentMods =
-                engine.getCurrentMods()
-                    .filterNot {
-                        it.id == installedMod.id
-                    }
-                    .sortedBy { it.priority }
-
-            val updatedMods =
-                currentMods +
-                        installedMod.copy(
-                            priority =
-                                currentMods.size + 1
-                        )
+            val previous = existingMods.singleOrNull { it.id == installedMod.id }
+            val currentMods = engine.getCurrentMods()
+                .filterNot { it.id == installedMod.id }
+                .sortedBy { it.priority }
+            val updatedMods = (currentMods + installedMod.copy(
+                priority = previous?.priority ?: (currentMods.size + 1),
+                enabled = previous?.enabled ?: installedMod.enabled
+            )).let { if (previous != null) it.sortedBy { mod -> mod.priority } else it }
 
             engine.saveCurrentMods(updatedMods)
 
@@ -262,6 +275,10 @@ internal class PendingInstallerWorkflow(
         } catch (
             exception: InstallCancelledException
         ) {
+            if (operation == null) {
+                operation = beginOperation(session.operation, "Cancelling installer...")
+                updatePendingOperation(operation)
+            }
             try {
                 cleanupEngine?.cancelPreparedArchiveInstall(
                     session.prepared
@@ -289,7 +306,7 @@ internal class PendingInstallerWorkflow(
             )
             appendLog("RESULT: CANCELLED")
 
-            operation?.cancel("Installer cancelled.")
+            operation.cancel("Installer cancelled.")
             refreshDashboard()
         } catch (throwable: Throwable) {
             appendLog(
@@ -298,11 +315,13 @@ internal class PendingInstallerWorkflow(
             )
             appendLog("RESULT: FAIL")
 
-            operation?.fail(
-                "Installer finalize failed: " +
-                        throwable.message,
-                throwable
-            )
+            if (operation == null) {
+                operation = beginOperation(session.operation, "Installing selected options...")
+                updatePendingOperation(operation)
+            }
+            val message = "Install failed: ${throwable.message}"
+            onFinalizationFailure(message)
+            operation.fail(message, throwable)
         } finally {
             activeCancellationController
                 .compareAndSet(
@@ -361,6 +380,51 @@ internal class PendingInstallerWorkflow(
 
         clearPendingInstallerState()
     }
+}
+
+/** Worker-only: reuse the extracted session, never reopen the source archive. */
+internal fun editManualInstallerChoices(
+    prepared: PreparedArchiveInstall,
+    choices: InstallerDialogState,
+    selectedOptionIds: Set<String>,
+    action: InstallerDialogAction,
+    signal: InstallCancellationSignal = InstallCancellationSignal.NONE
+): Pair<PreparedArchiveInstall, InstallerDialogState> {
+    signal.throwIfCancellationRequested()
+    val inventory = prepared.manualLayoutInventory ?: ManualLayoutInventory.capture(
+        File(prepared.sessionRootPath), File(prepared.extractedRootPath), signal)
+    var proposal = choices.proposal ?: run {
+        val option = prepared.plan.groups.flatMap { it.options }.firstOrNull { it.id in selectedOptionIds }
+        val root = if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER && option != null) {
+            val source = File(prepared.installRootPath, option.sourcePath).toPath().normalize()
+            File(prepared.extractedRootPath).toPath().relativize(source).toString().replace(File.separatorChar, '/')
+        } else ""
+        ManualLayoutProposal(root)
+    }
+    var expanded = choices.expanded
+    when (action) {
+        is InstallerDialogAction.Root -> {
+            proposal = proposal.selectRoot(action.path)
+            expanded = emptySet()
+        }
+        is InstallerDialogAction.Include -> proposal =
+            if (action.included) proposal.includeSubtree(action.path) else proposal.excludeSubtree(action.path)
+        is InstallerDialogAction.Expand -> expanded =
+            if (action.path in expanded) expanded - action.path else expanded + action.path
+        else -> Unit
+    }
+    val preview = runCatching { inventory.preview(proposal, signal) }
+    signal.throwIfCancellationRequested()
+    val changed = choices.proposal != proposal
+    return prepared.copy(manualLayoutInventory = inventory) to choices.copy(
+        page = InstallerPage.FILES, proposal = proposal, expanded = expanded,
+        selectedFolder = if (action is InstallerDialogAction.Root) null else choices.selectedFolder,
+        rows = manualInstallerRows(inventory, proposal, expanded, signal),
+        error = null, layoutError = preview.exceptionOrNull()?.message,
+        recognized = preview.getOrNull()?.recognizedLayout == true,
+        allowUnrecognized = choices.allowUnrecognized && !changed,
+        showUnrecognized = false, showExisting = false,
+        existingAction = if (changed) ExistingModAction.ASK else choices.existingAction)
 }
 
 internal fun calculateNextPendingInstallerPriority(existingMods: List<Mod>): Int {

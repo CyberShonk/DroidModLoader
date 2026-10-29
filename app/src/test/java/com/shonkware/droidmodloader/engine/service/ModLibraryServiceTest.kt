@@ -1,5 +1,13 @@
 package com.shonkware.droidmodloader.engine.service
 
+import com.shonkware.droidmodloader.engine.install.ArchiveInstallConfirmation
+import com.shonkware.droidmodloader.engine.install.InstallerGroup
+import com.shonkware.droidmodloader.engine.install.InstallerGroupType
+import com.shonkware.droidmodloader.engine.install.InstallerOption
+import com.shonkware.droidmodloader.engine.install.InstallerPlan
+import com.shonkware.droidmodloader.engine.install.InstallerType
+import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModType
 import org.junit.Assert.assertEquals
@@ -65,6 +73,38 @@ class ModLibraryServiceTest {
         assertEquals(1, result.deletedFileCount)
         assertFalse(modDir.exists())
         assertTrue(fixture.service.getCurrentMods().isEmpty())
+    }
+
+    @Test
+    fun `chosen name persists as display name folder and identity without changing content routing`() {
+        val fixture = fixture("chosen-name")
+        val session = File(fixture.modsDir.parentFile, "session").apply { mkdirs() }
+        val raw = File(session, "raw").apply { mkdirs() }
+        File(raw, "Data/mod.esp").apply { parentFile!!.mkdirs(); writeText("plugin") }
+        File(raw, "skse_loader.exe").writeText("loader")
+        val option = InstallerOption("all", "All", sourcePath = ".", required = true)
+        val prepared = PreparedArchiveInstall("/removed/source.zip", "Original-12345.zip", "Original-12345",
+            session.absolutePath, raw.absolutePath, raw.absolutePath,
+            InstallerPlan(InstallerType.SIMPLE, "Original", raw.absolutePath,
+                listOf(InstallerGroup("all", "All", InstallerGroupType.SELECT_ANY, listOf(option)))),
+            confirmation = ArchiveInstallConfirmation("My Chosen Mod"))
+
+        val mod = fixture.service.finalizePreparedArchiveInstall(prepared, setOf("all"), 1)
+
+        assertEquals("My Chosen Mod", mod.id)
+        assertEquals("My Chosen Mod", mod.name)
+        assertEquals(File(fixture.modsDir, "My Chosen Mod").absolutePath, mod.installPath)
+        val record = fixture.service.loadInstalledModRecord(mod)!!
+        assertEquals(mod.id, record.modId)
+        assertEquals(mod.name, record.displayName)
+        assertEquals("Original-12345.zip", record.sourceArchiveName)
+        assertEquals(mod, fixture.service.buildModFromInstalledFolder(File(mod.installPath), 1))
+        assertTrue(File(mod.installPath, "Data/mod.esp").isFile)
+        assertTrue(File(mod.installPath, "skse_loader.exe").isFile)
+        assertFalse(File(mod.installPath, "My Chosen Mod").exists())
+        assertEquals(DeployScope.DATA, fixture.service.getDeployScopeForPath("Data/mod.esp"))
+        assertEquals(DeployScope.GAME_ROOT, fixture.service.getDeployScopeForPath("skse_loader.exe"))
+        assertFalse(session.exists())
     }
 
     private fun fixture(name: String): Fixture {

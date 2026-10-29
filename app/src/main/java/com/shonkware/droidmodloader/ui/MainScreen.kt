@@ -106,6 +106,7 @@ data class DashboardUiState(
     val dataTargetReady: Boolean = false,
     val rootTargetReady: Boolean = false,
     val operationHistory: OperationHistoryPresentation = OperationHistoryPresentation(),
+    val installerChoices: InstallerDialogState = InstallerDialogState(),
 )
 
 data class DashboardActions(
@@ -148,6 +149,7 @@ data class DashboardActions(
     val onToggleInstallerOption: (String) -> Unit,
     val onConfirmInstaller: () -> Unit,
     val onCancelInstaller: () -> Unit,
+    val onInstallerAction: (InstallerDialogAction) -> Unit = {},
     val onToggleInstallerFullscreen: () -> Unit,
 
     val onViewModFiles: (String) -> Unit,
@@ -523,12 +525,12 @@ fun DroidModLoaderScreen(
         InstallerChoiceDialog(
             prepared = state.pendingArchiveInstall,
             selectedOptionIds = state.selectedInstallerOptionIds,
-            fullscreen = false,
             onToggleOption = actions.onToggleInstallerOption,
-            onConfirm = actions.onConfirmInstaller,
             onCancel = actions.onCancelInstaller,
-            onToggleFullscreen = {},
-            lastOperationStatus = state.lastOperationStatus
+            lastOperationStatus = state.lastOperationStatus,
+            choices = state.installerChoices,
+            busy = state.operationInProgress || state.installerChoices.busy,
+            onAction = actions.onInstallerAction
         )
     }
 

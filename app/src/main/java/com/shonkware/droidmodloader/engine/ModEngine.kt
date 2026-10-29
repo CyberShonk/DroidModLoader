@@ -300,6 +300,8 @@ class ModEngine(
                     cancellationSignal
             )
     }
+    fun findExistingModName(name: String): String? = modLibraryService.findExistingModName(name)
+
     fun cancelPreparedArchiveInstall(prepared: PreparedArchiveInstall) =
         modLibraryService.cancelPreparedArchiveInstall(prepared)
     fun buildModFilePreview(mod: Mod): ModFilePreview =

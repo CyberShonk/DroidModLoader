@@ -132,7 +132,9 @@ class PreparedArchiveInstaller internal constructor(
     }
 
     private fun createSessionRoot(): File {
-        val parent = File(tempDir, "installer_sessions")
+        // Android may expose the managed base through a platform path alias.
+        // Resolve that trusted parent before creating the exclusively owned session.
+        val parent = File(tempDir, "installer_sessions").canonicalFile
         java.nio.file.Files.createDirectories(parent.toPath())
         // Exclusive creation proves ownership before any cleanup can remove this session.
         return java.nio.file.Files.createDirectory(File(parent, operationId()).toPath()).toFile()
@@ -149,23 +151,41 @@ class PreparedArchiveInstaller internal constructor(
         cancellationSignal
             .throwIfCancellationRequested()
 
-        val manualPreview = if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
+        val confirmation = prepared.confirmation
+        confirmation?.let { requireValidModName(it.modName) }
+        val explicitProposal = confirmation?.manualLayout
+        val manualPreview = if (explicitProposal != null) {
+            val inventory = requireManualInventory(prepared, cancellationSignal)
+            inventory.preview(explicitProposal, cancellationSignal).also {
+                if (!it.recognizedLayout && !confirmation.allowUnrecognizedLayout) {
+                    throw IOException("This mod's file structure is unrecognized.")
+                }
+            }
+        } else if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
             validateManualSelection(prepared, selection, manualLayoutProposal, cancellationSignal)
         } else {
             if (manualLayoutProposal != null) throw IOException("This installer does not use a manual layout.")
             null
         }
 
+        val modsDir = this.modsDir.canonicalFile
         ensureDirectoryExists(
             directory = modsDir,
             description = "installed-mod directory"
         )
 
-        val finalDir =
-            File(modsDir, prepared.modName)
+        val installedName = confirmation?.modName ?: prepared.modName
+        val finalDir = File(modsDir, installedName)
+        val previousInventory = if (confirmation != null && findExistingModName(installedName) != null) {
+            if (confirmation.existingModAction == ExistingModAction.ASK) {
+                throw IOException("A mod named $installedName already exists. Choose Add / Update Files or Replace.")
+            }
+            // Validate the old folder even for replacement: never replace a link.
+            ManualLayoutInventory.capture(modsDir, finalDir, cancellationSignal)
+        } else null
         val stagedDir = File(
             modsDir,
-            "_installing_${prepared.modName}_" +
+            "_installing_${installedName}_" +
                     operationId()
         )
         val installRoot =
@@ -206,10 +226,24 @@ class PreparedArchiveInstaller internal constructor(
                                     .contains(option.id)
                     }
 
-            if (selectedOptions.isEmpty()) {
+            if (selectedOptions.isEmpty() && manualPreview == null) {
                 throw IllegalStateException(
                     "No installer options selected."
                 )
+            }
+
+            if (confirmation?.existingModAction == ExistingModAction.ADD_UPDATE && previousInventory != null) {
+                previousInventory.entries.forEach { entry ->
+                    cancellationSignal.throwIfCancellationRequested()
+                    val target = safeResolveInstallerPath(stagedDir, entry.path)
+                    if (entry.directory) {
+                        ensureDirectoryExists(target, "staged mod folder")
+                    } else {
+                        val file = ManualLayoutFile(entry.path, entry.path, entry.sizeBytes,
+                            com.shonkware.droidmodloader.engine.model.DeployScope.IGNORE, entry.modifiedAtMillis)
+                        fileCopier(previousInventory.sourceFile(file), target, cancellationSignal)
+                    }
+                }
             }
 
             if (manualPreview != null) {
@@ -238,6 +272,11 @@ class PreparedArchiveInstaller internal constructor(
             cancellationSignal
                 .throwIfCancellationRequested()
 
+            // Check the union after overlay too, including case/path conflicts.
+            if (previousInventory != null) {
+                previousInventory.requireCurrent(cancellationSignal)
+                ManualLayoutInventory.capture(modsDir, stagedDir, cancellationSignal)
+            }
             val installedDir =
                 directoryReplacer.replace(
                     stagedDir = stagedDir,
@@ -285,6 +324,32 @@ class PreparedArchiveInstaller internal constructor(
 
             throw installFailure
         }
+    }
+
+    /** Folder names only; do not scan mod contents or trust a stale dashboard list. */
+    fun findExistingModName(name: String): String? {
+        requireValidModName(name)
+        if (!modsDir.exists()) return null
+        val matches = (modsDir.listFiles() ?: throw IOException("Could not read installed mods."))
+            .filter { modNameKey(it.name) == modNameKey(name) }
+        if (matches.size > 1 || matches.any { it.name != name }) {
+            throw IOException("A mod with this name already exists with different spelling. Use its exact name or choose another name.")
+        }
+        return matches.singleOrNull()?.name
+    }
+
+    private fun requireManualInventory(
+        prepared: PreparedArchiveInstall,
+        signal: InstallCancellationSignal
+    ): ManualLayoutInventory {
+        val inventory = prepared.manualLayoutInventory
+            ?: throw IOException("Prepared archive details are missing. Import the archive again.")
+        if (File(inventory.sessionRootPath).absolutePath != File(prepared.sessionRootPath).absolutePath ||
+            File(inventory.extractedRootPath).absolutePath != File(prepared.extractedRootPath).absolutePath) {
+            throw IOException("Prepared archive details belong to a different installer session.")
+        }
+        inventory.requireCurrent(signal)
+        return inventory
     }
 
     private fun validateManualSelection(

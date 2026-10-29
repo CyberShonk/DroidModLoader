@@ -179,56 +179,19 @@ class ArchiveImportExecutionWorkflowTest {
     }
 
     @Test
-    fun cancellationDuringAutomaticFinalizeCleansPreparedSession() {
+    fun ordinaryArchiveWaitsForNameAndFileChoicesInsteadOfFinalizing() {
         val engine = FakeArchiveImportEngine()
-        lateinit var harness: WorkflowHarness
-
-        engine.beforeFinalizeCompletes = {
-                cancellationSignal ->
-            harness.workflow.cancelImport()
-            cancellationSignal
-                .throwIfCancellationRequested()
-        }
-
-        harness = WorkflowHarness(engine)
-
-        harness.workflow.importArchive(
-            harness.sourceArchive
-        )
-
-        assertTrue(engine.finalizeCalled)
-        assertEquals(
-            listOf("Example Archive.zip"),
-            engine.cancelledPreparedArchives
-                .map { it.archiveName }
-        )
-        assertNull(
-            engine.markedInstalled
-        )
-        assertTrue(
-            engine.savedMods.isEmpty()
-        )
-        assertEquals(
-            listOf(
-                "Archive import cancelled."
-            ),
-            harness.cancelMessages
-        )
-        assertTrue(
-            harness.finishMessages.isEmpty()
-        )
-        assertTrue(
-            harness.failures.isEmpty()
-        )
-        assertTrue(
-            harness.logs.contains(
-                "RESULT: CANCELLED"
-            )
-        )
-        assertFalse(
-            engine.registeredArchiveFile
-                ?.exists() == true
-        )
+        val harness = WorkflowHarness(engine)
+        harness.workflow.importArchive(harness.sourceArchive)
+        assertFalse(engine.finalizeCalled)
+        assertNotNull(harness.shownPrepared)
+        assertEquals(OperationPhase.WAITING_FOR_CHOICES, harness.shownOperation!!.snapshot().phase)
+        assertNull(engine.markedInstalled)
+        assertTrue(engine.savedMods.isEmpty())
+        assertTrue(harness.finishMessages.isEmpty())
+        assertTrue(harness.failures.isEmpty())
+        assertFalse(engine.registeredArchiveFile!!.exists())
+        assertTrue(engine.cancelledPreparedArchives.isEmpty())
     }
 
     @Test
@@ -314,7 +277,8 @@ class ArchiveImportExecutionWorkflowTest {
         assertTrue(sourceArchive.exists())
         assertTrue(harness.logs.contains("Archive preflight format: rar5"))
         assertTrue(harness.logs.contains("Archive format: rar5"))
-        assertTrue(harness.logs.contains("RESULT: PASS"))
+        assertNotNull(harness.shownPrepared)
+        assertFalse(engine.finalizeCalled)
         assertTrue(harness.failures.isEmpty())
     }
 
@@ -376,7 +340,8 @@ class ArchiveImportExecutionWorkflowTest {
                 "Archive format: rar4"
             )
         )
-        assertTrue(harness.logs.contains("RESULT: PASS"))
+        assertNotNull(harness.shownPrepared)
+        assertFalse(engine.finalizeCalled)
         assertTrue(harness.failures.isEmpty())
     }
 
@@ -410,7 +375,7 @@ class ArchiveImportExecutionWorkflowTest {
     }
 
     @Test
-    fun repeatedAutomaticImportsNeverAccumulateSnapshotsOrRenameTheMod() {
+    fun repeatedPreparationsNeverAccumulateSnapshotsOrRenameTheMod() {
         val engine = FakeArchiveImportEngine()
         val harness = WorkflowHarness(engine)
         val original = harness.sourceArchive.readBytes()
@@ -421,13 +386,14 @@ class ArchiveImportExecutionWorkflowTest {
             assertTrue(harness.archiveLibraryFiles().isEmpty())
             org.junit.Assert.assertArrayEquals(original, harness.sourceArchive.readBytes())
         }
-        assertEquals(3, harness.finishMessages.size)
+        assertEquals(3, harness.attempts.waitingMessages.size)
+        assertTrue(harness.finishMessages.isEmpty())
         assertTrue(harness.failures.isEmpty())
-        assertEquals("installed", engine.markedInstalled!!.second)
+        assertNull(engine.markedInstalled)
     }
 
     @Test
-    fun failureAfterRegistrationDuringPreparationOrFinalizationRemovesOnlySnapshot() {
+    fun preparationFailureAndSuccessfulHandoffBothRemoveOnlySnapshot() {
         val engine = FakeArchiveImportEngine()
         val harness = WorkflowHarness(engine)
         engine.beforePrepareCompletes = { throw java.io.IOException("prepare failure") }
@@ -439,7 +405,9 @@ class ArchiveImportExecutionWorkflowTest {
         harness.workflow.importArchive(harness.sourceArchive)
         assertTrue(harness.archiveLibraryFiles().isEmpty())
         assertTrue(harness.sourceArchive.exists())
-        assertEquals(2, harness.failures.size)
+        assertEquals(1, harness.failures.size)
+        assertNotNull(harness.shownPrepared)
+        assertFalse(engine.finalizeCalled)
     }
 
     @Test
@@ -452,8 +420,9 @@ class ArchiveImportExecutionWorkflowTest {
         harness.workflow.importArchive(harness.sourceArchive)
         assertEquals(1, engine.prepareCount)
         assertSame(inspection, harness.inspections.single().inspection)
-        assertTrue(engine.finalizeCalled)
-        assertEquals(listOf("Archive imported successfully."), harness.finishMessages)
+        assertFalse(engine.finalizeCalled)
+        assertTrue(harness.finishMessages.isEmpty())
+        assertNotNull(harness.shownPrepared)
     }
 
     @Test

@@ -115,7 +115,11 @@ data class ManualLayoutInventory(
                 throw IOException("Prepared archive contains a link or unsupported file.")
             }
         }
-        if (!file.isFile || file.length() != entry.sizeBytes || file.lastModified() != entry.modifiedAtMillis) {
+        // Use capture's no-follow metadata API so timestamp precision is compared
+        // consistently, rather than mixing java.io.File and BasicFileAttributes.
+        val attributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, NOFOLLOW_LINKS)
+        if (!attributes.isRegularFile || attributes.size() != entry.sizeBytes ||
+            attributes.lastModifiedTime().toMillis() != entry.modifiedAtMillis) {
             throw IOException("Prepared archive file changed. Import the archive again.")
         }
         return file

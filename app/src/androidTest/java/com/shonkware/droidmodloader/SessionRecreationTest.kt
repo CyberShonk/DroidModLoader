@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotEnabled
+import com.shonkware.droidmodloader.ui.InstallerDialogState
+import com.shonkware.droidmodloader.ui.InstallerPage
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasAnyAncestor
@@ -101,6 +104,7 @@ class SessionRecreationTest {
             render(activity)
             session.setupComplete = true
             session.pendingArchiveInstall = prepared
+            session.installerChoices = InstallerDialogState(modName = prepared.modName, page = InstallerPage.OPTIONS)
             session.pendingInstallerArchiveRecordId = "record-1"
             session.showInstallerDialog = true
             session.lastOperationStatus = "Choose installer options. (1 ms)"
@@ -111,7 +115,7 @@ class SessionRecreationTest {
         recreate()
 
         compose.onNodeWithText("Install Options").assertIsDisplayed()
-        compose.onNodeWithText("Choose installer options. (1 ms)").assertIsDisplayed()
+        assertEquals(prepared.modName, session.installerChoices.modName)
         compose.onNode(isToggleable()).assertIsOn()
         assertSame(prepared, session.pendingArchiveInstall)
         assertEquals("record-1", session.pendingInstallerArchiveRecordId)
@@ -225,12 +229,13 @@ class SessionRecreationTest {
             session.setupComplete = true
             // No real profile: dashboard refresh must not touch user game data.
             session.pendingArchiveInstall = prepared
+            session.installerChoices = InstallerDialogState(modName = prepared.modName, page = InstallerPage.OPTIONS)
             session.pendingInstallerArchiveRecordId = "record-1"
             session.pendingInstallerSelectedOptionIds = setOf("optional")
             session.showInstallerDialog = true
         }
         try {
-            compose.onNodeWithText("Install Selected").performClick()
+            compose.onNodeWithText("Install").performClick()
             assertTrue("Worker did not reach the controlled boundary", engine.entered.await(5, TimeUnit.SECONDS))
             compose.waitForIdle()
             val attemptId = checkNotNull(Regex("""OPERATION STARTED \[([^]]+)]""").find(session.logText)).groupValues[1]
@@ -277,10 +282,8 @@ class SessionRecreationTest {
                 compose.waitUntil(timeoutMillis = 5_000) { session.lastOperationStatus == "Cancelling installer..." }
             } else {
                 // Duplicate confirmation must not start another worker after reattachment.
-                compose.onNodeWithText("Install Selected").performClick()
-                compose.waitUntil(timeoutMillis = 5_000) {
-                    session.logText.contains("Ignoring request: session operation was not admitted.")
-                }
+                compose.onNodeWithText("Install").assertIsNotEnabled()
+                assertTrue(session.logText.contains("Ignoring request: session operation was not admitted."))
             }
             engine.release.countDown()
             val expected = if (cancel) "Installer cancelled." else "Archive imported successfully."

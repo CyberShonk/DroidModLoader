@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- feat: Name a mod before installing and choose its files and Data folder in the install dialog. Unrecognized layouts ask before continuing. When the name already exists, add or update files, replace the mod, or cancel. The chosen name applies to DML's mod folder, not game deployment paths.
 - feat: Show archive details from the last install attempt without reading the archive again.
 - feat: Extract single volume, unencrypted RAR5 archives using standard methods `m0` through `m5`, including solid archives, with bounded dictionary and header processing. Entries use existing path, output and storage checks; unsupported variants are refused.
 - feat: Check Game Setup reports expected game filenames, folder access, app and Android versions, API level and storage permission. Missing and unreadable results stay distinct; results in the log do not prove game version or whether the game will run. <!-- commits: 8fa5eafafe6f41b22550269dbc7549a55272c88e -->
@@ -32,7 +33,7 @@ This file records release changes visible to users and known limitations.
 
 ### Fixed
 
-- fix: Validate chosen Data folders before installation and copy only the checked file mapping. Conflicting paths, links, changed prepared files and excessive manual folder depth are refused without replacing an existing installation. The folder chooser is unchanged.
+- fix: Validate chosen Data folders before installation and copy only the checked file mapping. Conflicting paths, links, changed prepared files and excessive manual folder depth are refused without replacing an existing installation.
 - fix: Use clearer button names and messages for imports, file checks and unfinished changes.
 - fix: Keep archive rows reachable on short screens while Close and Cancel stay visible.
 - fix: Index RAR file headers per volume so extraction does not repeatedly process the full header list. RAR5 metadata read accounting now accommodates 4,096 entries and an optional quick open record; the independent metadata byte and dictionary limits remain unchanged. <!-- commits: 70a55303d32498474b1f1100680a141ffbaf0e19 -->

@@ -1,7 +1,6 @@
 package com.shonkware.droidmodloader.engine.install
 
 import java.io.File
-import java.io.IOException
 
 class InstallerLayoutAnalyzer {
 
@@ -53,10 +52,13 @@ class InstallerLayoutAnalyzer {
             )
         }
 
-        throw IOException(
-            "No recognizable game data was found in this archive. " +
-                    "Expected folders like Data, meshes, textures, scripts, interface, sound, SKSE/NVSE, " +
-                    "or files like ESP/ESM/BSA/BA2/DLL/EXE/INI. The archive was not installed."
+        // Extraction safety is already enforced. Unknown structure requires an
+        // explicit file selection and acknowledgement, not an extraction failure.
+        return InstallerPlan(
+            installerType = InstallerType.MANUAL_DATA_FOLDER,
+            displayName = modName,
+            rootPath = contentRoot.absolutePath,
+            groups = emptyList()
         )
     }
 

@@ -111,6 +111,7 @@ internal class DashboardActionBindings(
             onToggleInstallerOption = installerWorkflowController::toggleOption,
             onConfirmInstaller = installerWorkflowController::finalizeInstall,
             onCancelInstaller = installerWorkflowController::cancelInstall,
+            onInstallerAction = installerWorkflowController::action,
             onToggleInstallerFullscreen = previewDialogActionWorkflowController::toggleInstallerFullscreen,
             onViewModFiles = modActionWorkflowController::viewModFiles,
             onCloseModFilePreview = previewDialogActionWorkflowController::closeModFilePreview,

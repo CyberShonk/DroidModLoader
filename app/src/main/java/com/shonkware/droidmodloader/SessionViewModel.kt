@@ -8,6 +8,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.shonkware.droidmodloader.ui.DashboardActions
+import com.shonkware.droidmodloader.ui.InstallerDialogAction
+import com.shonkware.droidmodloader.ui.InstallerDialogState
+import com.shonkware.droidmodloader.ui.InstallerPage
+import com.shonkware.droidmodloader.engine.install.ArchiveInstallConfirmation
+import com.shonkware.droidmodloader.engine.install.ExistingModAction
+import com.shonkware.droidmodloader.engine.install.InstallerType
+import com.shonkware.droidmodloader.engine.install.InstallCancellationController
+import com.shonkware.droidmodloader.engine.install.InstallCancelledException
+import com.shonkware.droidmodloader.engine.install.requireValidModName
+import com.shonkware.droidmodloader.ui.workflow.editManualInstallerChoices
 import android.os.Bundle
 import android.util.Log
 import com.shonkware.droidmodloader.attention.AppAttentionId
@@ -218,6 +228,84 @@ internal class SessionViewModel @JvmOverloads constructor(
 
     private val admittedOperationContext = ThreadLocal<OperationContext>()
     private var pendingInstallerOperation: OperationAttempt? = null
+    private var manualChoicesCancellation: InstallCancellationController? = null
+
+    private fun handleInstallerAction(action: InstallerDialogAction) {
+        if (isOperationAdmitted || operationInProgress) return
+        val prepared = pendingArchiveInstall ?: return
+        val before = installerChoices
+        when (action) {
+            is InstallerDialogAction.Name -> installerChoices = before.copy(
+                modName = action.value, error = null, showExisting = false, existingAction = ExistingModAction.ASK)
+            InstallerDialogAction.Back -> installerChoices = before.copy(page = InstallerPage.NAME, error = null)
+            is InstallerDialogAction.SelectFolder -> installerChoices = before.copy(selectedFolder = action.path)
+            InstallerDialogAction.DismissConfirmation -> installerChoices = before.copy(
+                showExisting = false, showUnrecognized = false,
+                allowUnrecognized = false, existingAction = ExistingModAction.ASK)
+            InstallerDialogAction.InstallAnyway -> {
+                installerChoices = before.copy(showUnrecognized = false, allowUnrecognized = true)
+                requestInstallerConfirmation()
+            }
+            is InstallerDialogAction.Existing -> {
+                installerChoices = before.copy(showExisting = false, existingAction = action.action)
+                requestInstallerConfirmation()
+            }
+            InstallerDialogAction.Install -> {
+                if (before.page == InstallerPage.NAME && before.proposal == null &&
+                    prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
+                    handleInstallerAction(InstallerDialogAction.ChooseFiles)
+                } else if (before.page == InstallerPage.NAME && before.proposal == null && prepared.plan.requiresUserChoice) {
+                    installerChoices = before.copy(page = InstallerPage.OPTIONS)
+                } else requestInstallerConfirmation()
+            }
+            else -> {
+                val selectedIds = pendingInstallerSelectedOptionIds.toSet()
+                val cancellation = InstallCancellationController()
+                val busy = before.copy(busy = true)
+                installerChoices = busy
+                manualChoicesCancellation = cancellation
+                val accepted = runSessionOperation(refreshArchives = false) {
+                    try {
+                        val result = runCatching { editManualInstallerChoices(prepared, before, selectedIds, action, cancellation.signal) }
+                        if (result.exceptionOrNull() is InstallCancelledException) {
+                            pendingInstallerWorkflow.cancelPendingInstall()
+                        } else activityThreadRunner.runOnUiThreadBlocking {
+                            if (pendingArchiveInstall === prepared && installerChoices === busy) {
+                                result.fold(onSuccess = { (updated, choices) ->
+                                    pendingArchiveInstall = updated
+                                    installerChoices = choices
+                                }, onFailure = { failure ->
+                                    installerChoices = before.copy(error = failure.message ?: "Could not read prepared files.")
+                                })
+                            }
+                        }
+                    } finally {
+                        activityThreadRunner.runOnUiThreadBlocking { manualChoicesCancellation = null }
+                    }
+                }
+                if (!accepted) {
+                    installerChoices = before
+                    manualChoicesCancellation = null
+                }
+            }
+        }
+    }
+
+    private fun requestInstallerConfirmation() {
+        val choices = installerChoices
+        try {
+            requireValidModName(choices.modName)
+        } catch (failure: Exception) {
+            installerChoices = choices.copy(error = failure.message)
+            return
+        }
+        if (choices.layoutError != null) return
+        if (choices.proposal != null && !choices.recognized && !choices.allowUnrecognized) {
+            installerChoices = choices.copy(showUnrecognized = true)
+            return
+        }
+        installerWorkflowController.finalizeInstall()
+    }
 
     private fun runSessionOperation(
         requireNoPendingInstaller: Boolean = false,
@@ -439,7 +527,12 @@ internal class SessionViewModel @JvmOverloads constructor(
             pendingSessionProvider = {
                 pendingArchiveInstall?.let { prepared ->
                     PendingInstallerSession(
-                        prepared = prepared,
+                        prepared = prepared.copy(confirmation = ArchiveInstallConfirmation(
+                            modName = installerChoices.modName.ifBlank { prepared.modName },
+                            manualLayout = installerChoices.proposal,
+                            allowUnrecognizedLayout = installerChoices.allowUnrecognized,
+                            existingModAction = installerChoices.existingAction
+                        )),
                         archiveRecordId = pendingInstallerArchiveRecordId,
                         selectedOptionIds = pendingInstallerSelectedOptionIds,
                         operation = pendingInstallerOperation
@@ -476,6 +569,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                     pendingInstallerOperation = null
                     pendingInstallerArchiveRecordId = null
                     pendingInstallerSelectedOptionIds = emptySet()
+                    installerChoices = InstallerDialogState()
                     showInstallerDialog = false
                     installerDialogFullscreen = false
                 }
@@ -483,6 +577,12 @@ internal class SessionViewModel @JvmOverloads constructor(
             refreshDashboard = {
                 dashboardRefreshCoordinator.refresh()
                 archiveBrowserWorkflow.refreshIfOpen()
+            },
+            onExistingInstall = {
+                runOnUiThread { installerChoices = installerChoices.copy(showExisting = true) }
+            },
+            onFinalizationFailure = { message ->
+                runOnUiThread { installerChoices = installerChoices.copy(error = message) }
             }
         )
     }
@@ -495,8 +595,13 @@ internal class SessionViewModel @JvmOverloads constructor(
                 try {
                     runSessionOperation(
                         prepare = {
-                            finalization = pendingInstallerWorkflow.prepareFinalization()
-                            finalization != null
+                            if (pendingInstallerOperation?.snapshot()?.context?.let { it != captureOperationContext() } == true) {
+                                installerChoices = installerChoices.copy(error = "The profile or game target changed. Cancel and install again.")
+                                false
+                            } else {
+                                finalization = pendingInstallerWorkflow.prepareFinalization()
+                                finalization != null
+                            }
                         }
                     ) { checkNotNull(finalization).run() }
                 } catch (failure: Throwable) {
@@ -505,13 +610,18 @@ internal class SessionViewModel @JvmOverloads constructor(
                 }
             },
             cancelInstallerInstall = {
-                if (!pendingInstallerWorkflow.cancelActiveInstall()) {
+                val editing = manualChoicesCancellation
+                if (editing != null) {
+                    editing.cancel()
+                    lastOperationStatus = "Cancelling installer..."
+                } else if (!pendingInstallerWorkflow.cancelActiveInstall()) {
                     runSessionOperation { pendingInstallerWorkflow.cancelPendingInstall() }
                 }
             },
             toggleInstallerOption = { optionId ->
-                pendingInstallerWorkflow.toggleOption(optionId)
-            }
+                if (!isOperationAdmitted && !operationInProgress) pendingInstallerWorkflow.toggleOption(optionId)
+            },
+            handleInstallerAction = ::handleInstallerAction
         )
     }
     private val profileWorkflowController by lazy {
@@ -1050,6 +1160,7 @@ internal class SessionViewModel @JvmOverloads constructor(
                     operation ->
                 runOnUiThread {
                     pendingArchiveInstall = prepared
+                    installerChoices = InstallerDialogState(modName = prepared.modName)
                     pendingInstallerOperation = operation
                     pendingInstallerArchiveRecordId =
                         archiveRecordId

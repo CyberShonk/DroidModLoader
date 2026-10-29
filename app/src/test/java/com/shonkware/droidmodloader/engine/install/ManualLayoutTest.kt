@@ -56,6 +56,22 @@ class ManualLayoutTest {
         assertTrue(excluded.selectRoot("").excludedPaths.isEmpty())
     }
 
+    @Test fun `per file observation accepts unchanged metadata and rejects timestamp changes and new links`() {
+        val root = tree()
+        val source = file(root, "mod.esp")
+        assertTrue(source.setLastModified(1_700_000_000_321L))
+        val inventory = inventory(root)
+        val selected = inventory.preview(ManualLayoutProposal()).files.single()
+        assertEquals(source, inventory.sourceFile(selected))
+        assertTrue(source.setLastModified(1_700_000_010_321L))
+        rejected { inventory.sourceFile(selected) }
+        assertTrue(source.delete())
+        val outside = temporary.newFile("outside")
+        Files.createSymbolicLink(source.toPath(), outside.toPath())
+        rejected { inventory.sourceFile(selected) }
+        assertTrue(outside.exists())
+    }
+
     @Test fun `unrecognized files are safe mappings not proof of game compatibility`() {
         val root = tree()
         file(root, "unusual/custom.payload")

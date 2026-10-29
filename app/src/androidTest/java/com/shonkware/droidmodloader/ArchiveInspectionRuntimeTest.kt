@@ -65,9 +65,14 @@ class ArchiveInspectionRuntimeTest {
             assertEquals("Data", prepared.plan.groups.single().options.single().sourcePath)
             assertEquals("payload", File(prepared.installRootPath, "Data/mod.esp").readText())
         } finally { installer.cancel(prepared) }
+        val unusual = installer.prepare(zip(root, "unusual.zip", "unusual.dat"))
+        assertEquals(InstallerType.MANUAL_DATA_FOLDER, unusual.plan.installerType)
+        assertTrue(unusual.plan.requiresUserChoice)
+        assertNotNull(unusual.manualLayoutInventory)
         assertThrows(java.io.IOException::class.java) {
-            installer.prepare(zip(root, "unusual.zip", "unusual.dat"))
+            installer.finalizeInstall(unusual, com.shonkware.droidmodloader.engine.install.InstallerSelection(emptySet()))
         }
+        installer.cancel(unusual)
         assertTrue(File(root, "temp/installer_sessions").list().orEmpty().isEmpty())
         assertFalse(File(root, "mods").exists())
         assertTrue(source.isFile)

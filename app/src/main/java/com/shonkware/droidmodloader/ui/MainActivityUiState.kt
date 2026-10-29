@@ -77,6 +77,7 @@ interface MainActivityUiState {
     var archiveImportInProgress: Boolean
     var pendingInstallerArchiveRecordId: String?
     var pendingInstallerSelectedOptionIds: Set<String>
+    var installerChoices: InstallerDialogState
     var showInstallerDialog: Boolean
     var installerDialogFullscreen: Boolean
     var visibleModContentIndexes: Map<String, ModContentIndex>
@@ -200,6 +201,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
     override var archiveImportInProgress by mutableStateOf(false)
     override var pendingInstallerArchiveRecordId by mutableStateOf<String?>(null)
     override var pendingInstallerSelectedOptionIds by mutableStateOf<Set<String>>(emptySet())
+    override var installerChoices by mutableStateOf(InstallerDialogState())
     override var showInstallerDialog by mutableStateOf(false)
     override var installerDialogFullscreen by mutableStateOf(false)
     override var visibleModContentIndexes by mutableStateOf<Map<String, ModContentIndex>>(emptyMap())
@@ -299,6 +301,7 @@ internal class MutableMainActivityUiState : MainActivityUiState {
             modFlags = visibleModFlags,
             pendingArchiveInstall = pendingArchiveInstall,
             selectedInstallerOptionIds = pendingInstallerSelectedOptionIds,
+            installerChoices = installerChoices,
             showInstallerDialog = showInstallerDialog,
             installerDialogFullscreen = installerDialogFullscreen,
             selectedModFilePreview = selectedModFilePreview,

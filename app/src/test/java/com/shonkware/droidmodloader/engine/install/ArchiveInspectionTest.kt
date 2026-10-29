@@ -131,12 +131,19 @@ class ArchiveInspectionTest {
         assertNoSessionOrInstall()
     }
 
-    @Test fun `unknown layout still refuses ordinary preparation and cleans the session`() {
-        val failure = assertThrows(java.io.IOException::class.java) {
-            installer().prepare(zip(path = "unusual.dat"))
-        }
-        assertTrue(failure.message!!.contains("No recognizable game data"))
+    @Test fun `unknown layout retains one safe preparation for explicit manual choices and cancel cleans it`() {
+        val installer = installer()
+        val prepared = installer.prepare(zip(path = "unusual.dat"))
+        assertEquals(InstallerType.MANUAL_DATA_FOLDER, prepared.plan.installerType)
+        assertTrue(prepared.plan.requiresUserChoice)
+        assertNotNull(prepared.manualLayoutInventory)
         assertEquals(1, reads)
+        assertTrue(File(prepared.extractedRootPath, "unusual.dat").isFile)
+        assertThrows(java.io.IOException::class.java) {
+            installer.finalizeInstall(prepared, InstallerSelection(emptySet()))
+        }
+        assertTrue(File(prepared.sessionRootPath).isDirectory)
+        installer.cancel(prepared)
         assertNoSessionOrInstall()
     }
 

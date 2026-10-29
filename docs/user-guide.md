@@ -82,6 +82,23 @@ does not mean every variant can be installed; see the limitations below.
 Installed mods are kept in profile storage managed by DML rather than copied
 directly into the game during import.
 
+After choosing **Install** on an archive, edit **Mod name** if needed. This names
+the mod in your list and its folder inside DML. It does not change where its files
+go when deployed to the game.
+
+Choose **Install** to continue. DML shows installer options or file choices when
+needed. **Choose Files** opens the archive's folder tree. Check the files and
+folders to include. Open a folder's **⋮** menu and choose **Use as Data Folder**
+to install its contents without the enclosing folders. **Reset to Archive Root** returns to the whole archive and clears exclusions.
+The tree shows the proposed structure inside the mod's folder. For an unrecognized
+layout, review the tree before choosing **Install Anyway**.
+
+If the mod name already exists, choose:
+
+- **Add / Update Files** to keep existing files and overwrite matching files with the new ones.
+- **Replace** to remove the existing files and install only the new selection.
+- **Cancel** to return to the installer without changing the existing mod.
+
 Enabled mods participate in the resolved game view. Disabled mods remain
 installed but do not contribute files to deployment.
 

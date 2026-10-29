@@ -9,5 +9,6 @@ data class PreparedArchiveInstall(
     val installRootPath: String,
     val plan: InstallerPlan,
     val inspection: ArchiveInspection? = null,
-    val manualLayoutInventory: ManualLayoutInventory? = null
+    val manualLayoutInventory: ManualLayoutInventory? = null,
+    val confirmation: ArchiveInstallConfirmation? = null
 )

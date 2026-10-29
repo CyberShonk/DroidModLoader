@@ -6,6 +6,8 @@ import com.shonkware.droidmodloader.engine.install.InstallerOption
 import com.shonkware.droidmodloader.engine.install.InstallerPlan
 import com.shonkware.droidmodloader.engine.install.InstallerType
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
+import com.shonkware.droidmodloader.engine.install.ArchiveInstallConfirmation
+import com.shonkware.droidmodloader.engine.install.ExistingModAction
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModType
 import org.junit.Assert.assertEquals
@@ -46,6 +48,57 @@ class PendingInstallerWorkflowTest {
         assertEquals(1, harness.refreshCount)
         assertTrue(harness.logs.contains("RESULT: PASS"))
         assertTrue(harness.failures.isEmpty())
+    }
+
+    @Test
+    fun replacementKeepsExistingPositionAndDisabledState() {
+        val previous = mod("installed", priority = 1).copy(enabled = false)
+        val engine = FakePendingInstallerEngine(listOf(previous, mod("other", priority = 2)))
+        val harness = WorkflowHarness(engine, session())
+
+        harness.workflow.finalizePendingInstall()
+
+        assertEquals(listOf("installed", "other"), engine.savedMods.map { it.id })
+        assertEquals(listOf(1, 2), engine.savedMods.map { it.priority })
+        assertFalse(engine.savedMods.first().enabled)
+        assertTrue(harness.failures.isEmpty())
+    }
+
+    @Test
+    fun matchingFolderWaitsForExplicitActionWithoutStartingOrFinishingInstall() {
+        val engine = FakePendingInstallerEngine(listOf(mod("installed", priority = 1)))
+        val confirmation = ArchiveInstallConfirmation("installed")
+        val pending = session().let { it.copy(prepared = it.prepared.copy(confirmation = confirmation)) }
+        val harness = WorkflowHarness(engine, pending)
+
+        harness.workflow.finalizePendingInstall()
+
+        assertEquals(listOf("installed"), harness.existingPrompts)
+        assertFalse(engine.finalizeCalled)
+        assertTrue(harness.beginMessages.isEmpty())
+        assertTrue(harness.failures.isEmpty())
+        assertEquals(0, harness.clearCount)
+        assertFalse(harness.workflow.cancelActiveInstall())
+        harness.session = pending.copy(prepared = pending.prepared.copy(
+            confirmation = confirmation.copy(existingModAction = ExistingModAction.ADD_UPDATE)))
+        harness.workflow.finalizePendingInstall()
+        assertTrue(engine.finalizeCalled)
+        assertEquals(1, harness.finishMessages.size)
+    }
+
+    @Test
+    fun immutableConfirmationIsReservedBeforeWorkerRuns() {
+        val engine = FakePendingInstallerEngine()
+        val confirmation = ArchiveInstallConfirmation("Chosen", allowUnrecognizedLayout = true,
+            existingModAction = ExistingModAction.REPLACE)
+        val pending = session().let { it.copy(prepared = it.prepared.copy(confirmation = confirmation)) }
+        val harness = WorkflowHarness(engine, pending)
+        val work = checkNotNull(harness.workflow.prepareFinalization())
+        harness.session = pending.copy(prepared = pending.prepared.copy(confirmation = ArchiveInstallConfirmation("Later")))
+        work.run()
+        work.run()
+        assertEquals(confirmation, engine.finalizedPrepared!!.confirmation)
+        assertEquals(1, harness.finishMessages.size)
     }
 
     @Test
@@ -358,6 +411,8 @@ class PendingInstallerWorkflowTest {
         val cancelMessages = attempts.cancelMessages
         val failures = attempts.failures
         val selectedIdUpdates = mutableListOf<Set<String>>()
+        val existingPrompts = mutableListOf<String>()
+        val dialogErrors = mutableListOf<String>()
 
         val workflow = PendingInstallerWorkflow(
             pendingSessionProvider = { this.session },
@@ -382,7 +437,9 @@ class PendingInstallerWorkflowTest {
                 clearCount++
                 this.session = null
             },
-            refreshDashboard = { refreshCount++ }
+            refreshDashboard = { refreshCount++ },
+            onExistingInstall = { existingPrompts.add(it) },
+            onFinalizationFailure = { dialogErrors.add(it) }
         )
     }
 
@@ -481,6 +538,7 @@ class PendingInstallerWorkflowTest {
         private var currentMods = currentMods
         var finalizeCalled = false
         var finalizedSelectedOptionIds: Set<String> = emptySet()
+        var finalizedPrepared: PreparedArchiveInstall? = null
         var finalizedPriority: Int? = null
         var finalizedSourceType: String? = null
         var savedMods: List<Mod> = emptyList()
@@ -504,6 +562,7 @@ class PendingInstallerWorkflowTest {
             InstallCancellationSignal
         ): Mod {
             finalizeCalled = true
+            finalizedPrepared = prepared
             finalizedSelectedOptionIds = selectedOptionIds
             finalizedPriority = priority
             finalizedSourceType = sourceType

@@ -274,12 +274,6 @@ internal class ArchiveImportExecutionWorkflow(
                 "About to install imported archive using engine..."
             )
 
-            val existingMods =
-                engine.getInstalledModsFromFolders()
-
-            val nextPriority =
-                calculateNextArchivePriority(existingMods)
-
             val preparedInstall =
                 engine.prepareArchiveInstall(
                     archive = copiedArchiveFile,
@@ -295,90 +289,9 @@ internal class ArchiveImportExecutionWorkflow(
                 ))
             }
 
-            if (preparedInstall.plan.requiresUserChoice) {
-                showInstallerChoices(
-                    preparedInstall,
-                    archiveRecord.archiveId,
-                    operation
-                )
-
-                appendLog(
-                    "Installer choices required: " +
-                            preparedInstall.plan.installerType
-                )
-                appendLog(
-                    "Pending installer archive record ID: " +
-                            archiveRecord.archiveId
-                )
-                preparedInstall.plan.warnings.forEach { warning ->
-                    appendLog(
-                        "INSTALLER WARNING: $warning"
-                    )
-                }
-
-                operation.waitForChoices("Choose installer options.")
-                return
-            }
-
-            operation.startInstalling("Installing archive...")
-            val installedMod =
-                engine.finalizePreparedArchiveInstall(
-                    prepared = preparedInstall,
-                    selectedOptionIds =
-                        preparedInstall.plan.defaultSelectedOptionIds,
-                    priority = nextPriority,
-                    sourceType = "imported_archive",
-                    cancellationSignal =
-                        cancellationController.signal
-                )
-
-            engine.markDownloadedArchiveInstalled(
-                archiveId = archiveRecord.archiveId,
-                installedModId = installedMod.id
-            )
-
-            appendLog(
-                "Archive install returned successfully."
-            )
-            appendLog(
-                "Archive record marked installed: " +
-                        archiveRecord.archiveId
-            )
-
-            val currentMods =
-                engine.getCurrentMods()
-                    .filterNot {
-                        it.id == installedMod.id
-                    }
-                    .sortedBy {
-                        it.priority
-                    }
-
-            val updatedMods =
-                currentMods +
-                        installedMod.copy(
-                            priority = currentMods.size + 1
-                        )
-
-            engine.saveCurrentMods(updatedMods)
-            engine.syncPlugins()
-
-            appendLog(
-                "Installed imported mod: $installedMod"
-            )
-            engine.appendInstalledModRoutingSummary(
-                installedMod
-            )
-            appendLog(
-                "Saved installed mod count after import: " +
-                        updatedMods.size
-            )
-            appendLog(
-                "Plugins refreshed automatically."
-            )
-            appendLog("RESULT: PASS")
-
-            operation.succeed("Archive imported successfully.")
+            // Every archive gets the same opportunity to name the mod and choose files.
+            showInstallerChoices(preparedInstall, archiveRecord.archiveId, operation)
+            operation.waitForChoices("Choose installer options.")
         } catch (exception: InstallCancelledException) {
             val activeEngine = engine
             val activePrepared = prepared

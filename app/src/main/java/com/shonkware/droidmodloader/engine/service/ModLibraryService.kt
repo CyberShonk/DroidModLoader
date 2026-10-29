@@ -324,9 +324,10 @@ internal class ModLibraryService(
     private fun writeInstalledModRecord(
         modDir: File,
         sourceType: String,
-        sourceArchiveName: String?
+        sourceArchiveName: String?,
+        chosenName: String? = null
     ) {
-        val displayName = ModDisplayNameNormalizer.cleanDisplayName(
+        val displayName = chosenName ?: ModDisplayNameNormalizer.cleanDisplayName(
             sourceArchiveName = sourceArchiveName,
             fallbackFolderName = modDir.name
         )
@@ -508,7 +509,8 @@ internal class ModLibraryService(
         writeInstalledModRecord(
             modDir = finalDir,
             sourceType = sourceType,
-            sourceArchiveName = prepared.archiveName
+            sourceArchiveName = prepared.archiveName,
+            chosenName = prepared.confirmation?.modName
         )
 
         val installedMod = buildModFromInstalledFolder(
@@ -524,6 +526,8 @@ internal class ModLibraryService(
         return installedMod
     }
 
+
+    fun findExistingModName(name: String): String? = preparedArchiveInstaller.findExistingModName(name)
 
     fun cancelPreparedArchiveInstall(prepared: PreparedArchiveInstall) {
         preparedArchiveInstaller.cancel(prepared)
