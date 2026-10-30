@@ -92,7 +92,7 @@ def sign(root, source_apk, version, code, commit, certificate, tools, *, execute
     require(sys.stdin.isatty() and sys.stderr.isatty(), 'Signing requires a local terminal with masked input')
     with PACKAGE.candidate_owner(root, version, code) as parent:
         output, stage = parent / 'signed', parent / '.signing-incomplete'
-        for name in ('signed', '.signing-incomplete', 'package', '.package-incomplete'):
+        for name in ('signed', '.signing-incomplete', 'package', '.package-incomplete', '.build-incomplete'):
             path = parent / name
             require(not path.exists() and not path.is_symlink(), 'Candidate already has signed, packaged or incomplete output; inspect before retry')
         stage.mkdir()

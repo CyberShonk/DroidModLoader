@@ -163,6 +163,45 @@ and resource limits stop the operation. No automatic offline fallback occurs.
 If needed, review the evidence and explicitly supply a complete confirmed offline
 baseline. The lookup uses no API token and may encounter GitHub rate limits.
 
+## Local candidate workflow
+
+After preparing a version, review and commit the preparation changes on
+`release/<version>`. The candidate workflow requires that clean commit, matching
+version/code, committed release notes without placeholders and no existing release
+tag. It never prepares a version or commits changes for you.
+
+```bash
+python3 tools/build-release-candidate.py \
+  --version v0.8.0-beta --code 4 --source-commit "$(git rev-parse HEAD)" \
+  --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256 \
+  --build-tools "$ANDROID_HOME/build-tools/36.0.0"
+```
+
+By default this only checks the prepared source and describes the plan. It does not
+run tests, build, read a key or create candidate outputs. The example code is not
+a reservation or a substitute for distribution baseline review.
+
+With explicit local authorization, add `--build-only` to run public documentation
+checks, tooling fixtures, JVM tests and release assembly in order. Gradle runs with
+`--offline`. Do not run other Gradle jobs against the same outputs concurrently.
+The tool selects exactly one APK from AGP release metadata, checks its unsigned
+receipt/source identity and alignment, and retains APK, receipt and metadata under
+`candidates/code-<code>/built/` within the release directory.
+
+For the complete local workflow, use `--execute` instead, with the external
+`--keystore` and `--alias` options described below. This requires a local terminal.
+After checks and build, it invokes the existing signing and packaging tools. Signing
+passwords are never redirected into workflow logs. Final files use the same
+`signed/` and `package/` locations as the separate tools.
+
+The workflow serializes against release preparation, stops on any failure and keeps
+check/build logs under `maintainer/`. Failed builds retain `.build-incomplete/`;
+signing and packaging refuse that state too. Existing built, signed, packaged or
+incomplete outputs block another workflow attempt. Review retained files first;
+verified built or signed bytes may then be passed explicitly to the separate tools
+without rebuilding. No version reservation, installation, tagging, upload or
+publication occurs in this workflow.
+
 ## Signing a release APK
 
 `tools/sign-release.py` checks a built release APK without signing by default. Use

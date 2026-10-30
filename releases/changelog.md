@@ -25,6 +25,7 @@ This file records release changes visible to users and known limitations.
 
 ### Changed
 
+- build: A local candidate workflow connects prepared source checks, tests, release assembly, signing and packaging. Execution is explicit; source changes, ambiguous build outputs and failed or existing attempts stop the workflow with retained evidence.
 - build: Local release signing checks the selected key certificate before signing, uses masked password entry, verifies final APK identity and alignment, and generates a matching receipt. Signing is explicitly invoked and preserves the original APK; failed or existing candidate outputs block unsafe retries.
 - build: Signed APK packaging checks the release identity and clean source provenance, generates final receipts and checksums, and creates a Nexus ZIP containing the same APK bytes, installation instructions and dependency notices. Existing packages and incomplete attempts are never silently overwritten.
 - build: Release preparation can inspect published GitHub APKs, including prereleases, and combine their verified codes with confirmed outside distributions before choosing the next code. Lookup checks signatures, package metadata, the previous release and unchanged publication data, retaining evidence under the release directory. Explicit offline confirmation remains available; lookup failure never silently falls back.

@@ -224,6 +224,8 @@ def package(root, source_apk, version, code, commit, certificate, tools):
                 'APK input cannot be a packaging output')
         require(not (parent / '.signing-incomplete').exists() and not (parent / '.signing-incomplete').is_symlink(),
                 'Incomplete signing exists; review evidence before packaging')
+        require(not (parent / '.build-incomplete').exists() and not (parent / '.build-incomplete').is_symlink(),
+                'Incomplete build exists; review evidence before packaging')
         output, stage = parent / 'package', parent / '.package-incomplete'
         require(not output.exists() and not output.is_symlink(), 'Package already exists; check it without regenerating')
         require(not stage.exists() and not stage.is_symlink(), 'Incomplete package exists; review evidence before retry')
