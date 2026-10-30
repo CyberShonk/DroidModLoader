@@ -2,7 +2,17 @@
 
 This file records release changes visible to users and known limitations.
 
-## v0.8.0-beta - Unreleased
+## Unreleased
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Known Issues
+
+## v0.8.0-beta - 2026-10-30
 
 ### Added
 
