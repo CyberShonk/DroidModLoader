@@ -18,10 +18,16 @@ NEW_VERSION_CODE=""
 PREVIOUS_TAG=""
 OFFLINE_HIGHEST_CODE=""
 OFFLINE_EVIDENCE=""
+OTHER_HIGHEST_CODE=""
+OTHER_EVIDENCE=""
+BUILD_TOOLS=""
+CERTIFICATE=""
+BASELINE_OUTPUT=""
+BASELINE_MODE=""
 
 [[ -n "$VERSION" ]] || fail \
   "Usage: ./tools/prepare-release.sh VERSION [VERSION_CODE] --previous-tag TAG" \
-  "--confirmed-offline-code CODE --offline-evidence SOURCE"
+  "with GitHub lookup options, or --confirmed-offline-code CODE --offline-evidence SOURCE"
 shift
 if [[ $# -gt 0 && "$1" != --* ]]; then
   NEW_VERSION_CODE="$1"
@@ -39,6 +45,21 @@ while [[ $# -gt 0 ]]; do
     --offline-evidence)
       [[ -z "$OFFLINE_EVIDENCE" ]] || fail "Repeated --offline-evidence."
       OFFLINE_EVIDENCE="$2" ;;
+    --confirmed-other-code)
+      [[ -z "$OTHER_HIGHEST_CODE" ]] || fail "Repeated --confirmed-other-code."
+      OTHER_HIGHEST_CODE="$2" ;;
+    --other-evidence)
+      [[ -z "$OTHER_EVIDENCE" ]] || fail "Repeated --other-evidence."
+      OTHER_EVIDENCE="$2" ;;
+    --build-tools)
+      [[ -z "$BUILD_TOOLS" ]] || fail "Repeated --build-tools."
+      BUILD_TOOLS="$2" ;;
+    --certificate-sha256)
+      [[ -z "$CERTIFICATE" ]] || fail "Repeated --certificate-sha256."
+      CERTIFICATE="$2" ;;
+    --baseline-output)
+      [[ -z "$BASELINE_OUTPUT" ]] || fail "Repeated --baseline-output."
+      BASELINE_OUTPUT="$2" ;;
     *) fail "Unknown option: $1" ;;
   esac
   shift 2
@@ -47,6 +68,21 @@ done
 if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta)?$ ]]; then
   fail \
     "Version must look like v0.7.0-beta or v1.0.0."
+fi
+
+if [[ -n "$OFFLINE_HIGHEST_CODE$OFFLINE_EVIDENCE" ]]; then
+  [[ -n "$OFFLINE_HIGHEST_CODE" && -n "$OFFLINE_EVIDENCE" ]] || fail \
+    "Offline mode requires --confirmed-offline-code and --offline-evidence."
+  [[ -z "$OTHER_HIGHEST_CODE$OTHER_EVIDENCE$BUILD_TOOLS$CERTIFICATE$BASELINE_OUTPUT" ]] || fail \
+    "Do not mix GitHub lookup options with a confirmed offline baseline."
+  BASELINE_MODE="offline"
+else
+  [[ -n "$PREVIOUS_TAG" && -n "$OTHER_HIGHEST_CODE" && -n "$OTHER_EVIDENCE" && \
+     -n "$BUILD_TOOLS" && -n "$CERTIFICATE" && -n "$BASELINE_OUTPUT" ]] || fail \
+    "Require --previous-tag and GitHub lookup options (--confirmed-other-code," \
+    "--other-evidence, --build-tools, --certificate-sha256, --baseline-output)," \
+    "or an explicit --confirmed-offline-code/--offline-evidence pair."
+  BASELINE_MODE="github"
 fi
 
 command -v python3 >/dev/null 2>&1 || fail "python3 is required to prepare a release."
@@ -123,9 +159,16 @@ if [[ ! "$CURRENT_VERSION_CODE" =~ ^[0-9]+$ ]]; then
     "Current VERSION_CODE in $VERSION_FILE is invalid."
 fi
 
+if [[ -e "$OUTPUT" || -L "$OUTPUT" ]]; then
+  fail "Release notes already exist: $OUTPUT"
+fi
+
 NEW_VERSION_CODE="$(python3 - "$NEW_VERSION_CODE" "$CURRENT_VERSION_CODE" \
-    "$PREVIOUS_TAG" "$OFFLINE_HIGHEST_CODE" "$OFFLINE_EVIDENCE" <<'PY'
+    "$PREVIOUS_TAG" "$OFFLINE_HIGHEST_CODE" "$OFFLINE_EVIDENCE" "$BASELINE_MODE" \
+    "$VERSION" "$OTHER_HIGHEST_CODE" "$OTHER_EVIDENCE" "$BUILD_TOOLS" \
+    "$CERTIFICATE" "$BASELINE_OUTPUT" <<'PY'
 from pathlib import Path
+import importlib.util
 import re
 import subprocess
 import sys
@@ -141,17 +184,19 @@ def code(value, label):
     return int(value)
 
 
-requested, current, previous, published, evidence = sys.argv[1:]
+requested, current, previous, published, evidence, mode, version, other, other_evidence, tools, certificate, baseline_output = sys.argv[1:]
 try:
     current = code(current, "Current VERSION_CODE")
     if len(re.findall(r"^VERSION_CODE=", Path("version.properties").read_text(), re.M)) != 1:
         raise ValueError("version.properties must contain exactly one VERSION_CODE.")
-    if not previous or not published or not evidence.strip():
-        raise ValueError("Require --previous-tag, --confirmed-offline-code and --offline-evidence; "
-                         "the local version is not a complete distribution baseline.")
-    if len(evidence) > 500 or any(ord(c) < 32 or ord(c) == 127 for c in evidence):
-        raise ValueError("Offline evidence must be a single short line without control characters.")
-    published = code(published, "Confirmed distributed code")
+    if not previous:
+        raise ValueError("Require --previous-tag; the local version is not a published baseline.")
+    if mode == "offline":
+        if not published or not evidence.strip():
+            raise ValueError("Offline mode requires a confirmed code and evidence.")
+        if len(evidence) > 500 or any(ord(c) < 32 or ord(c) == 127 for c in evidence):
+            raise ValueError("Offline evidence must be a single short line without control characters.")
+        published = code(published, "Confirmed distributed code")
     if git("rev-parse", "--is-shallow-repository") != "false":
         raise ValueError("Full Git history is required to verify the previous release.")
     ref = "refs/tags/" + previous
@@ -166,6 +211,17 @@ try:
     if len(prior_codes) != 1 or prior_names != [previous]:
         raise ValueError("Previous tag must match its version.properties release identity.")
     prior_code = code(prior_codes[0], "Previous release code")
+    if requested and code(requested, "VERSION_CODE") <= current:
+        raise ValueError(f"VERSION_CODE must be greater than the current value {current}.")
+    if mode == "github":
+        spec = importlib.util.spec_from_file_location("release_baseline", "tools/collect-release-baseline.py")
+        collector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(collector)
+        if not re.fullmatch(r"[0-9]{1,10}", other):
+            raise ValueError("Other distributed code must be an integer.")
+        published = code(str(collector.collect(Path.cwd(), version, previous, certificate, int(other),
+                         other_evidence, Path(tools), Path(baseline_output),
+                         progress=lambda message: print(message, file=sys.stderr))), "Collected distributed code")
     if published < prior_code:
         raise ValueError("Confirmed distributed code is below the previous release code; baseline is stale.")
     floor = max(current, published)
@@ -175,14 +231,10 @@ try:
     if selected <= published:
         raise ValueError(f"VERSION_CODE must be greater than confirmed distributed code {published}.")
     print(selected)
-except (OSError, UnicodeError, ValueError, subprocess.CalledProcessError) as error:
+except (OSError, UnicodeError, ValueError, KeyError, TypeError, RecursionError, subprocess.CalledProcessError) as error:
     sys.exit(f"ERROR: {error}")
 PY
 )"
-
-if [[ -f "$OUTPUT" ]]; then
-  fail "Release notes already exist: $OUTPUT"
-fi
 
 RELEASE_DATE="$(date +%F)"
 
@@ -310,10 +362,16 @@ printf '  Version code: %s\n' "$NEW_VERSION_CODE"
 printf '  Previous version: %s\n' "$CURRENT_VERSION_NAME"
 printf '  Previous version code: %s\n' "$CURRENT_VERSION_CODE"
 printf '  Previous published tag: %s\n' "$PREVIOUS_TAG"
-printf '  Confirmed distributed code (offline): %s\n' "$OFFLINE_HIGHEST_CODE"
-printf '  Baseline evidence: %s\n' "$OFFLINE_EVIDENCE"
+if [[ "$BASELINE_MODE" == "offline" ]]; then
+  printf '  Confirmed distributed code (offline): %s\n' "$OFFLINE_HIGHEST_CODE"
+  printf '  Baseline evidence: %s\n' "$OFFLINE_EVIDENCE"
+  printf '  No publication lookup was performed; retain this baseline summary for review.\n'
+else
+  printf '  Published APK baseline: %s/baseline.txt\n' "$BASELINE_OUTPUT"
+  printf '  Confirmed other distributed code: %s\n' "$OTHER_HIGHEST_CODE"
+  printf '  Other distribution evidence: %s\n' "$OTHER_EVIDENCE"
+fi
 printf '  Release notes: %s\n' "$OUTPUT"
-printf '  No publication lookup was performed; retain this baseline summary for review.\n'
 
 printf '\nNext steps:\n'
 printf '1. Review version.properties.\n'

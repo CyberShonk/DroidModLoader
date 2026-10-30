@@ -96,14 +96,14 @@ sign, upload, or publish anything.
 
 These are example baseline values, not a substitute for checking the release history.
 Confirm the highest code distributed for the release application ID, including
-privately shared candidates. This command does not query GitHub or Nexus.
-It chooses one above both that confirmed code and the current `version.properties`
+privately shared candidates. This example uses explicit offline confirmation and
+does not query GitHub or Nexus. It chooses one above both that confirmed code and the current `version.properties`
 code. An optional numeric second argument overrides the choice only when greater
 than both values. Codes must be between 1 and 2100000000.
 
 Run from a clean `release/<version>` branch in the main working tree, not a linked
 worktree. The previous published tag must match its version file and be an ancestor
-with commits after it. Python 3, `flock`, full Git history and a GitHub `origin` are
+with commits after it. Python 3.11 or newer, `flock`, full Git history and a GitHub `origin` are
 required. Concurrent preparation is refused; separate clones require coordination.
 Retain the printed baseline summary with your release records.
 
@@ -117,6 +117,51 @@ such as `<!-- commits: abc1234, def5678 -->` to the entry's bullet line. Referen
 must resolve to commits in the current history. Overrides are hidden in the
 generated notes.
 Review the summaries, links, known issues and upgrade guidance before publication.
+
+### Published APK lookup
+
+For a read only check without preparing a release:
+
+```bash
+python3 tools/collect-release-baseline.py \
+  --version v0.8.0-beta --previous-tag v0.7.0-beta \
+  --build-tools "$ANDROID_HOME/build-tools/36.0.0" \
+  --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256 \
+  --confirmed-other-code 3 --other-evidence 'Confirmed Nexus and private distributions' \
+  --output release-artifacts/v0.8.0-beta/maintainer/github-lookup-01
+```
+
+Use the existing release certificate confirmed from a published APK. The lookup
+pages through public releases and prereleases, downloads their APKs, verifies
+signatures with `apksigner`, and reads package/version codes with `aapt2`. It checks
+the selected previous release against its Git version file. Other application IDs,
+including DML Dev, are listed but excluded from the release code sequence. A different
+certificate is allowed only for an APK published before the selected previous release
+with a code below that release's code. Historical certificates are recorded, not
+adopted as the release signing identity. The selected previous release, newer
+publications and any code at or above its code require the confirmed certificate.
+A debuggable APK using the release package stops the lookup.
+
+`--confirmed-other-code` is the highest code distributed outside GitHub; use `0`
+only when none exist. The evidence line records that confirmation. The lookup prints
+the combined distributed floor, not a reserved next code. It saves raw API responses,
+Android inspection output and `baseline.txt` beneath the selected output directory.
+APK bytes are cached by hash in the release's `maintainer/github-apks/` directory;
+reuse requires the current published digest to match, and inspection runs again.
+Without a published digest, the APK is downloaded again. Existing outputs and corrupt
+cache entries are never silently replaced.
+
+To use this lookup during preparation, pass `--confirmed-other-code`,
+`--other-evidence`, `--build-tools`, `--certificate-sha256` and `--baseline-output`
+to `tools/prepare-release.sh` instead of the two offline options. The output must be
+a new directory under `release-artifacts/<version>/maintainer/`. Preparation chooses
+above the canonical current code and the collected distributed floor. Offline and
+lookup options cannot be mixed.
+
+API failures, incomplete or changing publication data, signature/identity failures
+and resource limits stop the operation. No automatic offline fallback occurs.
+If needed, review the evidence and explicitly supply a complete confirmed offline
+baseline. The lookup uses no API token and may encounter GitHub rate limits.
 
 ## Local release preview
 

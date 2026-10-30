@@ -28,7 +28,7 @@ class PrepareReleaseTest(unittest.TestCase):
         for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"):
             self.env.pop(key, None)
         self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
-        for name in ("tools/prepare-release.sh", "releases/templates/release-notes-template.md"):
+        for name in ("tools/prepare-release.sh", "tools/collect-release-baseline.py", "releases/templates/release-notes-template.md"):
             target = self.repo / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
@@ -322,6 +322,44 @@ class PrepareReleaseTest(unittest.TestCase):
         self.notes.write_text("partial notes from interrupted preparation")
         self.assert_refused("working tree must be clean")
         self.assertIn("VERSION_CODE=3\n", self.version.read_text())
+
+    def online_options(self):
+        return ("--previous-tag", "v0.7.0-beta", "--confirmed-other-code", "3",
+                "--other-evidence", "Confirmed external releases", "--build-tools", "/fixture/sdk",
+                "--certificate-sha256", "a" * 64, "--baseline-output",
+                "release-artifacts/v0.8.0-beta/maintainer/lookup-01")
+
+    def fixture_collector(self, body):
+        (self.repo / "tools/collect-release-baseline.py").write_text(
+            "from pathlib import Path\n"
+            "def collect(root, version, previous, certificate, other, evidence, tools, output, progress=None):\n"
+            + "\n".join("    " + line for line in body.splitlines()) + "\n")
+        (self.repo / ".gitignore").write_text("/release-artifacts/\n")
+        self.commit()
+
+    def test_online_baseline_drives_code_selection_and_notes(self):
+        self.fixture_collector("output.mkdir(parents=True)\n(output / 'baseline.txt').write_text('Fixture verified code8')\nreturn 8")
+        result = self.run_prepare(baseline=False, extra=self.online_options())
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("VERSION_CODE=9\n", self.version.read_text())
+        self.assertIn("Published APK baseline:", result.stdout)
+        self.assertNotIn("No publication lookup was performed", result.stdout)
+        self.assertIn("### Added", self.notes.read_text())
+
+    def test_online_failure_does_not_fall_back_or_mutate_release_files(self):
+        self.fixture_collector("raise ValueError('Injected GitHub lookup failure')")
+        self.assert_refused("Injected GitHub lookup failure", baseline=False, extra=self.online_options())
+
+    def test_lookup_modes_cannot_be_mixed(self):
+        self.assert_refused("Do not mix", extra=self.online_options()[2:])
+
+    def test_invalid_override_and_existing_notes_refuse_before_lookup(self):
+        self.fixture_collector("raise AssertionError('Lookup must not run')")
+        self.assert_refused("greater than the current", baseline=False, code="3", extra=self.online_options())
+        self.notes.parent.mkdir()
+        self.notes.write_text("Existing release notes")
+        self.commit()
+        self.assert_refused("Release notes already exist", baseline=False, extra=self.online_options())
 
     def test_output_symlink_outside_repository_is_refused(self):
         outside = tempfile.TemporaryDirectory(prefix="dml-release-outside-")
