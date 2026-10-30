@@ -2,6 +2,7 @@
 """Verify and package an already signed APK. Never build, sign, reserve or upload."""
 
 import argparse
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import importlib.util
@@ -187,13 +188,28 @@ def verify_bundle(folder, version, code, commit, certificate, tools, inspection,
         PREVIEW.zip_review(nexus_dir / nexus_name, apk_name, BASELINE.digest(apk), receipt_name, file_bytes(receipt))
 
 
-def inspection_folder(root, version, code):
+def inspection_folder(root, version, code, prefix='package'):
     root = root.resolve()
     folder = real_path(root / 'release-artifacts' / version / 'maintainer')
     require(subprocess.run(['git', '-C', str(root), 'check-ignore', '--quiet', '--no-index', '--', str(folder.relative_to(root))]).returncode == 0,
             'Inspection output must be ignored')
     folder.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix=f'package-code-{code}-', dir=folder))
+    return Path(tempfile.mkdtemp(prefix=f'{prefix}-code-{code}-', dir=folder))
+
+
+@contextmanager
+def candidate_owner(root, version, code):
+    parent = real_path(root / 'release-artifacts' / version / 'candidates' / f'code-{code}')
+    require(subprocess.run(['git', '-C', str(root), 'check-ignore', '--quiet', '--no-index', '--', str(parent.relative_to(root))]).returncode == 0,
+            'Candidate output must be ignored')
+    parent.mkdir(parents=True, exist_ok=True)
+    lock = parent / '.candidate.lock'
+    with os.fdopen(os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600), 'r+') as stream:
+        try:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('Another candidate operation owns this candidate') from None
+        yield parent
 
 
 def package(root, source_apk, version, code, commit, certificate, tools):
@@ -203,18 +219,11 @@ def package(root, source_apk, version, code, commit, certificate, tools):
     require(source_apk.is_file() and 0 < source_apk.stat().st_size <= MAX_APK, 'Missing or oversized APK')
     tools = real_path(tools)
     require(all((tools / name).is_file() for name in ('apksigner', 'aapt2')), 'Android inspection tools are required')
-    parent = real_path(root / 'release-artifacts' / version / 'candidates' / f'code-{code}')
-    require(subprocess.run(['git', '-C', str(root), 'check-ignore', '--quiet', '--no-index', '--', str(parent.relative_to(root))]).returncode == 0,
-            'Candidate output must be ignored')
-    require(not source_apk.is_relative_to(parent / 'package') and not source_apk.is_relative_to(parent / '.package-incomplete'),
-            'APK input cannot be a packaging output')
-    parent.mkdir(parents=True, exist_ok=True)
-    lock = parent / '.package.lock'
-    with os.fdopen(os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600), 'r+') as stream:
-        try:
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ValueError('Another packaging operation owns this candidate') from None
+    with candidate_owner(root, version, code) as parent:
+        require(not source_apk.is_relative_to(parent / 'package') and not source_apk.is_relative_to(parent / '.package-incomplete'),
+                'APK input cannot be a packaging output')
+        require(not (parent / '.signing-incomplete').exists() and not (parent / '.signing-incomplete').is_symlink(),
+                'Incomplete signing exists; review evidence before packaging')
         output, stage = parent / 'package', parent / '.package-incomplete'
         require(not output.exists() and not output.is_symlink(), 'Package already exists; check it without regenerating')
         require(not stage.exists() and not stage.is_symlink(), 'Incomplete package exists; review evidence before retry')

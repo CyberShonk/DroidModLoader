@@ -231,9 +231,9 @@ else:
 
     def test_concurrent_operation_is_refused(self):
         self.parent.mkdir(parents=True)
-        with (self.parent / '.package.lock').open('w') as stream:
+        with (self.parent / '.candidate.lock').open('w') as stream:
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with self.assertRaisesRegex(ValueError, 'Another packaging'):
+            with self.assertRaisesRegex(ValueError, 'Another candidate'):
                 self.package()
         self.assertFalse(self.output.exists())
 
@@ -247,7 +247,7 @@ else:
             self.package()
         (self.root / 'release-artifacts').unlink()
         self.parent.mkdir(parents=True)
-        (self.parent / '.package.lock').symlink_to(self.apk)
+        (self.parent / '.candidate.lock').symlink_to(self.apk)
         with self.assertRaises(OSError):
             self.package()
 

@@ -163,6 +163,44 @@ and resource limits stop the operation. No automatic offline fallback occurs.
 If needed, review the evidence and explicitly supply a complete confirmed offline
 baseline. The lookup uses no API token and may encounter GitHub rate limits.
 
+## Signing a release APK
+
+`tools/sign-release.py` checks a built release APK without signing by default. Use
+a clean committed checkout, matching unsigned build receipt, expected source commit,
+version/code and the certificate confirmed from the published release. This does
+not build an APK or reserve a code.
+
+```bash
+python3 tools/sign-release.py \
+  --apk /path/to/app-release-unsigned.apk --version v0.8.0-beta --code 4 \
+  --source-commit "$(git rev-parse HEAD)" \
+  --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256 \
+  --build-tools "$ANDROID_HOME/build-tools/36.0.0"
+```
+
+The default checks source/provenance, APK metadata, alignment and the matching
+unsigned build receipt. It does not read a keystore or check its signing identity.
+Failed alignment stops signing; fix the build rather than changing a signed APK.
+
+For an explicitly authorized local signing operation, add `--execute`,
+`--keystore /outside/repository/release.p12` and `--alias key0` to that command.
+The keystore must be an existing external PKCS12 file. The tool requires a local
+terminal and masked password entry. Enter the store password, then the key password
+when asked, even when they are identical. Password arguments, environment variables
+and credential files are not accepted. Password handling uses UTF8; native process
+diagnostics that could contain credentials are suppressed.
+
+The alias certificate must match the expected fingerprint before signing. The
+original APK is left unchanged. A staged copy is signed, independently verified and
+checked for alignment, then a receipt is generated for its final name and bytes.
+Output is `release-artifacts/<version>/candidates/code-<code>/signed/` with the APK
+and matching receipt. Signing does not run packaging, install or publish anything.
+
+Signing and packaging share a candidate lock. Existing signed, packaged or incomplete
+outputs stop signing. Failed attempts retain `.signing-incomplete/` and separate
+inspection logs for review; they are not automatically retried. Pass the verified
+signed APK to the packaging command below as a separate step.
+
 ## Packaging a signed APK
 
 `tools/package-release.py` checks and packages an already signed release APK. It

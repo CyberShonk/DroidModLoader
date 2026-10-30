@@ -242,6 +242,11 @@ def inspect(apk, build_tools, folder, asset_id):
     signers = re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$', signature, re.M)
     if len(signers) != 1:
         raise ValueError('Exactly one verified APK signer is required')
+    app, code, version, debuggable = metadata(apk, build_tools, folder, asset_id)
+    return app, code, version, signers[0].lower(), debuggable
+
+
+def metadata(apk, build_tools, folder, asset_id):
     badging = tool([str(build_tools / 'aapt2'), 'dump', 'badging', str(apk)], folder / f'{asset_id}-badging.txt')
     lines = re.findall(r"^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']*)'.*$", badging, re.M)
     if len(lines) != 1:
@@ -249,7 +254,7 @@ def inspect(apk, build_tools, folder, asset_id):
     app, code, version = lines[0]
     short_text(app, 'APK application ID')
     short_text(version, 'APK version name')
-    return app, number(int(code), 'APK version code'), version, signers[0].lower(), 'application-debuggable' in badging.splitlines()
+    return app, number(int(code), 'APK version code'), version, 'application-debuggable' in badging.splitlines()
 
 
 def collect(root, version, previous_tag, certificate, other_code, other_evidence, build_tools, output, client=None, progress=None):
