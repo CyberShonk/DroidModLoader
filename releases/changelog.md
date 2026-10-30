@@ -25,6 +25,7 @@ This file records release changes visible to users and known limitations.
 
 ### Changed
 
+- build: Signed APK packaging checks the release identity and clean source provenance, generates final receipts and checksums, and creates a Nexus ZIP containing the same APK bytes, installation instructions and dependency notices. Existing packages and incomplete attempts are never silently overwritten.
 - build: Release preparation can inspect published GitHub APKs, including prereleases, and combine their verified codes with confirmed outside distributions before choosing the next code. Lookup checks signatures, package metadata, the previous release and unchanged publication data, retaining evidence under the release directory. Explicit offline confirmation remains available; lookup failure never silently falls back.
 - feat: Recovery details report recorded targets, pending install transactions and supported review actions. Retry and rollback remain unavailable without evidence proving a safe recovery. Warning review or dismissal does not repair files or unlock deployment; unresolved journals are preserved.
 - refactor: Operation feedback stays in the app instead of using Android Toast popups. The dashboard, Archive Library, and installer show the latest operation status. <!-- commits: 69bcad1cd7846cb3fcea988cfed19bce60c5af37 -->

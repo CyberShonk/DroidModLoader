@@ -163,6 +163,50 @@ and resource limits stop the operation. No automatic offline fallback occurs.
 If needed, review the evidence and explicitly supply a complete confirmed offline
 baseline. The lookup uses no API token and may encounter GitHub rate limits.
 
+## Packaging a signed APK
+
+`tools/package-release.py` checks and packages an already signed release APK. It
+does not build, sign, allocate a version code or upload files. Use a clean committed
+checkout whose `version.properties` matches the APK, and the confirmed release
+certificate. The APK must contain clean release build provenance for that commit.
+
+```bash
+python3 tools/package-release.py \
+  --apk /path/to/signed.apk --version v0.8.0-beta --code 4 \
+  --source-commit "$(git rev-parse HEAD)" \
+  --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256 \
+  --build-tools "$ANDROID_HOME/build-tools/36.0.0"
+```
+
+The example version/code are not a reservation. The tool independently verifies the
+APK signature, certificate, package, version and debuggable flag. It copies the APK
+to its final name and generates a receipt for those exact bytes. If an input receipt
+exists, it must already match the signed input. Distribution notices must be reviewed
+again after dependency declarations change.
+
+Output is under `release-artifacts/<version>/candidates/code-<code>/package/`:
+
+- `github/assets/`: APK, APK receipt, release manifest and `SHA256SUMS.txt`.
+- `nexus/`: Nexus ZIP with the same APK and receipt, install instructions, licenses,
+  notices and checksums for its contents.
+
+The manifest records package/version/code, source commit, certificate and each
+payload's name, size, SHA256 and destination. The ZIP is listed as a Nexus download,
+not a GitHub asset. Outer checksums cover APK, receipt, manifest and Nexus ZIP;
+they do not include the checksum file itself.
+
+Existing packages are never regenerated. A failed attempt retains
+`.package-incomplete/` for inspection, and another attempt refuses it. Inspection
+logs are kept separately under the release's `maintainer/` directory. Review failed
+outputs before deliberately clearing task outputs or selecting another candidate.
+
+To check an existing package, replace `--apk` with `--check-directory` pointing to
+its `package/` folder and keep the expected identity and SDK options. Add
+`--github-only` to verify the GitHub payloads without downloading the Nexus ZIP.
+That mode checks its recorded identity but cannot verify absent ZIP bytes. Full
+verification requires the Nexus ZIP. Package checks do not replace testing the
+final APK's installation and update behavior.
+
 ## Local release preview
 
 `tools/preview-release.py` creates an exact text review page and copies the supplied
