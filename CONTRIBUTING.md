@@ -125,9 +125,16 @@ files into a new snapshot. It does not render Markdown or BBCode, build an APK,
 access signing keys, fetch links, upload, or approve a release. Python 3.11 or newer
 and local Git history are required.
 
+Generated release files belong under the ignored `release-artifacts/<version>/`
+directory. Keep text drafts in `drafts/` and each candidate's files, metadata and
+review output in `candidates/code-<version-code>/`. Keep distributed candidates
+separate rather than overwriting them. Source templates, the changelog and committed
+release notes stay in Git.
+
 ```bash
 python3 tools/preview-release.py \
-  --input /tmp/dml-candidate --output /tmp/dml-review-01 \
+  --input release-artifacts/v0.8.0-beta/candidates/code-4/input \
+  --output release-artifacts/v0.8.0-beta/candidates/code-4/review \
   --version v0.8.0-beta --version-code 4 \
   --source-commit HEAD --previous-ref v0.7.0-beta \
   --certificate-sha256 YOUR_CONFIRMED_CERTIFICATE_SHA256
@@ -159,8 +166,8 @@ snapshot is not release approval: APK signatures, Android metadata, manifest sch
 runtime behavior and actual GitHub/Nexus formatting still need their own checks.
 An email draft may still need the eventual upload URL or status.
 
-Use `python3 tools/preview-release.py --verify /tmp/dml-review-01` to compare snapshot
-files against `review.sha256`. This checks integrity, not authenticity or approval.
+Use `python3 tools/preview-release.py --verify release-artifacts/v0.8.0-beta/candidates/code-4/review`
+to compare snapshot files against `review.sha256`. This checks integrity, not authenticity or approval.
 Keep the whole review folder out of uploaded assets. Existing output directories
 are refused; failed writes can leave an incomplete directory, so choose a new one.
 Outputs inside the repository must be ignored. No new version code is reserved.

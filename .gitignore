@@ -37,3 +37,4 @@ keystore.properties
 private-notes/
 /dist/
 /nexus-upload/
+/release-artifacts/
