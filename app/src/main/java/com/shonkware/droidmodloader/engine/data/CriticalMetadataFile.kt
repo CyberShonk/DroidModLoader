@@ -4,6 +4,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
@@ -47,6 +48,50 @@ internal class CriticalMetadataFile(
         }
     }
 
+    /**
+     * Opt-in persistence for new critical records. The parent must already exist at
+     * its canonical, caller-owned path; callers serialize all access and validate
+     * record semantics before saving. Unlike replace(), this checks directory sync
+     * before promotion and requires it afterward. A failed promotion or later barrier
+     * is uncertain: callers must reread/reconcile, never assume the old bytes remain.
+     * Successful filesystem barriers are not a hardware/power-loss qualification.
+     */
+    fun replaceDurably(text: String, maxBytes: Int) {
+        require(maxBytes in 1 until Int.MAX_VALUE)
+        var temporary: File? = null
+        var mutationMayHaveOccurred = false
+        try {
+            if (text.length > maxBytes) throw IOException("Metadata exceeds byte limit")
+            val encoded = Charsets.UTF_8.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .encode(CharBuffer.wrap(text))
+            if (encoded.remaining() > maxBytes) throw IOException("Metadata exceeds byte limit")
+            val bytes = ByteArray(encoded.remaining()).also { encoded.get(it) }
+            val parent = requireCriticalDirectory(
+                file.absoluteFile.parentFile ?: throw IOException("Metadata has no parent directory")
+            )
+            // Refuse unreadable, linked, oversized or invalid UTF-8 evidence. Only
+            // absence is fresh; parsing/version validation belongs to the repository.
+            read(maxBytes)
+            operations.syncDirectory(parent)
+            temporary = File.createTempFile(".${file.name}.", ".tmp", parent)
+            operations.writeAndSync(temporary, bytes)
+            mutationMayHaveOccurred = true
+            operations.promote(temporary, file)
+            operations.syncDirectory(parent)
+        } catch (exception: Exception) {
+            throw CriticalStorageException(
+                "Could not durably persist critical metadata: ${file.name}",
+                mutationMayHaveOccurred,
+                exception
+            )
+        } finally {
+            // A leftover private sibling is never authority or a recovery candidate.
+            runCatching { temporary?.delete() }
+        }
+    }
+
     fun replace(text: String) {
         var temporary: File? = null
         try {
@@ -74,6 +119,9 @@ internal interface CriticalMetadataFileOperations {
     }
     fun writeAndSync(file: File, bytes: ByteArray)
     fun promote(source: File, target: File)
+    fun syncDirectory(directory: File) {
+        throw IOException("Directory persistence is unsupported by these operations")
+    }
 }
 
 internal object SystemCriticalMetadataFileOperations : CriticalMetadataFileOperations {
@@ -110,6 +158,8 @@ internal object SystemCriticalMetadataFileOperations : CriticalMetadataFileOpera
             output.fd.sync()
         }
     }
+
+    override fun syncDirectory(directory: File) = syncCriticalDirectory(directory)
 
     override fun promote(source: File, target: File) {
         Files.move(

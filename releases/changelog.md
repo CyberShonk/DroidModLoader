@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- refactor: Add optional storage checks for saving records and moving folders, keeping uncertain results distinct from unchanged files. Existing installation and deployment behavior is unchanged.
 - feat: Add a bounded plugin header reader that preserves source paths and distinguishes unreadable master declarations from an empty list. Existing plugin controls and saved lists are unchanged.
 - build: Preview release text, source documentation changes, download metadata and Nexus ZIP contents locally before uploading. Drafts identify missing inputs; complete input checks compare recorded APK identity, shared bytes and checksums without claiming signature, runtime or publication approval.
 - feat: Share Logs includes profile and folder context, recorded deployment and recovery details, recent attempts, and retained diagnostic observations without running new checks. An information icon explains that reports include full folder paths and historical logs.
