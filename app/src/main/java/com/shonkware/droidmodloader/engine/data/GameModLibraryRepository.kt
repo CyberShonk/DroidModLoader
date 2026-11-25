@@ -70,6 +70,10 @@ internal class GameModLibraryRepository(
         recordFile(storagePaths.getProfileMembershipFile(gameId, profileId)).replaceDurably(text, MAX_RECORD_BYTES)
     }
 
+    internal fun validateProfileMembership(membership: ProfileModMembership) {
+        decodeProfile(membership.profileId, encodeProfile(membership))
+    }
+
     /** Join identities only. Missing entries stay missing, even with matching names. */
     fun joinProfileRecords(
         profileId: String,
@@ -102,7 +106,7 @@ internal class GameModLibraryRepository(
         }
     }
 
-    private fun decodeLibrary(text: String): GameModLibrary = decode(text, LIBRARY_KEYS) { json ->
+    internal fun decodeLibrary(text: String): GameModLibrary = decode(text, LIBRARY_KEYS) { json ->
         require(json.requiredString("gameId") == gameId) { "Wrong game" }
         val revision = json.requiredLong("revision").also { require(it > 0) }
         val array = json.getJSONArray("entries")
@@ -187,7 +191,7 @@ internal class GameModLibraryRepository(
         require(keys == expected) { "Missing record fields" }
     }
 
-    private fun encodeLibrary(library: GameModLibrary): String = JSONObject().apply {
+    internal fun encodeLibrary(library: GameModLibrary): String = JSONObject().apply {
         put("schemaVersion", 1)
         put("gameId", library.gameId)
         put("revision", library.revision)

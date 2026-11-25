@@ -40,6 +40,9 @@ internal class ProfileStoragePaths(
     fun getGameLibraryEntryDir(gameId: String, installationId: String): File =
         checkedLibraryPath("game_libraries/${distinctStorageKey(gameId)}/mods/${distinctStorageKey(installationId)}")
 
+    fun getGameLibraryInstallTransactionDir(gameId: String): File =
+        checkedLibraryPath("game_libraries/${distinctStorageKey(gameId)}/install_transaction")
+
     fun getProfileMembershipFile(gameId: String, profileId: String): File =
         checkedLibraryPath("profile_memberships/${distinctStorageKey(profileId)}/${distinctStorageKey(gameId)}.json")
 

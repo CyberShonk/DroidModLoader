@@ -13,6 +13,9 @@ import com.shonkware.droidmodloader.engine.install.ModDisplayNameNormalizer
 import com.shonkware.droidmodloader.engine.install.ModInstaller
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstaller
+import com.shonkware.droidmodloader.engine.install.SharedLibraryInstall
+import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.InstalledModRecord
@@ -52,6 +55,19 @@ internal class ModLibraryService(
 
     private val installReplacementRecovery =
         InstallReplacementRecovery()
+
+    /** Staged only. The caller supplies a complete captured game profile inventory and
+     * holds existing session admission across all reads/writes and derived consumers. */
+    fun stagedSharedLibraryInstall(
+        storagePaths: ProfileStoragePaths,
+        gameId: String,
+        allGameProfileIds: () -> List<String>,
+        invalidateDerivedViews: (GameLibraryEntry, Set<String>) -> Unit,
+        rebuildIndex: (GameLibraryEntry) -> Unit
+    ) = SharedLibraryInstall(
+        storagePaths, gameId, preparedArchiveInstaller, allGameProfileIds,
+        invalidateDerivedViews = invalidateDerivedViews, rebuildIndex = rebuildIndex
+    )
 
     fun buildModFromInstalledFolder(
         modDir: File,

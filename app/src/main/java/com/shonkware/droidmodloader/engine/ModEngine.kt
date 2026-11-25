@@ -9,6 +9,8 @@ import com.shonkware.droidmodloader.engine.storage.StorageCapacityProbe
 import com.shonkware.droidmodloader.engine.storage.StorageDiagnostics
 import com.shonkware.droidmodloader.engine.storage.StorageWriteRequirement
 import com.shonkware.droidmodloader.engine.io.ArchiveImportFileStore
+import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.baseline.DataBaselineSnapshot
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealth
 import com.shonkware.droidmodloader.engine.deploy.health.DeploymentHealthProjector
@@ -103,6 +105,17 @@ class ModEngine(
         getGameDeploymentConfig = deploymentService::getGameDeploymentConfig,
         validateTargetDataPath = deploymentService::validateTargetDataPath
     )
+    /** No active caller: shared storage is enabled only by the later coherent rollout. */
+    internal fun stagedSharedLibraryInstall(
+        gameId: String,
+        allGameProfileIds: () -> List<String>,
+        invalidateDerivedViews: (GameLibraryEntry, Set<String>) -> Unit,
+        rebuildIndex: (GameLibraryEntry) -> Unit
+    ) = modLibraryService.stagedSharedLibraryInstall(
+        ProfileStoragePaths(appContext.filesDir, { null }, { gameId }),
+        gameId, allGameProfileIds, invalidateDerivedViews, rebuildIndex
+    )
+
     fun buildModFromInstalledFolder(modDir: File, priority: Int, enabled: Boolean = true): Mod =
         modLibraryService.buildModFromInstalledFolder(modDir, priority, enabled)
     fun scanMod(mod: Mod): List<ModFile> = modLibraryService.scanMod(mod)

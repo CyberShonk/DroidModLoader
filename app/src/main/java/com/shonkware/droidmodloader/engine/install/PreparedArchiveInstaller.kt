@@ -3,6 +3,9 @@ package com.shonkware.droidmodloader.engine.install
 import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
+import java.nio.file.attribute.BasicFileAttributes
 
 class PreparedArchiveInstaller internal constructor(
     private val tempDir: File,
@@ -141,43 +144,50 @@ class PreparedArchiveInstaller internal constructor(
         InstallCancellationSignal =
             InstallCancellationSignal.NONE,
         manualLayoutProposal: ManualLayoutProposal? = null
+    ): File = finalizeInstallInternal(prepared, selection, cancellationSignal, manualLayoutProposal, null)
+
+    /** Reuses the existing extraction/layout/copy guards; the shared transaction owns
+     * staging as soon as publication starts, including failed or uncertain publication. */
+    internal fun finalizeLibraryInstall(
+        prepared: PreparedArchiveInstall,
+        selection: InstallerSelection,
+        staging: LibraryInstallStaging,
+        cancellationSignal: InstallCancellationSignal = InstallCancellationSignal.NONE,
+        manualLayoutProposal: ManualLayoutProposal? = null
+    ): File = finalizeInstallInternal(prepared, selection, cancellationSignal, manualLayoutProposal, staging)
+
+    private fun finalizeInstallInternal(
+        prepared: PreparedArchiveInstall,
+        selection: InstallerSelection,
+        cancellationSignal: InstallCancellationSignal,
+        manualLayoutProposal: ManualLayoutProposal?,
+        libraryStaging: LibraryInstallStaging?
     ): File {
         cancellationSignal
             .throwIfCancellationRequested()
 
         val confirmation = prepared.confirmation
-        confirmation?.let { requireValidModName(it.modName) }
-        val explicitProposal = confirmation?.manualLayout
-        val manualPreview = if (explicitProposal != null) {
-            val inventory = requireManualInventory(prepared, cancellationSignal)
-            inventory.preview(explicitProposal, cancellationSignal).also {
-                if (!it.recognizedLayout && !confirmation.allowUnrecognizedLayout) {
-                    throw IOException("This mod's file structure is unrecognized.")
-                }
-            }
-        } else if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
-            validateManualSelection(prepared, selection, manualLayoutProposal, cancellationSignal)
-        } else {
-            if (manualLayoutProposal != null) throw IOException("This installer does not use a manual layout.")
-            null
-        }
+        val manualPreview = resolveManualPreview(prepared, selection, manualLayoutProposal, cancellationSignal)
 
-        val modsDir = this.modsDir.canonicalFile
+        val modsDir = libraryStaging?.finalDirectory?.parentFile ?: this.modsDir.canonicalFile
         ensureDirectoryExists(
             directory = modsDir,
             description = "installed-mod directory"
         )
 
         val installedName = confirmation?.modName ?: prepared.modName
-        val finalDir = File(modsDir, installedName)
-        val previousInventory = if (confirmation != null && findExistingModName(installedName) != null) {
+        val finalDir = libraryStaging?.finalDirectory ?: File(modsDir, installedName)
+        val existingInstall = if (libraryStaging != null) libraryStaging.hasExistingInstall
+            else confirmation != null && findExistingModName(installedName) != null
+        val previousInventory = if (existingInstall) {
+            check(confirmation != null) { "An update needs an explicit existing mod action" }
             if (confirmation.existingModAction == ExistingModAction.ASK) {
                 throw IOException("A mod named $installedName already exists. Choose Add / Update Files or Replace.")
             }
             // Validate the old folder even for replacement: never replace a link.
             ManualLayoutInventory.capture(modsDir, finalDir, cancellationSignal)
         } else null
-        val stagedDir = File(
+        val stagedDir = libraryStaging?.stageDirectory ?: File(
             modsDir,
             "_installing_${installedName}_" +
                     operationId()
@@ -210,15 +220,9 @@ class PreparedArchiveInstaller internal constructor(
             )
         }
 
+        var publicationStarted = false
         try {
-            val selectedOptions =
-                prepared.plan.groups
-                    .flatMap { it.options }
-                    .filter { option ->
-                        option.required ||
-                                selection.selectedOptionIds
-                                    .contains(option.id)
-                    }
+            val selectedOptions = selectedOptions(prepared, selection)
 
             if (selectedOptions.isEmpty() && manualPreview == null) {
                 throw IllegalStateException(
@@ -269,20 +273,23 @@ class PreparedArchiveInstaller internal constructor(
             // Check the union after overlay too, including case/path conflicts.
             if (previousInventory != null) {
                 previousInventory.requireCurrent(cancellationSignal)
-                ManualLayoutInventory.capture(modsDir, stagedDir, cancellationSignal)
+                ManualLayoutInventory.capture(stagedDir.parentFile!!, stagedDir, cancellationSignal)
             }
-            val installedDir =
-                directoryReplacer.replace(
-                    stagedDir = stagedDir,
-                    finalDir = finalDir
-                )
+            val installedDir = if (libraryStaging != null) {
+                publicationStarted = true
+                libraryStaging.publish()
+                finalDir
+            } else directoryReplacer.replace(
+                stagedDir = stagedDir,
+                finalDir = finalDir
+            )
 
             cleanCompletedSession(prepared)
 
             return installedDir
         } catch (exception: Exception) {
             val stagingCleanupFailure =
-                cleanFailedStaging(stagedDir)
+                if (publicationStarted) null else cleanFailedStaging(stagedDir)
 
             if (
                 exception is
@@ -319,6 +326,63 @@ class PreparedArchiveInstaller internal constructor(
             throw installFailure
         }
     }
+
+    /** Count every selected mapping, even when the same source is copied more than
+     * once. Overlapping destinations are conservatively counted without reuse credit. */
+    internal fun libraryCopyBytes(
+        prepared: PreparedArchiveInstall,
+        selection: InstallerSelection,
+        manualLayoutProposal: ManualLayoutProposal?,
+        signal: InstallCancellationSignal
+    ): Long {
+        val preview = resolveManualPreview(prepared, selection, manualLayoutProposal, signal)
+        if (preview != null) return preview.files.fold(0L) { total, file -> Math.addExact(total, file.sizeBytes) }
+        val options = selectedOptions(prepared, selection)
+        check(options.isNotEmpty()) { "No installer options selected." }
+        return options.fold(0L) { total, option ->
+            signal.throwIfCancellationRequested()
+            val source = optionSource(File(prepared.installRootPath), option)
+            val attributes = Files.readAttributes(source.toPath(), BasicFileAttributes::class.java, NOFOLLOW_LINKS)
+            val bytes = if (attributes.isDirectory) {
+                ManualLayoutInventory.capture(File(prepared.sessionRootPath), source, signal).entries
+                    .fold(0L) { size, entry -> Math.addExact(size, entry.sizeBytes) }
+            } else {
+                check(attributes.isRegularFile && !attributes.isSymbolicLink) { "Installer source is not a regular file" }
+                attributes.size()
+            }
+            Math.addExact(total, bytes)
+        }
+    }
+
+    private fun selectedOptions(prepared: PreparedArchiveInstall, selection: InstallerSelection) =
+        prepared.plan.groups.flatMap { it.options }.filter { it.required || it.id in selection.selectedOptionIds }
+
+    private fun resolveManualPreview(
+        prepared: PreparedArchiveInstall,
+        selection: InstallerSelection,
+        manualLayoutProposal: ManualLayoutProposal?,
+        signal: InstallCancellationSignal
+    ): ManualLayoutPreview? {
+        val confirmation = prepared.confirmation
+        confirmation?.let { requireValidModName(it.modName) }
+        val explicitProposal = confirmation?.manualLayout
+        return if (explicitProposal != null) {
+            val inventory = requireManualInventory(prepared, signal)
+            inventory.preview(explicitProposal, signal).also {
+                if (!it.recognizedLayout && !confirmation.allowUnrecognizedLayout) {
+                    throw IOException("This mod's file structure is unrecognized.")
+                }
+            }
+        } else if (prepared.plan.installerType == InstallerType.MANUAL_DATA_FOLDER) {
+            validateManualSelection(prepared, selection, manualLayoutProposal, signal)
+        } else {
+            if (manualLayoutProposal != null) throw IOException("This installer does not use a manual layout.")
+            null
+        }
+    }
+
+    private fun optionSource(installRoot: File, option: InstallerOption): File =
+        if (isCurrentDirectoryPath(option.sourcePath)) installRoot else safeResolveInstallerPath(installRoot, option.sourcePath)
 
     /** Folder names only; do not scan mod contents or trust a stale dashboard list. */
     fun findExistingModName(name: String): String? {
@@ -477,18 +541,7 @@ class PreparedArchiveInstaller internal constructor(
         cancellationSignal
             .throwIfCancellationRequested()
 
-        val source = if (
-            isCurrentDirectoryPath(
-                option.sourcePath
-            )
-        ) {
-            installRoot
-        } else {
-            safeResolveInstallerPath(
-                root = installRoot,
-                relativePath = option.sourcePath
-            )
-        }
+        val source = optionSource(installRoot, option)
 
         if (!source.exists()) {
             throw IOException(
