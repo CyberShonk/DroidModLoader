@@ -70,6 +70,16 @@ internal class GameModLibraryRepository(
         recordFile(storagePaths.getProfileMembershipFile(gameId, profileId)).replaceDurably(text, MAX_RECORD_BYTES)
     }
 
+    /** Explicit complete inventory supplied under session admission; never folder discovery. */
+    internal fun loadProfileScope(profileIds: List<String>, requireSavedMembership: Boolean): Map<String, ProfileModMembership?> {
+        check(profileIds.size == profileIds.distinct().size) { "Profile scope has duplicate identities" }
+        return profileIds.associateWith { profileId ->
+            loadProfile(profileId).also {
+                check(!requireSavedMembership || it != null) { "A profile's saved mod choices are missing; mutation stopped" }
+            }
+        }
+    }
+
     internal fun validateProfileMembership(membership: ProfileModMembership) {
         decodeProfile(membership.profileId, encodeProfile(membership))
     }

@@ -63,13 +63,7 @@ internal class SharedLibraryInstall(
         paths.getGameLibraryEntryDir(gameId, installationId)
         val library = replacement.loadPublishedLibrary()
         val isUpdate = library?.entries?.any { it.installationId == installationId } == true
-        val ids = allGameProfileIds()
-        check(ids.size == ids.distinct().size) { "Profile scope has duplicate identities" }
-        val profiles = ids.associateWith { profileId ->
-            repository.loadProfile(profileId).also {
-                check(!isUpdate || it != null) { "A profile's saved mod choices are missing; update stopped" }
-            }
-        }
+        val profiles = repository.loadProfileScope(allGameProfileIds(), requireSavedMembership = isUpdate)
         return LibraryInstallReview(gameId, installationId, library, profiles)
     }
 
@@ -91,6 +85,9 @@ internal class SharedLibraryInstall(
         check(review == review(review.installationId)) { "Library or affected profiles changed; review the update again" }
         check(requestingProfileId in review.profiles) { "Requesting profile is outside the captured scope" }
         val previousEntry = review.library?.entries?.singleOrNull { it.installationId == review.installationId }
+        if (previousEntry == null) check(review.profiles.values.none { membership ->
+            membership?.choices?.any { it.installationId == review.installationId } == true
+        }) { "Installation identity is already referenced as missing; a new installation needs a fresh identity" }
         check(metadata.modId == review.installationId &&
             metadata.installPath == paths.getGameLibraryEntryDir(gameId, review.installationId).absolutePath)
         check(requestedChoice == null || requestedChoice.installationId == review.installationId)
@@ -157,9 +154,9 @@ internal class SharedLibraryInstall(
         return SharedLibraryInstallResult(entry, profileFailure == null, indexFailure == null, profileFailure, indexFailure, temporaryCleanupFailure)
     }
 
-    fun recoverInterruptedInstall(): Boolean = replacement.recover()
+    fun recoverInterruptedInstall(): Boolean = replacement.recover(LibraryInstallReplacement.Operation.INSTALL)
 
-    fun finishPrivateInstallCleanup() = replacement.finish()
+    fun finishPrivateInstallCleanup() = replacement.finish(LibraryInstallReplacement.Operation.INSTALL)
 
     /** Explicit later selection reuses a verified entry; never installs again. */
     fun selectExisting(profileId: String, expectedProfileRevision: Long?, choice: ProfileModChoice) {

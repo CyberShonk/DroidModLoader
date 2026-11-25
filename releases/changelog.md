@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- refactor: Prepare shared mod removal to check affected profiles, recover interrupted changes, and distinguish completed removal from unfinished file cleanup. Existing uninstall controls and deployment behavior are unchanged.
 - refactor: Prepare shared mod installs and updates to save matching files and records together, recover interrupted changes, and report profile selection failures separately. Existing installation controls and storage remain unchanged.
 - refactor: Add separate records for shared installed mods and each profile's choices, with strict validation and safe saves. Existing mod lists and storage remain unchanged.
 - refactor: Add optional storage checks for saving records and moving folders, keeping uncertain results distinct from unchanged files. Existing installation and deployment behavior is unchanged.

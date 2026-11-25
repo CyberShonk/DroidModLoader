@@ -14,6 +14,7 @@ import com.shonkware.droidmodloader.engine.install.ModInstaller
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstall
 import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstaller
 import com.shonkware.droidmodloader.engine.install.SharedLibraryInstall
+import com.shonkware.droidmodloader.engine.install.SharedLibraryUninstall
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
 import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.model.DeployScope
@@ -68,6 +69,15 @@ internal class ModLibraryService(
         storagePaths, gameId, preparedArchiveInstaller, allGameProfileIds,
         invalidateDerivedViews = invalidateDerivedViews, rebuildIndex = rebuildIndex
     )
+
+    /** Same staged admission/scope contract as shared installation; no active callers. */
+    fun stagedSharedLibraryUninstall(
+        storagePaths: ProfileStoragePaths,
+        gameId: String,
+        allGameProfileIds: () -> List<String>,
+        invalidateDerivedViews: (GameLibraryEntry, Set<String>) -> Unit
+    ) = SharedLibraryUninstall(storagePaths, gameId, allGameProfileIds,
+        invalidateDerivedViews = invalidateDerivedViews)
 
     fun buildModFromInstalledFolder(
         modDir: File,

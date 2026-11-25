@@ -116,6 +116,16 @@ class ModEngine(
         gameId, allGameProfileIds, invalidateDerivedViews, rebuildIndex
     )
 
+    /** Staged shared removal only; current uninstall controls remain on legacy storage. */
+    internal fun stagedSharedLibraryUninstall(
+        gameId: String,
+        allGameProfileIds: () -> List<String>,
+        invalidateDerivedViews: (GameLibraryEntry, Set<String>) -> Unit
+    ) = modLibraryService.stagedSharedLibraryUninstall(
+        ProfileStoragePaths(appContext.filesDir, { null }, { gameId }),
+        gameId, allGameProfileIds, invalidateDerivedViews
+    )
+
     fun buildModFromInstalledFolder(modDir: File, priority: Int, enabled: Boolean = true): Mod =
         modLibraryService.buildModFromInstalledFolder(modDir, priority, enabled)
     fun scanMod(mod: Mod): List<ModFile> = modLibraryService.scanMod(mod)
