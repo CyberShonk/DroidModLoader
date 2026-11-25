@@ -126,6 +126,16 @@ class ModEngine(
         gameId, allGameProfileIds, invalidateDerivedViews
     )
 
+    /** Staged source projection; no active app reader switches to this API yet. */
+    internal fun stagedEffectiveSources(
+        gameId: String,
+        profileId: String,
+        contextStillCurrent: () -> Boolean,
+        signal: InstallCancellationSignal = InstallCancellationSignal.NONE
+    ) = modLibraryService.stagedEffectiveSources(
+        ProfileStoragePaths(appContext.filesDir, { null }, { gameId }), gameId, profileId, contextStillCurrent, signal
+    )
+
     fun buildModFromInstalledFolder(modDir: File, priority: Int, enabled: Boolean = true): Mod =
         modLibraryService.buildModFromInstalledFolder(modDir, priority, enabled)
     fun scanMod(mod: Mod): List<ModFile> = modLibraryService.scanMod(mod)

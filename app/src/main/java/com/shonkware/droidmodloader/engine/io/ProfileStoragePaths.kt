@@ -1,5 +1,6 @@
 package com.shonkware.droidmodloader.engine.io
 
+import com.shonkware.droidmodloader.engine.model.DeployScope
 import java.io.File
 import java.io.IOException
 import java.nio.CharBuffer
@@ -45,6 +46,29 @@ internal class ProfileStoragePaths(
 
     fun getProfileMembershipFile(gameId: String, profileId: String): File =
         checkedLibraryPath("profile_memberships/${distinctStorageKey(profileId)}/${distinctStorageKey(gameId)}.json")
+
+    fun getProfileOverwriteDirectory(gameId: String, profileId: String): File =
+        checkedLibraryPath("profile_overwrites/${distinctStorageKey(profileId)}/${distinctStorageKey(gameId)}")
+
+    fun getProfileOverwriteOwnerFile(gameId: String, profileId: String): File =
+        File(getProfileOverwriteDirectory(gameId, profileId), "owner.json").also {
+            if (it.absoluteFile != it.canonicalFile) throw IOException("Overwrite owner path contains an alias")
+        }
+
+    fun getProfileOverwriteRoleDirectory(
+        gameId: String,
+        profileId: String,
+        role: DeployScope
+    ): File {
+        val name = when (role) {
+            DeployScope.DATA -> "data"
+            DeployScope.GAME_ROOT -> "game_root"
+            else -> throw IOException("Overwrite requires an explicit Data or Game Root role")
+        }
+        return File(getProfileOverwriteDirectory(gameId, profileId), name).also {
+            if (it.absoluteFile != it.canonicalFile) throw IOException("Overwrite role path contains an alias")
+        }
+    }
 
     private fun checkedLibraryPath(relativePath: String): File {
         val root = filesDir.absoluteFile

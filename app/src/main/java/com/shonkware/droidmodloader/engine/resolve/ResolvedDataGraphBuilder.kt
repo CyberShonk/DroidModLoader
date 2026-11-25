@@ -3,8 +3,38 @@ package com.shonkware.droidmodloader.engine.resolve
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.model.InstalledModRecord
 import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.engine.model.EffectiveFileProvider
+import com.shonkware.droidmodloader.engine.model.EffectiveProfileContent
+import com.shonkware.droidmodloader.engine.model.EffectiveSourceIdentity
+import com.shonkware.droidmodloader.engine.conflict.ConflictResolver
 
 class ResolvedDataGraphBuilder {
+
+    /** Staged complete captured sources. Both conflict presentation and downstream
+     * file/plugin discovery consume this projection, never a capture-UI resolver. */
+    internal fun buildEffectiveSources(
+        gameId: String,
+        profileId: String,
+        libraryRevision: Long,
+        membershipRevision: Long,
+        overwriteRecordRevision: Long?,
+        overwriteContentRevision: Long,
+        files: List<EffectiveFileProvider>
+    ): EffectiveProfileContent {
+        require(gameId.isNotBlank() && profileId.isNotBlank() && libraryRevision > 0 && membershipRevision > 0)
+        require(if (overwriteRecordRevision == null) overwriteContentRevision == 0L
+            else overwriteRecordRevision > 0 && overwriteContentRevision > 0)
+        files.forEach { file ->
+            require(file.provider.identity.gameId == gameId) { "Source belongs to another game" }
+            when (val identity = file.provider.identity) {
+                is EffectiveSourceIdentity.LibraryInstallation -> require(identity.contentRevision > 0)
+                is EffectiveSourceIdentity.ProfileOverwrite -> require(identity.profileId == profileId &&
+                    identity.contentRevision == overwriteContentRevision && overwriteRecordRevision != null) { "Stale or foreign Overwrite source" }
+            }
+        }
+        return EffectiveProfileContent(gameId, profileId, libraryRevision, membershipRevision,
+            overwriteRecordRevision, overwriteContentRevision, ConflictResolver().resolveEffectiveProviders(files))
+    }
 
     fun build(
         mods: List<Mod>,

@@ -4,6 +4,15 @@ import com.shonkware.droidmodloader.engine.UninstallResult
 import com.shonkware.droidmodloader.engine.conflict.ConflictResolver
 import com.shonkware.droidmodloader.engine.data.InstalledModRecordRepository
 import com.shonkware.droidmodloader.engine.data.ModStateRepository
+import com.shonkware.droidmodloader.engine.data.GameModLibraryRepository
+import com.shonkware.droidmodloader.engine.data.ProfileOverwriteRepository
+import com.shonkware.droidmodloader.engine.install.LibraryInstallReplacement
+import com.shonkware.droidmodloader.engine.model.EffectiveFileProvider
+import com.shonkware.droidmodloader.engine.model.EffectiveProfileContent
+import com.shonkware.droidmodloader.engine.model.EffectiveSourceIdentity
+import com.shonkware.droidmodloader.engine.model.EffectiveSourceProvider
+import com.shonkware.droidmodloader.engine.resolve.ResolvedDataGraphBuilder
+import com.shonkware.droidmodloader.engine.util.PathUtils
 import com.shonkware.droidmodloader.engine.index.ModContentIndex
 import com.shonkware.droidmodloader.engine.index.ModContentIndexer
 import com.shonkware.droidmodloader.engine.index.ModFileIndexRepository
@@ -78,6 +87,57 @@ internal class ModLibraryService(
         invalidateDerivedViews: (GameLibraryEntry, Set<String>) -> Unit
     ) = SharedLibraryUninstall(storagePaths, gameId, allGameProfileIds,
         invalidateDerivedViews = invalidateDerivedViews)
+
+    /** Complete staged shared-library/profile/Overwrite projection only. Caller holds
+     * retained-session admission off the UI thread and validates its admitted generation.
+     * No legacy cache save, target scan/write, plugin activation or folder adoption. */
+    fun stagedEffectiveSources(
+        storagePaths: ProfileStoragePaths,
+        gameId: String,
+        profileId: String,
+        contextStillCurrent: () -> Boolean,
+        signal: InstallCancellationSignal = InstallCancellationSignal.NONE
+    ): EffectiveProfileContent {
+        check(contextStillCurrent()) { "Source context changed" }
+        signal.throwIfCancellationRequested()
+        val repository = GameModLibraryRepository(storagePaths, gameId)
+        val publication = LibraryInstallReplacement(storagePaths, gameId)
+        val library = checkNotNull(publication.loadPublishedLibrary()) { "Shared library record is missing" }
+        val membership = checkNotNull(repository.loadProfile(profileId)) { "Profile mod choices are missing" }
+        val overwriteRepository = ProfileOverwriteRepository(storagePaths, gameId, profileId)
+        val overwrite = overwriteRepository.loadVerifiedSource(signal)
+        val files = mutableListOf<EffectiveFileProvider>()
+        repository.joinProfileRecords(profileId, library, membership).filter { it.choice.enabled }.forEach { reference ->
+            val entry = checkNotNull(reference.libraryEntry) { "An enabled installation is missing; effective sources are unavailable" }
+            val root = checkNotNull(reference.expectedInstallDirectory)
+            val provider = EffectiveSourceProvider(EffectiveSourceIdentity.LibraryInstallation(gameId, entry.installationId,
+                entry.payloadRevision), entry.installedMetadata.displayName, reference.choice.priority, entry.installedMetadata.sourceArchiveName)
+            ModFileIndexService.indexVerifiedFiles(root, signal).forEach fileEntry@ { indexed ->
+                val normalized = PathUtils.normalize(indexed.originalPath)?.let {
+                    ModFileIndexService.normalizedSourcePath(it)
+                } ?: return@fileEntry
+                if (!deployFileClassifier.isReservedManagerSourcePath(normalized)) {
+                    val role = if (deployFileClassifier.classify(normalized) == DeployScope.GAME_ROOT) DeployScope.GAME_ROOT else DeployScope.DATA
+                    val content = modContentIndexer.classifySourceFile(indexed.originalPath, normalized, role)
+                    files.add(EffectiveFileProvider(provider, role, indexed.copy(normalizedPath = normalized), content,
+                        File(root, indexed.originalPath).absolutePath))
+                }
+            }
+        }
+        val overwriteProvider = EffectiveSourceProvider(EffectiveSourceIdentity.ProfileOverwrite(gameId, profileId,
+            overwrite.contentRevision), "Overwrite", null, null)
+        overwrite.files.forEach { indexed ->
+            val entry = indexed.indexEntry
+            files.add(EffectiveFileProvider(overwriteProvider, indexed.role, entry,
+                modContentIndexer.classifySourceFile(entry.originalPath, entry.normalizedPath, indexed.role), indexed.sourceFilePath))
+        }
+        check(contextStillCurrent()) { "Source context changed while indexing" }
+        check(publication.loadPublishedLibrary() == library && repository.loadProfile(profileId) == membership &&
+            overwriteRepository.loadRecord() == overwrite.record) { "Source revisions changed while indexing" }
+        signal.throwIfCancellationRequested()
+        return ResolvedDataGraphBuilder().buildEffectiveSources(gameId, profileId, library.revision, membership.revision,
+            overwrite.record?.recordRevision, overwrite.contentRevision, files)
+    }
 
     fun buildModFromInstalledFolder(
         modDir: File,

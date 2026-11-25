@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.engine.rules
 
 import com.shonkware.droidmodloader.engine.model.DeployScope
+import java.util.Locale
 
 class DeployFileClassifier {
 
@@ -38,6 +39,19 @@ class DeployFileClassifier {
                 DeployScope.DATA
         }
     }
+
+    /** Reserved source namespaces for the staged projection only; legacy classification
+     * is unchanged. Ordinary mod configuration JSON/text is not a manager namespace. */
+    internal fun isReservedManagerSourcePath(normalizedPath: String): Boolean {
+        val path = normalizedPath.lowercase(Locale.ROOT)
+        val parts = path.split('/')
+        return parts.firstOrNull() == "dml export" || parts.any {
+            it.startsWith(".dml_") || it.startsWith("_dml_") || it.startsWith("_installing_")
+        } || path in setOf("plugins.txt", "loadorder.txt")
+    }
+
+    internal fun isReservedOverwritePath(normalizedPath: String): Boolean =
+        isReservedManagerSourcePath(normalizedPath) || normalizedPath.lowercase(Locale.ROOT) == "dml - invalidation.bsa"
 
     fun isDataDeployable(scope: DeployScope): Boolean {
         return scope == DeployScope.DATA

@@ -15,6 +15,23 @@ import java.nio.file.Files
 class ProfileStoragePathsTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
+    @Test fun `staged Overwrite paths keep profile game and physical roles distinct without initialization`() {
+        val paths = ProfileStoragePaths(temporaryFolder.root, { "ignored-active" }, { "ignored-game" })
+        val data = com.shonkware.droidmodloader.engine.model.DeployScope.DATA
+        val root = com.shonkware.droidmodloader.engine.model.DeployScope.GAME_ROOT
+        assertNotEquals(paths.getProfileOverwriteOwnerFile("game", "A/B"), paths.getProfileOverwriteOwnerFile("game", "A_B"))
+        assertNotEquals(paths.getProfileOverwriteOwnerFile("game", "A"), paths.getProfileOverwriteOwnerFile("Game", "A"))
+        assertNotEquals(paths.getProfileOverwriteRoleDirectory("game", "A", data), paths.getProfileOverwriteRoleDirectory("game", "A", root))
+        assertThrows(IOException::class.java) { paths.getProfileOverwriteRoleDirectory("game", "A",
+            com.shonkware.droidmodloader.engine.model.DeployScope.PROFILE_ONLY) }
+        assertTrue(temporaryFolder.root.listFiles()!!.isEmpty())
+        val directory = paths.getProfileOverwriteDirectory("game", "A").also { it.mkdirs() }
+        val outside = temporaryFolder.newFolder("outside")
+        Files.createSymbolicLink(File(directory, "data").toPath(), outside.toPath())
+        assertThrows(IOException::class.java) { paths.getProfileOverwriteRoleDirectory("game", "A", data) }
+        assertTrue(outside.listFiles()!!.isEmpty())
+    }
+
     @Test fun `staged library paths preserve distinct opaque identities without creating directories`() {
         val paths = ProfileStoragePaths(temporaryFolder.root, { "active" }, { "selected" })
         assertNotEquals(paths.getProfileMembershipFile("game", "A/B"), paths.getProfileMembershipFile("game", "A_B"))

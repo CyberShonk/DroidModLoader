@@ -1,6 +1,7 @@
 package com.shonkware.droidmodloader.engine.index
 
 import com.shonkware.droidmodloader.engine.model.Mod
+import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.util.PathUtils
 import com.shonkware.droidmodloader.engine.rules.DeployFileClassifier
 import java.io.File
@@ -34,6 +35,16 @@ class ModContentIndexer {
             modName = mod.name,
             entries = entries
         )
+    }
+
+    /** Reuse existing content semantics without granting a different physical role
+     * from a filename. A Data source named like a root loader cannot become Root. */
+    internal fun classifySourceFile(originalPath: String, normalizedPath: String, role: DeployScope): ModContentEntry {
+        require(role == DeployScope.DATA || role == DeployScope.GAME_ROOT)
+        val classified = classify(originalPath, normalizedPath)
+        val permitted = classified.isDeployable && classified.deployScope == role
+        return classified.copy(deployScope = role, isDeployable = permitted,
+            reason = if (classified.isDeployable && !permitted) "File classification does not authorize the declared source role" else classified.reason)
     }
 
     private fun classify(originalPath: String, normalizedPath: String): ModContentEntry {

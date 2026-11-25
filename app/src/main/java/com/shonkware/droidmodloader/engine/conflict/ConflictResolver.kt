@@ -1,11 +1,32 @@
 package com.shonkware.droidmodloader.engine.conflict
 
+import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.model.FileRecord
 import com.shonkware.droidmodloader.engine.model.Mod
 import com.shonkware.droidmodloader.engine.model.ModFile
+import com.shonkware.droidmodloader.engine.model.EffectiveFileProvider
+import com.shonkware.droidmodloader.engine.model.EffectiveResolvedPath
+import com.shonkware.droidmodloader.engine.model.EffectiveSourceIdentity
+import com.shonkware.droidmodloader.engine.model.EffectiveSourcePath
 import java.io.File
 
 class ConflictResolver {
+
+    /** The staged role-qualified projection reuses this winner owner. Overwrite is a
+     * distinct source kind, always last; no fake enabled Mod or priority arithmetic. */
+    internal fun resolveEffectiveProviders(files: List<EffectiveFileProvider>): List<EffectiveResolvedPath> {
+        val unique = hashSetOf<Triple<EffectiveSourceIdentity, DeployScope, String>>()
+        files.forEach { file ->
+            require(unique.add(Triple(file.provider.identity, file.role, file.indexEntry.normalizedPath))) { "Duplicate source provider/path" }
+        }
+        val ordered = files.sortedWith(compareBy<EffectiveFileProvider> {
+            if (it.provider.identity is EffectiveSourceIdentity.ProfileOverwrite) 1 else 0
+        }.thenBy { it.provider.libraryPriority ?: 0 })
+        return ordered.groupBy { EffectiveSourcePath(it.role, it.indexEntry.normalizedPath) }.map { (path, providers) ->
+            val winner = providers.lastOrNull { it.contentEntry.isDeployable } ?: providers.last()
+            EffectiveResolvedPath(path, winner, providers, providers.filterNot { it === winner })
+        }.sortedWith(compareBy<EffectiveResolvedPath> { it.path.role.name }.thenBy { it.path.normalizedPath })
+    }
 
     fun resolve(mods: List<Mod>, modFiles: List<ModFile>): List<FileRecord> {
         val enabledMods = mods
