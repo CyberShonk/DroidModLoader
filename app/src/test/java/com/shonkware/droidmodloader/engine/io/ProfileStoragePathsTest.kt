@@ -1,10 +1,50 @@
 package com.shonkware.droidmodloader.engine.io
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
+import java.nio.charset.CharacterCodingException
+import java.nio.file.Files
 
 class ProfileStoragePathsTest {
+    @get:Rule val temporaryFolder = TemporaryFolder()
+
+    @Test fun `staged library paths preserve distinct opaque identities without creating directories`() {
+        val paths = ProfileStoragePaths(temporaryFolder.root, { "active" }, { "selected" })
+        assertNotEquals(paths.getProfileMembershipFile("game", "A/B"), paths.getProfileMembershipFile("game", "A_B"))
+        assertNotEquals(paths.getProfileMembershipFile("game", "A"), paths.getProfileMembershipFile("game", "a"))
+        assertNotEquals(paths.getGameLibraryCatalogueFile("game"), paths.getGameLibraryCatalogueFile("Game"))
+        val entry = paths.getGameLibraryEntryDir("../game", "../entry")
+        assertTrue(entry.toPath().startsWith(temporaryFolder.root.toPath()))
+        assertEquals(entry, entry.canonicalFile)
+        assertTrue(temporaryFolder.root.listFiles()!!.isEmpty())
+    }
+
+    @Test fun `staged paths require explicit valid bounded UTF8 identities`() {
+        val paths = ProfileStoragePaths(temporaryFolder.root, { null }, { "ignored" })
+        for (identifier in listOf("", " ", "a\u0000b", "\uD800", "x".repeat(97), "é".repeat(49))) {
+            val failureType = if (identifier == "\uD800") CharacterCodingException::class.java else IllegalArgumentException::class.java
+            assertThrows(failureType) { paths.getGameLibraryCatalogueFile(identifier) }
+            assertThrows(failureType) { paths.getProfileMembershipFile("game", identifier) }
+        }
+        assertTrue(temporaryFolder.root.listFiles()!!.isEmpty())
+    }
+
+    @Test fun `staged paths reject symlink ancestors instead of changing their owned root`() {
+        val paths = ProfileStoragePaths(temporaryFolder.root, { "A" }, { "game" })
+        val outside = temporaryFolder.newFolder("outside")
+        val alias = File(temporaryFolder.root, "game_libraries")
+        Files.createSymbolicLink(alias.toPath(), outside.toPath())
+        assertThrows(IOException::class.java) { paths.getGameLibraryCatalogueFile("game") }
+        assertTrue(outside.listFiles()!!.isEmpty())
+    }
+
 
     @Test
     fun `active profile id is sanitized for storage`() {
