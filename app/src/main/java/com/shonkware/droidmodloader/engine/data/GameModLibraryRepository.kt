@@ -136,7 +136,7 @@ internal class GameModLibraryRepository(
         GameModLibrary(gameId, revision, entries)
     }
 
-    private fun decodeProfile(profileId: String, text: String): ProfileModMembership = decode(text, MEMBERSHIP_KEYS) { json ->
+    internal fun decodeProfile(profileId: String, text: String): ProfileModMembership = decode(text, MEMBERSHIP_KEYS) { json ->
         require(json.requiredString("gameId") == gameId && json.requiredString("profileId") == profileId) { "Wrong profile/game" }
         storagePaths.getProfileMembershipFile(gameId, profileId)
         val revision = json.requiredLong("revision").also { require(it > 0) }

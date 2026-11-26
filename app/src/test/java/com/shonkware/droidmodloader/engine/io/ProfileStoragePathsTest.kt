@@ -15,6 +15,18 @@ import java.nio.file.Files
 class ProfileStoragePathsTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
+    @Test fun `migration inventory paths use explicit scopes without initializing or changing active context`() {
+        val paths = ProfileStoragePaths(temporaryFolder.root, { "active" }, { "selected" })
+        assertEquals(File(temporaryFolder.root, "profiles/Legacy_Profile"), paths.getLegacyProfileInternalDir("Legacy Profile"))
+        assertNotEquals(paths.getGameLibraryMigrationFile("game"), paths.getGameLibraryMigrationFile("Game"))
+        assertEquals(paths.getGameLibraryCatalogueFile("game").parentFile, paths.getGameLibraryMigrationFile("game").parentFile)
+        assertTrue(temporaryFolder.root.listFiles()!!.isEmpty())
+        val outside = temporaryFolder.newFolder("outside")
+        Files.createSymbolicLink(File(temporaryFolder.root, "profiles").toPath(), outside.toPath())
+        assertThrows(IOException::class.java) { paths.getLegacyProfileInternalDir("Legacy Profile") }
+        assertTrue(outside.listFiles()!!.isEmpty())
+    }
+
     @Test fun `staged Overwrite paths keep profile game and physical roles distinct without initialization`() {
         val paths = ProfileStoragePaths(temporaryFolder.root, { "ignored-active" }, { "ignored-game" })
         val data = com.shonkware.droidmodloader.engine.model.DeployScope.DATA
