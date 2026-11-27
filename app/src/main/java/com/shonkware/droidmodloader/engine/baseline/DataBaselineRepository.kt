@@ -1,5 +1,10 @@
 package com.shonkware.droidmodloader.engine.baseline
 
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidence
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceRead
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceState
+import com.shonkware.droidmodloader.engine.deploy.LegacyTargetEvidenceScope
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -37,6 +42,43 @@ class DataBaselineRepository(
             targetDescription = obj.optString("targetDescription", ""),
             files = files
         )
+    }
+
+    /** Staged metadata inspection, never a complete content baseline or target scan. */
+    internal fun readStagedEvidence(
+        read: DeploymentEvidenceRead,
+        metadataDirectory: File,
+        target: LegacyTargetEvidenceScope
+    ): DeploymentEvidence<DataBaselineSnapshot> = read.read(baselineFile, metadataDirectory) { text ->
+        read.matches(target.baselineFile == baselineFile)
+        val row = read.objectRecord(text)
+        read.keys(row, setOf("gameId", "files"), setOf("createdAtEpochMillis", "targetDescription"))
+        with(CriticalMetadataJson) {
+            val gameId = row.requiredString("gameId")
+            read.matches(gameId == target.identity.gameId)
+            val createdAt = if (row.has("createdAtEpochMillis")) row.requiredLong("createdAtEpochMillis") else null
+            val description = if (row.has("targetDescription")) row.requiredString("targetDescription") else null
+            if (description != null) read.matches(description == target.identity.target)
+            var complete = createdAt != null && description != null
+            val array = row.getJSONArray("files")
+            read.rows(array)
+            val checkPath = read.paths()
+            val files = List(array.length()) { index ->
+                val file = array.getJSONObject(index)
+                read.keys(file, setOf("normalizedPath"), setOf("sizeBytes", "modifiedEpochMillis"))
+                val path = file.requiredString("normalizedPath")
+                checkPath(path)
+                val size = file.nullableLong("sizeBytes")
+                val modified = file.nullableLong("modifiedEpochMillis")
+                if (size == null || modified == null) complete = false
+                DataBaselineFileRecord(path, size, modified)
+            }
+            DeploymentEvidence(when {
+                !complete -> DeploymentEvidenceState.INCOMPLETE
+                files.isEmpty() -> DeploymentEvidenceState.VALID_EMPTY
+                else -> DeploymentEvidenceState.VALID
+            }, DataBaselineSnapshot(gameId, createdAt ?: 0L, description.orEmpty(), files))
+        }
     }
 
     fun save(snapshot: DataBaselineSnapshot) {

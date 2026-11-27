@@ -44,6 +44,15 @@ import com.shonkware.droidmodloader.engine.model.GameDeploymentConfig
 import com.shonkware.droidmodloader.engine.storage.DirectPathValidator
 import java.io.File
 import java.security.MessageDigest
+import com.shonkware.droidmodloader.engine.baseline.DataBaselineRepository
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFileOperations
+import com.shonkware.droidmodloader.engine.data.SystemCriticalMetadataFileOperations
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidence
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceRead
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceState
+import com.shonkware.droidmodloader.engine.deploy.LegacyDeploymentEvidenceSnapshot
+import com.shonkware.droidmodloader.engine.deploy.LegacyProfileEvidence
+import com.shonkware.droidmodloader.engine.deploy.LegacyProfileEvidenceScope
 
 internal class DeploymentService(
     private val appFilesDir: File,
@@ -58,6 +67,56 @@ internal class DeploymentService(
         StorageCapacityMeasurement(details = "No backing volume probe is available.")
     }
 ) {
+    companion object {
+        /** Staged metadata-only snapshot. Caller supplies every participant; no discovery,
+         * target scan, ownership adoption, directory preparation or persistence occurs. */
+        internal fun captureLegacyEvidence(
+            scopes: List<LegacyProfileEvidenceScope>,
+            operations: CriticalMetadataFileOperations = SystemCriticalMetadataFileOperations
+        ): LegacyDeploymentEvidenceSnapshot {
+            require(scopes.size <= DeploymentEvidenceRead.MAX_RECORDS / 5) { "Legacy profile evidence limit exceeded" }
+            val capturedScopes = scopes.toList()
+            capturedScopes.forEach { it.validate() }
+            val read = DeploymentEvidenceRead(operations)
+            val profiles = capturedScopes.map { scope ->
+                val configuration = GameDeploymentConfigRepository(scope.configFile)
+                    .readStagedEvidence(read, scope.metadataDirectory).let { evidence ->
+                        val config = evidence.value?.singleOrNull { it.gameId == scope.gameId }
+                        when {
+                            evidence.value == null -> evidence
+                            config == null -> DeploymentEvidence(DeploymentEvidenceState.INCOMPLETE, evidence.value)
+                            config.realDeployEnabled != (scope.data.identity.mode == "real_path") ||
+                                (config.realDeployEnabled && (config.targetDataPath != scope.data.identity.target || config.targetRootPath != scope.root.identity.target)) ->
+                                DeploymentEvidence(DeploymentEvidenceState.CONFLICTING, evidence.value)
+                            else -> evidence
+                        }
+                    }
+                LegacyProfileEvidence(scope, configuration,
+                    DeploymentJournalRepository(scope.journalFile).readStagedEvidence(read, scope),
+                    DeploymentManifestRepository(scope.data.manifestFile).readStagedEvidence(read, scope.metadataDirectory, scope.data),
+                    DeploymentManifestRepository(scope.root.manifestFile).readStagedEvidence(read, scope.metadataDirectory, scope.root),
+                    scope.data.baselineFile?.let { DataBaselineRepository(it).readStagedEvidence(read, scope.metadataDirectory, scope.data) }
+                        ?: DeploymentEvidence(DeploymentEvidenceState.INCOMPLETE))
+            }
+            val destinations = capturedScopes.flatMapIndexed { index, scope ->
+                listOf(index to scope.data.identity.target, index to scope.root.identity.target)
+            }
+            val conflicting = linkedSetOf<String>()
+            for ((index, first) in destinations.withIndex()) {
+                for (second in destinations.drop(index + 1)) {
+                    if (first.first == second.first) continue // The expected Root/Data containment is one participant.
+                    val firstPath = File(first.second).toPath()
+                    val secondPath = File(second.second).toPath()
+                    if (firstPath.startsWith(secondPath) || secondPath.startsWith(firstPath)) {
+                        conflicting.add(first.second); conflicting.add(second.second)
+                    }
+                }
+            }
+            val current = read.isCurrent()
+            return LegacyDeploymentEvidenceSnapshot(if (current) profiles else emptyList(), !current, conflicting)
+        }
+    }
+
     private val gameDeploymentConfigRepository = GameDeploymentConfigRepository(gameConfigFile)
     private val directPathValidator = DirectPathValidator()
     private val gameTargetValidator = GameTargetValidator(directPathValidator)

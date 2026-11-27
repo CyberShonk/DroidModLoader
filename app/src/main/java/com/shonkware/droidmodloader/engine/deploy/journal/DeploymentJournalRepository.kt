@@ -9,13 +9,19 @@ import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredBoo
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredInt
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredLong
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredString
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidence
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceRead
+import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceState
+import com.shonkware.droidmodloader.engine.deploy.LegacyProfileEvidenceScope
+import com.shonkware.droidmodloader.engine.deploy.LegacyTargetEvidenceScope
 import org.json.JSONObject
 import java.io.File
 
 class DeploymentJournalRepository internal constructor(
-    private val metadataFile: CriticalMetadataFile
+    private val metadataFile: CriticalMetadataFile,
+    private val evidenceLocation: File? = null
 ) {
-    constructor(journalFile: File) : this(CriticalMetadataFile(journalFile))
+    constructor(journalFile: File) : this(CriticalMetadataFile(journalFile), journalFile)
 
     fun saveStarted(record: DeploymentJournalRecord) {
         check(record.status == DeploymentJournalStatus.STARTED) { "Expected STARTED journal" }
@@ -121,6 +127,49 @@ class DeploymentJournalRepository internal constructor(
                 require(validState) { "Inconsistent deployment journal status/completion evidence" }
             }
         }
+
+    /** Opt-in historical evidence. Incomplete/unfinished records retain their status. */
+    internal fun readStagedEvidence(
+        read: DeploymentEvidenceRead,
+        scope: LegacyProfileEvidenceScope
+    ): DeploymentEvidence<DeploymentJournalRecord> = read.read(checkNotNull(evidenceLocation), scope.metadataDirectory) { text ->
+        read.matches(evidenceLocation == scope.journalFile)
+        val json = read.objectRecord(text)
+        read.keys(json, setOf("operationId", "gameId", "profileId", "status", "startedAtEpochMillis", "planSummary"),
+            setOf("schemaVersion", "completedAtEpochMillis", "resultSummary", "failureMessage", "dataTarget", "rootTarget"))
+        val version = if (json.has("schemaVersion")) json.requiredInt("schemaVersion") else 1
+        read.supports(version in 1..2)
+        read.keys(json.getJSONObject("planSummary"), setOf("dataOperationCount", "rootOperationCount", "totalOperationCount",
+            "preflightCanDeploy", "preflightErrorCount", "preflightWarningCount"), setOf("dataEstimatedCopyBytes", "rootEstimatedCopyBytes"))
+        json.nullableObject("resultSummary")?.let { result ->
+            read.keys(result, setOf("addCount", "updateCount", "removeCount", "backupCount", "restoreCount", "protectedConflictCount", "finalRecordCount"))
+        }
+        for (key in listOf("dataTarget", "rootTarget")) json.nullableObject(key)?.let { target ->
+            read.keys(target, setOf("targetType", "gameId", "mode", "target", "identityKey", "manifestFilePath", "backupDirectoryPath"),
+                setOf("baselineFilePath"))
+        }
+        val record = decode(text)
+        read.matches(record.gameId == scope.gameId && record.profileId == scope.profileId)
+        require(record.planSummary.totalOperationCount.toLong() == record.planSummary.dataOperationCount.toLong() + record.planSummary.rootOperationCount)
+        require(!record.planSummary.preflightCanDeploy || record.planSummary.preflightErrorCount == 0)
+        require(record.completedAtEpochMillis == null || record.completedAtEpochMillis >= record.startedAtEpochMillis)
+        require(record.status == DeploymentJournalStatus.COMPLETED || record.resultSummary == null)
+        require(record.status != DeploymentJournalStatus.COMPLETED || record.failureMessage == null)
+        fun checkTarget(recorded: DeploymentJournalTargetState?, expected: LegacyTargetEvidenceScope) {
+            if (recorded == null) return
+            read.ownedPath(scope.metadataDirectory, File(recorded.manifestFilePath))
+            read.ownedPath(scope.metadataDirectory, File(recorded.backupDirectoryPath))
+            recorded.baselineFilePath?.let { read.ownedPath(scope.metadataDirectory, File(it)) }
+            read.matches(recorded.targetType == expected.targetType.name && recorded.gameId == scope.gameId &&
+                recorded.mode == expected.identity.mode && recorded.target == expected.identity.target &&
+                recorded.identityKey == expected.identity.stableKey() && recorded.manifestFilePath == expected.manifestFile.absolutePath &&
+                recorded.backupDirectoryPath == expected.backupDirectory.absolutePath && recorded.baselineFilePath == expected.baselineFile?.absolutePath)
+        }
+        checkTarget(record.dataTarget, scope.data)
+        checkTarget(record.rootTarget, scope.root)
+        DeploymentEvidence(if (record.schemaVersion == 1 || record.dataTarget == null || record.rootTarget == null) DeploymentEvidenceState.INCOMPLETE
+            else DeploymentEvidenceState.VALID, record)
+    }
 
     private fun requireCurrentStarted(record: DeploymentJournalRecord) {
         check(record.status == DeploymentJournalStatus.STARTED && load() == record) {

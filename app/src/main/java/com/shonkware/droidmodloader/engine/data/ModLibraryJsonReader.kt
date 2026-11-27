@@ -12,7 +12,11 @@ import org.json.JSONTokener
 internal object ModLibraryJsonReader {
     private val numberLiteral = Regex("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?")
 
-    fun read(text: String): JSONObject {
+    fun read(text: String): JSONObject = readDocument(text) as JSONObject
+
+    fun readArray(text: String): JSONArray = readDocument(text) as JSONArray
+
+    private fun readDocument(text: String): Any {
         require('\u0000' !in text) { "NUL in record text" }
         // Require JSON control/escape rules independently of the underlying parser's
         // leniency before delegating string decoding to JSONTokener.
@@ -32,7 +36,7 @@ internal object ModLibraryJsonReader {
         }
         require(!quoted && !escaped) { "Unterminated record string" }
         val tokens = JSONTokener(text)
-        val root = readValue(tokens, 0) as JSONObject
+        val root = readValue(tokens, 0)
         require(nextToken(tokens) == '\u0000' && !tokens.more()) { "Trailing record data" }
         return root
     }
