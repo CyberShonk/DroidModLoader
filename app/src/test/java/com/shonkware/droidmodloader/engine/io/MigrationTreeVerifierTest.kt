@@ -112,6 +112,35 @@ class MigrationTreeVerifierTest {
         assertEquals("original", File(root, "file").readText())
     }
 
+    @Test fun `profile remainder omits only exact mapped slots and preserves unknown evidence`() {
+        val root = temporaryFolder.newFolder()
+        write(root, "mods/known/payload", "managed")
+        write(root, "settings", "protected")
+        val expected = verifier.captureProfileRemainder(root, setOf("known"))
+        val destination = File(temporaryFolder.root, "moved")
+        Files.move(File(root, "mods/known").toPath(), destination.toPath())
+        assertEquals(expected, verifier.captureProfileRemainder(root, setOf("known")))
+        write(root, "mods/unknown/payload", "unknown")
+        assertNotEquals(expected, verifier.captureProfileRemainder(root, setOf("known")))
+        assertEquals("protected", File(root, "settings").readText())
+        for (name in listOf("..", "../settings", "x/y", "x\\y", "")) {
+            assertThrows(IllegalArgumentException::class.java) { verifier.captureProfileRemainder(root, setOf(name)) }
+        }
+    }
+
+    @Test fun `journaled sidecar verification permits only its exact expected bytes`() {
+        val root = temporaryFolder.newFolder()
+        write(root, "payload.ini", "original")
+        val expected = verifier.capture(root)
+        val name = com.shonkware.droidmodloader.engine.install.LibraryInstallReplacement.ENTRY_RECORD
+        write(root, name, "expected metadata")
+        assertEquals(expected, verifier.captureWithEntryRecord(root, "expected metadata"))
+        assertThrows(IllegalStateException::class.java) { verifier.captureWithEntryRecord(root, "foreign metadata") }
+        write(root, "$name.unknown.tmp", "unknown")
+        assertNotEquals(expected, verifier.captureWithEntryRecord(root, "expected metadata"))
+        assertEquals("original", File(root, "payload.ini").readText())
+    }
+
     private fun write(root: File, path: String, content: String) = File(root, path).apply {
         parentFile!!.mkdirs()
         writeText(content)

@@ -1,6 +1,8 @@
 package com.shonkware.droidmodloader.engine.io
 
 import com.shonkware.droidmodloader.engine.data.requireCriticalDirectory
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFile
+import com.shonkware.droidmodloader.engine.install.LibraryInstallReplacement
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import java.io.File
 import java.io.IOException
@@ -31,7 +33,33 @@ internal class MigrationTreeVerifier(
     fun capture(
         directory: File,
         cancellationSignal: InstallCancellationSignal = InstallCancellationSignal.NONE
-    ): MigrationTreeDigest {
+    ): MigrationTreeDigest = captureTree(directory, emptySet(), cancellationSignal)
+
+    /** Only exact mapped mods slots are omitted. Every such slot must independently
+     * pass the execution owner's old/new verification. Unknown files remain hashed. */
+    internal fun captureProfileRemainder(directory: File, legacyInstallationNames: Set<String>,
+                                         signal: InstallCancellationSignal = InstallCancellationSignal.NONE): MigrationTreeDigest {
+        require(legacyInstallationNames.size <= maximumEntries)
+        legacyInstallationNames.forEach { name ->
+            require(name.isNotBlank() && name !in setOf(".", "..") && name.none { it == '/' || it == '\\' || it == '\u0000' })
+        }
+        return captureTree(directory, legacyInstallationNames.map { "mods/$it" }.toSet(), signal)
+    }
+
+    /** A single journaled normal entry sidecar is the only allowed payload addition.
+     * Match its exact normal-writer bytes before/after hashing everything else. */
+    internal fun captureWithEntryRecord(directory: File, expectedEntryText: String,
+                                        signal: InstallCancellationSignal = InstallCancellationSignal.NONE): MigrationTreeDigest {
+        signal.throwIfCancellationRequested()
+        val root = requireCriticalDirectory(directory)
+        val metadata = CriticalMetadataFile(File(root, LibraryInstallReplacement.ENTRY_RECORD))
+        check(metadata.read(GameLibraryMigrationPlanRepository.MAX_BYTES) == expectedEntryText) { "Migration entry metadata changed" }
+        val digest = captureTree(root, setOf(LibraryInstallReplacement.ENTRY_RECORD), signal)
+        check(metadata.read(GameLibraryMigrationPlanRepository.MAX_BYTES) == expectedEntryText) { "Migration entry metadata changed during verification" }
+        return digest
+    }
+
+    private fun captureTree(directory: File, omittedPaths: Set<String>, cancellationSignal: InstallCancellationSignal): MigrationTreeDigest {
         cancellationSignal.throwIfCancellationRequested()
         val root = requireCriticalDirectory(directory)
         val digest = MessageDigest.getInstance("SHA-256")
@@ -80,8 +108,10 @@ internal class MigrationTreeVerifier(
                 Files.newDirectoryStream(current.toPath()).use { stream ->
                     for (child in stream) {
                         cancellationSignal.throwIfCancellationRequested()
-                        if (++entryCount > maximumEntries) throw IOException("Migration tree exceeds entry limit")
                         val name = child.fileName.toString()
+                        val relativeChild = if (relativePath.isEmpty()) name else "$relativePath/$name"
+                        if (relativeChild in omittedPaths) continue
+                        if (++entryCount > maximumEntries) throw IOException("Migration tree exceeds entry limit")
                         if (name.length > 4096 || '\u0000' in name) throw IOException("Migration entry name exceeds bounds")
                         val reservation = 256L + 8L * (current.path.length + name.length)
                         if (reservation > maximumWorkspaceBytes - workspaceBytes) {

@@ -26,7 +26,7 @@ import java.nio.file.attribute.BasicFileAttributes
  * Invalid/unknown/partial evidence throws and is left untouched. */
 internal class GameLibraryMigrationInventory(
     private val filesDir: File,
-    private val externalFilesDir: File,
+    internal val externalFilesDir: File,
     private val gameId: String,
     private val verifier: MigrationTreeVerifier = MigrationTreeVerifier()
 ) {
@@ -227,8 +227,23 @@ internal class GameLibraryMigrationInventory(
         if (prepare(signal) != plan) throw IOException("Migration inventory changed; preserve the recorded mapping")
     }
 
-    private fun requireInputsUnchanged(plan: GameLibraryMigrationPlan, signal: InstallCancellationSignal) {
+    /** Resume validates immutable evidence separately from slots changed by the
+     * recorded relocation/publication. The execution owner must verify every omitted
+     * slot, profile remainder and normal candidate; this is not a general ignore list. */
+    internal fun requireUnmovedInputs(plan: GameLibraryMigrationPlan, signal: InstallCancellationSignal) {
+        val changed = mutableSetOf(paths.getGameLibraryCatalogueFile(gameId).absolutePath,
+            File(paths.getGameLibraryCatalogueFile(gameId).parentFile, "mods").absolutePath)
+        plan.profiles.forEach { profile ->
+            changed.add(paths.getLegacyProfileInternalDir(profile.profileId).absolutePath)
+            changed.add(paths.getProfileMembershipFile(gameId, profile.profileId).absolutePath)
+        }
+        plan.installations.forEach { changed.add(File(it.sourcePath, ".dml_mod.json").absolutePath) }
+        requireInputsUnchanged(plan, signal, changed)
+    }
+
+    private fun requireInputsUnchanged(plan: GameLibraryMigrationPlan, signal: InstallCancellationSignal, changedPaths: Set<String> = emptySet()) {
         for (input in plan.inputs) {
+            if (input.path in changedPaths) continue
             signal.throwIfCancellationRequested()
             val file = checked(File(input.path))
             val hash = when (input.kind) {

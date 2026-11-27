@@ -6,6 +6,8 @@ import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredInt
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredLong
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredString
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.io.GameLibraryMigrationAccess
+import com.shonkware.droidmodloader.engine.io.MigrationVerificationAccess
 import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.model.GameModLibrary
 import com.shonkware.droidmodloader.engine.model.InstalledModRecord
@@ -50,23 +52,35 @@ internal class GameModLibraryRepository(
         )
     }
 
-    fun loadLibrary(): GameModLibrary? =
-        readRecord { storagePaths.getGameLibraryCatalogueFile(gameId) }?.let(::decodeLibrary)
+    fun loadLibrary(migrationAccess: MigrationVerificationAccess? = null): GameModLibrary? {
+        GameLibraryMigrationAccess.requireReadAccess(storagePaths, gameId, migrationAccess)
+        return readRecord { storagePaths.getGameLibraryCatalogueFile(gameId) }?.let(::decodeLibrary)
+    }
 
-    fun loadProfile(profileId: String): ProfileModMembership? =
-        readRecord { storagePaths.getProfileMembershipFile(gameId, profileId) }?.let { decodeProfile(profileId, it) }
+    fun loadProfile(profileId: String, migrationAccess: MigrationVerificationAccess? = null): ProfileModMembership? {
+        val migration = GameLibraryMigrationAccess.requireReadAccess(storagePaths, gameId, migrationAccess)
+        if (migration != null) check(migration.plan.profiles.any { it.profileId == profileId }) { "Profile is outside migration verification scope" }
+        return readRecord { storagePaths.getProfileMembershipFile(gameId, profileId) }?.let { decodeProfile(profileId, it) }
+    }
 
-    fun saveLibrary(library: GameModLibrary, expectedRevision: Long?) {
+    fun saveLibrary(library: GameModLibrary, expectedRevision: Long?, migrationAccess: MigrationVerificationAccess? = null) {
+        val migration = GameLibraryMigrationAccess.requirePublicationAccess(storagePaths, gameId, migrationAccess)
         val text = encodeLibrary(library)
         val validated = decodeLibrary(text)
-        checkRevision(loadLibrary()?.revision, expectedRevision, validated.revision)
+        if (migration != null) check(validated == decodeLibrary(migration.plan.candidateCatalogue)) { "Publication differs from the migration candidate" }
+        checkRevision(loadLibrary(migrationAccess)?.revision, expectedRevision, validated.revision)
         recordFile(storagePaths.getGameLibraryCatalogueFile(gameId)).replaceDurably(text, MAX_RECORD_BYTES)
     }
 
-    fun saveProfile(profileId: String, membership: ProfileModMembership, expectedRevision: Long?) {
+    fun saveProfile(profileId: String, membership: ProfileModMembership, expectedRevision: Long?, migrationAccess: MigrationVerificationAccess? = null) {
+        val migration = GameLibraryMigrationAccess.requirePublicationAccess(storagePaths, gameId, migrationAccess)
         val text = encodeProfile(membership)
         val validated = decodeProfile(profileId, text)
-        checkRevision(loadProfile(profileId)?.revision, expectedRevision, validated.revision)
+        if (migration != null) {
+            val candidate = migration.plan.profiles.single { it.profileId == profileId }.candidateMembership
+            check(validated == decodeProfile(profileId, candidate)) { "Publication differs from the migration candidate" }
+        }
+        checkRevision(loadProfile(profileId, migrationAccess)?.revision, expectedRevision, validated.revision)
         recordFile(storagePaths.getProfileMembershipFile(gameId, profileId)).replaceDurably(text, MAX_RECORD_BYTES)
     }
 
@@ -201,6 +215,9 @@ internal class GameModLibraryRepository(
         require(keys == expected) { "Missing record fields" }
     }
 
+    internal fun encodeEntryRecord(entry: GameLibraryEntry): String =
+        encodeLibrary(GameModLibrary(gameId, entry.payloadRevision, listOf(entry)))
+
     internal fun encodeLibrary(library: GameModLibrary): String = JSONObject().apply {
         put("schemaVersion", 1)
         put("gameId", library.gameId)
@@ -216,7 +233,7 @@ internal class GameModLibraryRepository(
         })
     }.toString()
 
-    private fun encodeProfile(membership: ProfileModMembership): String = JSONObject().apply {
+    internal fun encodeProfile(membership: ProfileModMembership): String = JSONObject().apply {
         put("schemaVersion", 1)
         put("gameId", membership.gameId)
         put("profileId", membership.profileId)

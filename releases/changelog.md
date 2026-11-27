@@ -6,6 +6,7 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- refactor: Prepare recoverable moves of existing mods into shared storage, with checks for every profile and restricted cleanup after completion. Existing startup and game folders are unchanged.
 - refactor: Prepare checks and a saved plan for moving existing installations into shared storage, preserving separate variants and profile choices. No files are moved and existing startup behavior is unchanged.
 - refactor: Prepare separate Overwrite storage and verified file indexes for each profile, with its contents taking priority after enabled mods. Existing controls and game folders are unchanged.
 - refactor: Prepare shared mod removal to check affected profiles, recover interrupted changes, and distinguish completed removal from unfinished file cleanup. Existing uninstall controls and deployment behavior are unchanged.

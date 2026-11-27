@@ -12,9 +12,10 @@ class ModFileIndexRepository(
         const val CURRENT_SCHEMA_VERSION = 1
     }
 
-    fun getIndexFile(mod: Mod): File {
-        return File(indexRootDir, "${sanitizeFileName(mod.id)}.json")
-    }
+    fun getIndexFile(mod: Mod): File = getIndexFileForModId(mod.id)
+
+    internal fun getIndexFileForModId(modId: String): File =
+        File(indexRootDir, "${sanitizeFileName(modId)}.json")
 
     fun load(mod: Mod): ModFileIndexSnapshot? {
         val file = getIndexFile(mod)

@@ -7,6 +7,8 @@ import com.shonkware.droidmodloader.engine.index.ModFileIndexEntry
 import com.shonkware.droidmodloader.engine.index.ModFileIndexService
 import com.shonkware.droidmodloader.engine.install.InstallCancellationSignal
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.io.GameLibraryMigrationAccess
+import com.shonkware.droidmodloader.engine.io.MigrationVerificationAccess
 import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.model.IndexedOverwriteFile
 import com.shonkware.droidmodloader.engine.model.OverwriteBatchPhase
@@ -64,8 +66,10 @@ internal class ProfileOverwriteRepository(
 
     /** An absent owner is distinct from saved empty. It is usable as fresh empty only
      * when the managed layout is absent/verified empty; no folder-content discovery. */
-    fun loadVerifiedSource(signal: InstallCancellationSignal = InstallCancellationSignal.NONE): VerifiedProfileOverwrite {
+    fun loadVerifiedSource(signal: InstallCancellationSignal = InstallCancellationSignal.NONE,
+                           migrationAccess: MigrationVerificationAccess? = null): VerifiedProfileOverwrite {
         signal.throwIfCancellationRequested()
+        GameLibraryMigrationAccess.requireReloadAccess(paths, gameId, profileId, migrationAccess)
         val record = loadRecord()
         if (record == null) {
             verifyFreshEmpty(signal)
@@ -87,6 +91,7 @@ internal class ProfileOverwriteRepository(
     fun save(record: ProfileOverwriteRecord, expectedRecordRevision: Long?,
              signal: InstallCancellationSignal = InstallCancellationSignal.NONE) {
         signal.throwIfCancellationRequested()
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         validate(record)
         val current = loadRecord()
         check(current?.recordRevision == expectedRecordRevision && expectedRecordRevision != Long.MAX_VALUE &&

@@ -26,8 +26,13 @@ class ModFileIndexService(
 ) {
 
     companion object {
-        private val sourceLimits = ExtractionLimits(maxEntries = 200_000,
+        internal const val MAX_SOURCE_ENTRIES = 200_000
+        private val sourceLimits = ExtractionLimits(maxEntries = MAX_SOURCE_ENTRIES,
             maxFileBytes = Long.MAX_VALUE, maxTotalBytes = Long.MAX_VALUE)
+
+        internal fun requireMigrationSidecarCapacity(existingEntryCount: Int) {
+            require(existingEntryCount in 0 until MAX_SOURCE_ENTRIES) { "Normal source entry limit leaves no room for migration metadata" }
+        }
 
         /** Explicit-role source paths must not strip another Data/ prefix or fold away
          * path evidence. Legacy index/cache behavior below remains unchanged. */

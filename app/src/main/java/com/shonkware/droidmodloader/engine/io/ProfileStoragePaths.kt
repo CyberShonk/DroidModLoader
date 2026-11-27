@@ -33,6 +33,8 @@ internal class ProfileStoragePaths(
         return File(externalBaseDir, "state/profiles/${getActiveProfileStorageKey()}")
     }
 
+    fun getManagedInternalDirectory(): File = checkedLibraryPath("")
+
     // Migration inventory only; callers must reject collisions between legacy keys.
     fun getLegacyProfileInternalDir(profileId: String): File =
         checkedLibraryPath("profiles/${sanitizeStorageName(profileId)}")
@@ -50,6 +52,9 @@ internal class ProfileStoragePaths(
 
     fun getGameLibraryMigrationFile(gameId: String): File =
         checkedLibraryPath("game_libraries/${distinctStorageKey(gameId)}/migration.json")
+
+    fun getGameLibraryMigrationGuardDirectory(gameId: String): File =
+        checkedLibraryPath("game_libraries/${distinctStorageKey(gameId)}/migration_required")
 
     fun getProfileMembershipFile(gameId: String, profileId: String): File =
         checkedLibraryPath("profile_memberships/${distinctStorageKey(profileId)}/${distinctStorageKey(gameId)}.json")

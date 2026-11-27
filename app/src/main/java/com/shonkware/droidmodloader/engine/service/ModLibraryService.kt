@@ -25,6 +25,8 @@ import com.shonkware.droidmodloader.engine.install.PreparedArchiveInstaller
 import com.shonkware.droidmodloader.engine.install.SharedLibraryInstall
 import com.shonkware.droidmodloader.engine.install.SharedLibraryUninstall
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.io.GameLibraryMigrationAccess
+import com.shonkware.droidmodloader.engine.io.MigrationVerificationAccess
 import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.model.DeployScope
 import com.shonkware.droidmodloader.engine.model.FileRecord
@@ -96,16 +98,18 @@ internal class ModLibraryService(
         gameId: String,
         profileId: String,
         contextStillCurrent: () -> Boolean,
-        signal: InstallCancellationSignal = InstallCancellationSignal.NONE
+        signal: InstallCancellationSignal = InstallCancellationSignal.NONE,
+        migrationAccess: MigrationVerificationAccess? = null
     ): EffectiveProfileContent {
         check(contextStillCurrent()) { "Source context changed" }
         signal.throwIfCancellationRequested()
+        GameLibraryMigrationAccess.requireReloadAccess(storagePaths, gameId, profileId, migrationAccess)
         val repository = GameModLibraryRepository(storagePaths, gameId)
         val publication = LibraryInstallReplacement(storagePaths, gameId)
-        val library = checkNotNull(publication.loadPublishedLibrary()) { "Shared library record is missing" }
-        val membership = checkNotNull(repository.loadProfile(profileId)) { "Profile mod choices are missing" }
+        val library = checkNotNull(publication.loadPublishedLibrary(migrationAccess)) { "Shared library record is missing" }
+        val membership = checkNotNull(repository.loadProfile(profileId, migrationAccess)) { "Profile mod choices are missing" }
         val overwriteRepository = ProfileOverwriteRepository(storagePaths, gameId, profileId)
-        val overwrite = overwriteRepository.loadVerifiedSource(signal)
+        val overwrite = overwriteRepository.loadVerifiedSource(signal, migrationAccess)
         val files = mutableListOf<EffectiveFileProvider>()
         repository.joinProfileRecords(profileId, library, membership).filter { it.choice.enabled }.forEach { reference ->
             val entry = checkNotNull(reference.libraryEntry) { "An enabled installation is missing; effective sources are unavailable" }
@@ -132,7 +136,7 @@ internal class ModLibraryService(
                 modContentIndexer.classifySourceFile(entry.originalPath, entry.normalizedPath, indexed.role), indexed.sourceFilePath))
         }
         check(contextStillCurrent()) { "Source context changed while indexing" }
-        check(publication.loadPublishedLibrary() == library && repository.loadProfile(profileId) == membership &&
+        check(publication.loadPublishedLibrary(migrationAccess) == library && repository.loadProfile(profileId, migrationAccess) == membership &&
             overwriteRepository.loadRecord() == overwrite.record) { "Source revisions changed while indexing" }
         signal.throwIfCancellationRequested()
         return ResolvedDataGraphBuilder().buildEffectiveSources(gameId, profileId, library.revision, membership.revision,

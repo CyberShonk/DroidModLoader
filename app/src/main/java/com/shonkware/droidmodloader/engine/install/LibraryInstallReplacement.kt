@@ -10,6 +10,8 @@ import com.shonkware.droidmodloader.engine.data.requireCriticalDirectory
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredInt
 import com.shonkware.droidmodloader.engine.data.CriticalMetadataJson.requiredString
 import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.io.GameLibraryMigrationAccess
+import com.shonkware.droidmodloader.engine.io.MigrationVerificationAccess
 import com.shonkware.droidmodloader.engine.model.GameLibraryEntry
 import com.shonkware.droidmodloader.engine.model.GameModLibrary
 import org.json.JSONObject
@@ -64,6 +66,7 @@ internal class LibraryInstallReplacement(
     /** The caller explicitly prepares/persists the game and mods parents. Exclusive
      * creation prevents a duplicate request from overwriting another operation. */
     fun begin(): File {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         val directory = transactionDirectory
         val parent = requireCriticalDirectory(directory.parentFile!!)
         metadataOperations.syncDirectory(parent)
@@ -76,6 +79,7 @@ internal class LibraryInstallReplacement(
     /** Only the same live owner may abandon work before publication was attempted.
      * A missing intent after restart is not permission to delete unexplained files. */
     fun discardUnpublishedStage() {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         check(ownsUnpublishedDirectory) { "Unpublished staging ownership is unavailable" }
         val directory = requireCriticalDirectory(transactionDirectory)
         val children = Files.newDirectoryStream(directory.toPath()).use { it.map { path -> path.toFile() }.toList() }
@@ -98,6 +102,7 @@ internal class LibraryInstallReplacement(
         entry: GameLibraryEntry,
         signal: InstallCancellationSignal
     ) {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         ownsUnpublishedDirectory = false
         require(operationId.isNotBlank() && operationId.length <= 96)
         val oldText = CriticalMetadataFile(catalogueFile, metadataOperations).read(MAX_BYTES)
@@ -148,6 +153,7 @@ internal class LibraryInstallReplacement(
         signal: InstallCancellationSignal,
         validateBeforeCommit: () -> Unit = {}
     ) {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         ownsUnpublishedDirectory = false
         require(operationId.isNotBlank() && operationId.length <= 96)
         val oldText = CriticalMetadataFile(catalogueFile, metadataOperations).read(MAX_BYTES)
@@ -178,6 +184,7 @@ internal class LibraryInstallReplacement(
     /** Explicitly retire verified terminal private evidence. Failure blocks the next
      * mutation; it never rolls back a committed catalogue or changes a profile. */
     fun finish(expectedOperation: Operation? = null) {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         val intent = loadIntent()
         check(expectedOperation == null || intent.operation == expectedOperation) { "A different library operation needs recovery" }
         check(intent.phase == "COMMITTED" || intent.phase == "ROLLED_BACK") { "Recover the library operation first" }
@@ -213,7 +220,9 @@ internal class LibraryInstallReplacement(
     }
 
     /** Strict publication gate. Catalogue presence alone is never availability. */
-    fun loadPublishedLibrary(): GameModLibrary? {
+    fun loadPublishedLibrary(migrationAccess: MigrationVerificationAccess? = null): GameModLibrary? {
+        GameLibraryMigrationAccess.requireReadAccess(paths, gameId, migrationAccess)
+        if (migrationAccess != null) check(!present(transactionDirectory)) { "Install recovery conflicts with migration verification" }
         if (present(transactionDirectory)) {
             val intent = loadIntent()
             check(intent.phase == "COMMITTED") { "A library operation needs recovery before the library can be read" }
@@ -222,7 +231,7 @@ internal class LibraryInstallReplacement(
             verifyPublished(intent, library)
             return library
         }
-        return repository.loadLibrary()?.also { library ->
+        return repository.loadLibrary(migrationAccess)?.also { library ->
             library.entries.forEach { verifyEntry(paths.getGameLibraryEntryDir(gameId, it.installationId), it) }
         }
     }
@@ -231,6 +240,7 @@ internal class LibraryInstallReplacement(
      * during uncertain rollback. Repeated recovery is idempotent. After commit preserve
      * the recorded install/removal outcome; never replay profile membership. */
     fun recover(expectedOperation: Operation? = null): Boolean {
+        GameLibraryMigrationAccess.requireOrdinaryAccess(paths, gameId)
         if (!present(transactionDirectory)) return false
         val intent = loadIntent() // Missing/corrupt/unknown evidence is blocked, not adopted.
         check(expectedOperation == null || intent.operation == expectedOperation) { "A different library operation needs recovery" }
@@ -351,7 +361,7 @@ internal class LibraryInstallReplacement(
         }
     }
 
-    private fun entryText(entry: GameLibraryEntry) = repository.encodeLibrary(GameModLibrary(gameId, entry.payloadRevision, listOf(entry)))
+    private fun entryText(entry: GameLibraryEntry) = repository.encodeEntryRecord(entry)
 
     private fun readSnapshot(name: String, hash: String): GameModLibrary {
         val text = record(name).read(MAX_BYTES) ?: error("Installation catalogue evidence is missing")
