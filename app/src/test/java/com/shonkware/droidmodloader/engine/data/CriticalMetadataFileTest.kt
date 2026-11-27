@@ -46,6 +46,14 @@ class CriticalMetadataFileTest {
         assertNull(CriticalMetadataFile(File(temporaryFolder.root, "missing")).read(8))
     }
 
+    @Test fun `small and empty metadata do not allocate their entire read ceiling`() {
+        val file = temporaryFolder.newFile("small.json").apply { writeText("tiny") }
+        assertEquals("tiny", CriticalMetadataFile(file).read(Int.MAX_VALUE - 1))
+        file.writeText("")
+        assertEquals("", CriticalMetadataFile(file).read(Int.MAX_VALUE - 1))
+        assertEquals("", file.readText())
+    }
+
     @Test fun `bounded reads refuse symbolic links and malformed UTF8`() {
         val target = temporaryFolder.newFile("target.json").apply { writeText("valid") }
         val link = File(temporaryFolder.root, "link.json")

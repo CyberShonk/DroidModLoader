@@ -110,6 +110,15 @@ class DeploymentManifestRepository(
         read.read(manifestFile, metadataDirectory) { text ->
             read.matches(manifestFile == target.manifestFile)
             read.ownedPath(metadataDirectory, target.backupDirectory)
+            decodeStagedEvidence(read, text, listOf(target.backupDirectory))
+        }
+
+    /** Shared strict decoding; allowed roots come from captured managed storage, never record text. */
+    internal fun decodeStagedEvidence(
+        read: DeploymentEvidenceRead,
+        text: String,
+        allowedBackupDirectories: List<File>
+    ): DeploymentEvidence<List<DeploymentRecord>> {
             val array = read.array(text)
             read.rows(array, DeploymentEvidenceRead.MAX_MANIFEST_ROWS)
             val checkPath = read.paths()
@@ -134,8 +143,11 @@ class DeploymentManifestRepository(
                     if (hadOriginal == true && backup == null) complete = false
                     if (backup != null) {
                         val location = File(backup)
-                        read.ownedPath(target.backupDirectory, location)
-                        require(location == File(target.backupDirectory, path)) { "Foreign backup locator" }
+                        val owner = checkNotNull(allowedBackupDirectories.singleOrNull { location.toPath().startsWith(it.toPath()) }) {
+                            "Backup is outside captured managed roots"
+                        }
+                        read.ownedPath(owner, location)
+                        require(location == File(owner, path)) { "Foreign backup locator" }
                     }
                 }
             }
@@ -144,8 +156,8 @@ class DeploymentManifestRepository(
                 array.length() == 0 -> DeploymentEvidenceState.VALID_EMPTY
                 else -> DeploymentEvidenceState.VALID
             }
-            DeploymentEvidence(state, parse(text))
-        }
+            return DeploymentEvidence(state, parse(text))
+    }
 
     fun clear() {
         if (manifestFile.exists()) {

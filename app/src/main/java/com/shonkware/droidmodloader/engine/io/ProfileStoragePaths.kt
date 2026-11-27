@@ -1,6 +1,9 @@
 package com.shonkware.droidmodloader.engine.io
 
 import com.shonkware.droidmodloader.engine.model.DeployScope
+import com.shonkware.droidmodloader.engine.deploy.journal.TargetJournalCodec
+import com.shonkware.droidmodloader.engine.deploy.journal.TargetMetadataKind
+import com.shonkware.droidmodloader.engine.deploy.journal.TargetStorageMode
 import java.io.File
 import java.io.IOException
 import java.nio.CharBuffer
@@ -34,6 +37,34 @@ internal class ProfileStoragePaths(
     }
 
     fun getManagedInternalDirectory(): File = checkedLibraryPath("")
+
+    // Destination lookup keys deliberately exclude profile, game and role. Full identity
+    // is checked by the target journal owner; these paths never inspect game payloads.
+    fun getDeploymentTargetDirectory(mode: TargetStorageMode, canonicalRootPath: String): File =
+        checkedLibraryPath("deployment_targets/${mode.directoryName}/destinations/${targetDirectoryKey(canonicalRootPath)}")
+
+    fun getDeploymentTargetJournalFile(mode: TargetStorageMode, canonicalRootPath: String): File =
+        checkedLibraryPath("${targetRelativeDirectory(mode, canonicalRootPath)}/journal.json")
+
+    fun getDeploymentRoleBindingFile(mode: TargetStorageMode, canonicalDirectoryPath: String): File =
+        checkedLibraryPath("deployment_targets/${mode.directoryName}/bindings/${targetDirectoryKey(canonicalDirectoryPath)}.json")
+
+    fun getDeploymentGenerationsDirectory(mode: TargetStorageMode, canonicalRootPath: String): File =
+        checkedLibraryPath("${targetRelativeDirectory(mode, canonicalRootPath)}/generations")
+
+    fun getDeploymentGenerationDirectory(mode: TargetStorageMode, canonicalRootPath: String, generationId: String): File =
+        checkedLibraryPath("${targetRelativeDirectory(mode, canonicalRootPath)}/generations/${distinctStorageKey(generationId)}")
+
+    fun getDeploymentGenerationFile(mode: TargetStorageMode, canonicalRootPath: String, generationId: String, kind: TargetMetadataKind): File =
+        checkedLibraryPath("${targetRelativeDirectory(mode, canonicalRootPath)}/generations/${distinctStorageKey(generationId)}/${kind.fileName}")
+
+    private fun targetRelativeDirectory(mode: TargetStorageMode, canonicalRootPath: String): String =
+        getDeploymentTargetDirectory(mode, canonicalRootPath).relativeTo(getManagedInternalDirectory()).invariantSeparatorsPath
+
+    private fun targetDirectoryKey(canonicalPath: String): String {
+        TargetJournalCodec.canonicalPathText(canonicalPath)
+        return TargetJournalCodec.hash(TargetJournalCodec.bytes(canonicalPath))
+    }
 
     // Migration inventory only; callers must reject collisions between legacy keys.
     fun getLegacyProfileInternalDir(profileId: String): File =

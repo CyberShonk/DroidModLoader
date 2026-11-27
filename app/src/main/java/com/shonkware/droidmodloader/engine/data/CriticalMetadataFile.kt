@@ -140,14 +140,19 @@ internal object SystemCriticalMetadataFileOperations : CriticalMetadataFileOpera
         if (!attributes.isRegularFile) throw IOException("Metadata is not a regular file: ${file.name}")
         if (attributes.size() > maxBytes) throw IOException("Metadata exceeds byte limit")
         return Files.newInputStream(file.toPath(), LinkOption.NOFOLLOW_LINKS).use { input ->
-            val buffer = ByteArray(maxBytes + 1)
+            // Start at the observed length, not the limit: ordinary small journals
+            // must not allocate their entire multi-megabyte ceiling on every lookup.
+            var buffer = ByteArray(minOf(maxBytes.toLong() + 1, attributes.size() + 1).toInt())
             var count = 0
-            while (count < buffer.size) {
+            while (true) {
+                if (count > maxBytes) throw IOException("Metadata exceeds byte limit")
+                if (count == buffer.size) {
+                    buffer = buffer.copyOf(minOf(maxBytes.toLong() + 1, buffer.size.toLong() * 2).toInt())
+                }
                 val read = input.read(buffer, count, buffer.size - count)
                 if (read < 0) break
                 count += read
             }
-            if (count > maxBytes) throw IOException("Metadata exceeds byte limit")
             buffer.copyOf(count)
         }
     }

@@ -14,6 +14,10 @@ import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceRead
 import com.shonkware.droidmodloader.engine.deploy.DeploymentEvidenceState
 import com.shonkware.droidmodloader.engine.deploy.LegacyProfileEvidenceScope
 import com.shonkware.droidmodloader.engine.deploy.LegacyTargetEvidenceScope
+import com.shonkware.droidmodloader.engine.data.CriticalMetadataFileOperations
+import com.shonkware.droidmodloader.engine.data.SystemCriticalMetadataFileOperations
+import com.shonkware.droidmodloader.engine.io.ProfileStoragePaths
+import com.shonkware.droidmodloader.engine.storage.AndroidStorageCapacityProbe
 import org.json.JSONObject
 import java.io.File
 
@@ -22,6 +26,20 @@ class DeploymentJournalRepository internal constructor(
     private val evidenceLocation: File? = null
 ) {
     constructor(journalFile: File) : this(CriticalMetadataFile(journalFile), journalFile)
+
+    /** Staged destination owner. Legacy load/save APIs remain v1/v2 and are not switched. */
+    internal fun stagedTargetStorage(
+        paths: ProfileStoragePaths,
+        destination: TargetDestinationIdentity,
+        operations: CriticalMetadataFileOperations = SystemCriticalMetadataFileOperations,
+        availableBytes: (File) -> Long? = AndroidStorageCapacityProbe::availableBytes,
+        backupScope: TargetBackupScope? = null
+    ): TargetJournalStorage {
+        check(evidenceLocation == paths.getDeploymentTargetJournalFile(destination.mode, destination.rootDirectory)) {
+            "Repository is not the captured destination journal"
+        }
+        return TargetJournalStorage(paths, destination, operations, availableBytes, backupScope)
+    }
 
     fun saveStarted(record: DeploymentJournalRecord) {
         check(record.status == DeploymentJournalStatus.STARTED) { "Expected STARTED journal" }

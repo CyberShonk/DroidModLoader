@@ -6,6 +6,8 @@ This file records release changes visible to users and known limitations.
 
 ### Added
 
+- refactor: Prepare shared deployment records for each game folder and guarded metadata saves. Existing deployment controls and game files are unchanged.
+
 - refactor: Prepare checks that inspect existing deployment records without changing files, distinguishing missing or damaged evidence and unsafe backup locations. Active deployment behavior is unchanged.
 
 - refactor: Prepare recoverable moves of existing mods into shared storage, with checks for every profile and restricted cleanup after completion. Existing startup and game folders are unchanged.
